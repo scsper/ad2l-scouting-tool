@@ -1,0 +1,222 @@
+const match = {
+    "id": 8407458001,
+          "didRadiantWin": true,
+          "durationSeconds": 2527,
+          "radiantTeam": {
+            "id": 8961963,
+            "name": "Nameless"
+          },
+          "direTeam": {
+            "id": 1938666,
+            "name": "Island in the Sun"
+          },
+          "players": [
+            {
+              "heroId": 8,
+              "steamAccountId": 1023223200,
+              "isRadiant": true,
+              "position": "POSITION_1"
+            },
+            {
+              "heroId": 47,
+              "steamAccountId": 81237688,
+              "isRadiant": true,
+              "position": "POSITION_2"
+            },
+            {
+              "heroId": 69,
+              "steamAccountId": 30320927,
+              "isRadiant": true,
+              "position": "POSITION_3"
+            },
+            {
+              "heroId": 53,
+              "steamAccountId": 255985156,
+              "isRadiant": true,
+              "position": "POSITION_4"
+            },
+            {
+              "heroId": 128,
+              "steamAccountId": 341676433,
+              "isRadiant": true,
+              "position": "POSITION_5"
+            },
+            {
+              "heroId": 109,
+              "steamAccountId": 310860449,
+              "isRadiant": false,
+              "position": "POSITION_1"
+            },
+            {
+              "heroId": 28,
+              "steamAccountId": 102961378,
+              "isRadiant": false,
+              "position": "POSITION_3"
+            },
+            {
+              "heroId": 110,
+              "steamAccountId": 89517926,
+              "isRadiant": false,
+              "position": "POSITION_4"
+            },
+            {
+              "heroId": 85,
+              "steamAccountId": 97312823,
+              "isRadiant": false,
+              "position": "POSITION_5"
+            },
+            {
+              "heroId": 137,
+              "steamAccountId": 50397057,
+              "isRadiant": false,
+              "position": "POSITION_2"
+            }
+          ],
+          "pickBans": [
+            {
+              "isPick": false,
+              "heroId": 40,
+              "order": 0,
+              "isRadiant": true
+            },
+            {
+              "isPick": false,
+              "heroId": 102,
+              "order": 1,
+              "isRadiant": false
+            },
+            {
+              "isPick": false,
+              "heroId": 27,
+              "order": 2,
+              "isRadiant": false
+            },
+            {
+              "isPick": false,
+              "heroId": 75,
+              "order": 3,
+              "isRadiant": true
+            },
+            {
+              "isPick": false,
+              "heroId": 20,
+              "order": 4,
+              "isRadiant": false
+            },
+            {
+              "isPick": false,
+              "heroId": 76,
+              "order": 5,
+              "isRadiant": false
+            },
+            {
+              "isPick": false,
+              "heroId": 2,
+              "order": 6,
+              "isRadiant": true
+            },
+            {
+              "isPick": true,
+              "heroId": 53,
+              "order": 7,
+              "isRadiant": true
+            },
+            {
+              "isPick": true,
+              "heroId": 85,
+              "order": 8,
+              "isRadiant": false
+            },
+            {
+              "isPick": false,
+              "heroId": 11,
+              "order": 9,
+              "isRadiant": true
+            },
+            {
+              "isPick": false,
+              "heroId": 25,
+              "order": 10,
+              "isRadiant": true
+            },
+            {
+              "isPick": false,
+              "heroId": 6,
+              "order": 11,
+              "isRadiant": false
+            },
+            {
+              "isPick": true,
+              "heroId": 110,
+              "order": 12,
+              "isRadiant": false
+            },
+            {
+              "isPick": true,
+              "heroId": 128,
+              "order": 13,
+              "isRadiant": true
+            },
+            {
+              "isPick": true,
+              "heroId": 69,
+              "order": 14,
+              "isRadiant": true
+            },
+            {
+              "isPick": true,
+              "heroId": 28,
+              "order": 15,
+              "isRadiant": false
+            },
+            {
+              "isPick": true,
+              "heroId": 137,
+              "order": 16,
+              "isRadiant": false
+            },
+            {
+              "isPick": true,
+              "heroId": 47,
+              "order": 17,
+              "isRadiant": true
+            },
+            {
+              "isPick": false,
+              "heroId": 94,
+              "order": 18,
+              "isRadiant": true
+            },
+            {
+              "isPick": false,
+              "heroId": 36,
+              "order": 19,
+              "isRadiant": false
+            },
+            {
+              "isPick": false,
+              "heroId": 70,
+              "order": 20,
+              "isRadiant": false
+            },
+            {
+              "isPick": false,
+              "heroId": 81,
+              "order": 21,
+              "isRadiant": true
+            },
+            {
+              "isPick": true,
+              "heroId": 8,
+              "order": 22,
+              "isRadiant": true
+            },
+            {
+              "isPick": true,
+              "heroId": 109,
+              "order": 23,
+              "isRadiant": false
+            }
+          ]
+        },
+      }

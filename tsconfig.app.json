@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
+    "allowJs": true,
     "jsx": "react-jsx",
     "resolveJsonModule": true,
 
@@ -24,5 +25,5 @@
     "noUncheckedSideEffectImports": true,
     "types": ["vitest/globals"]
   },
-  "include": ["src"]
+  "include": ["src", "api"]
 }
