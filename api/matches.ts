@@ -26,7 +26,10 @@ query ($leagueId: Int!, $teamId: Int!) {
       }
       players {
         heroId
-        steamAccountId
+        steamAccount {
+          id
+          name
+        }
         isRadiant
         position
       }

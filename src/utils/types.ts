@@ -12,26 +12,32 @@ export type Team = {
   name: string
 }
 
-export type Player = {
+export type PlayerApiResponse = {
   heroId: number
-  steamAccountId: number
+  steamAccount: SteamAccount
   isRadiant: boolean
   position: Position
 }
 
-export type PickBan = {
+export type SteamAccount = {
+  id: number
+  name: string
+}
+
+
+export type PickBanApiResponse = {
   isPick: boolean
   heroId: number
   order: number
   isRadiant: boolean
 }
 
-export type Match = {
+export type MatchApiResponse = {
   id: number
   didRadiantWin: boolean
   durationSeconds: number
   radiantTeam: Team
   direTeam: Team
-  players: Player[]
-  pickBans: PickBan[]
+  players: PlayerApiResponse[]
+  pickBans: PickBanApiResponse[] | null
 }
