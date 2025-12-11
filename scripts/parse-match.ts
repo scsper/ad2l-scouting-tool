@@ -1,5 +1,11 @@
+import { createClient } from "@supabase/supabase-js";
+
 const API_URL = "https://api.stratz.com/graphql";
 const STRATZ_API_KEY = process.env.STRATZ_API_TOKEN ?? "";
+const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_KEY = process.env.SUPABASE_KEY ?? "";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const QUERY = `query GetMatch($matchId: Long!) {
 	match(id: $matchId) {
@@ -34,6 +40,7 @@ const QUERY = `query GetMatch($matchId: Long!) {
       isVictory
       isRadiant
       lane
+      position
       kills
       deaths
       assists
@@ -70,6 +77,7 @@ type Player = {
   isVictory: boolean;
   isRadiant: boolean;
   lane: string | null;
+  position: string | null;
   kills: number;
   deaths: number;
   assists: number;
@@ -100,6 +108,29 @@ type MatchResponse = {
   data: {
     match: Match;
   };
+}
+
+type MatchPlayerRow = {
+  player_id: number;
+  match_id: number;
+  league_id: number;
+  winning_team_id: number | null;
+  radiant_team_id: number | null;
+  dire_team_id: number | null;
+  player_name: string | null;
+  hero_id: number;
+  position: string | null;
+  lane_outcome: string | null;
+  lane: string | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  last_hits: number;
+  denies: number;
+  gpm: number;
+  xpm: number;
+  hero_damage: number;
+  tower_damage: number;
 }
 
 function getVariablesForGetMatch(matchId: number) {
@@ -149,6 +180,62 @@ function getMatchIdFromCommandLine(): number {
 }
 
 export function convertMatchDataToDbSchema(matchData: Match) {
+  // TODO: Implement conversion logic
+  return matchData;
+}
+
+function getLaneOutcome(match: Match, player: Player): string | null {
+  if (!player.lane) return null;
+
+  const lane = player.lane.toLowerCase();
+
+  // Map lane to outcome based on whether player is radiant or dire
+  return lane
+}
+
+export async function convertMatchDataToMatchPlayersTable(matchData: Match): Promise<MatchPlayerRow[]> {
+  const winningTeamId = matchData.didRadiantWin
+    ? matchData.radiantTeam?.id ?? null
+    : matchData.direTeam?.id ?? null;
+
+  const matchPlayerRows: MatchPlayerRow[] = matchData.players.map((player) => ({
+    player_id: player.steamAccount?.id ?? 0,
+    match_id: matchData.id,
+    league_id: matchData.leagueId,
+    winning_team_id: winningTeamId,
+    radiant_team_id: matchData.radiantTeam?.id ?? null,
+    dire_team_id: matchData.direTeam?.id ?? null,
+    player_name: player.steamAccount?.name ?? null,
+    hero_id: player.heroId,
+    position: player.position,
+    lane_outcome: getLaneOutcome(matchData, player),
+    lane: player.lane,
+    kills: player.kills,
+    deaths: player.deaths,
+    assists: player.assists,
+    last_hits: player.numLastHits,
+    denies: player.numDenies,
+    gpm: player.goldPerMinute,
+    xpm: player.experiencePerMinute,
+    hero_damage: player.heroDamage,
+    tower_damage: player.towerDamage,
+  }));
+
+  const { data, error } = await supabase
+    .from('match_players')
+    .insert(matchPlayerRows)
+    .select();
+
+  if (error) {
+    console.error("Error inserting match players:", error);
+    throw error;
+  }
+
+  console.log(`Successfully inserted ${String(matchPlayerRows.length)} players for match ${String(matchData.id)}`);
+  return data as MatchPlayerRow[];
+}
+
+export function convertMatchDataToMatchBansTable(matchData: Match) {
   // TODO: Implement conversion logic
   return matchData;
 }
