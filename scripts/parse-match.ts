@@ -2,10 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const API_URL = "https://api.stratz.com/graphql";
 const STRATZ_API_KEY = process.env.STRATZ_API_TOKEN ?? "";
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
-const SUPABASE_KEY = process.env.SUPABASE_KEY ?? "";
+// const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+// const SUPABASE_KEY = process.env.SUPABASE_KEY ?? "";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const QUERY = `query GetMatch($matchId: Long!) {
 	match(id: $matchId) {
@@ -190,7 +190,31 @@ function getLaneOutcome(match: Match, player: Player): string | null {
   const lane = player.lane.toLowerCase();
 
   // Map lane to outcome based on whether player is radiant or dire
-  return lane
+  // In Dota 2 map layout:
+  // - Top lane: Radiant off lane / Dire safe lane
+  // - Mid lane: Mid for both teams
+  // - Bottom lane: Radiant safe lane / Dire off lane
+  if (lane.includes('mid')) {
+    return match.midLaneOutcome;
+  }
+
+  if (player.isRadiant) {
+    if (lane.includes('safe')) {
+      return match.bottomLaneOutcome;
+    } else if (lane.includes('off')) {
+      return match.topLaneOutcome;
+    }
+  } else {
+    // Dire team
+    if (lane.includes('safe')) {
+      return match.topLaneOutcome;
+    } else if (lane.includes('off')) {
+      return match.bottomLaneOutcome;
+    }
+  }
+
+  // For jungle/roaming positions, no specific lane outcome
+  return null;
 }
 
 export async function convertMatchDataToMatchPlayersTable(matchData: Match): Promise<MatchPlayerRow[]> {
@@ -221,19 +245,24 @@ export async function convertMatchDataToMatchPlayersTable(matchData: Match): Pro
     tower_damage: player.towerDamage,
   }));
 
-  const { data, error } = await supabase
-    .from('match_players')
-    .insert(matchPlayerRows)
-    .select();
+  console.log(JSON.stringify(matchPlayerRows, null, 2));
+  return Promise.resolve(matchPlayerRows);
 
-  if (error) {
-    console.error("Error inserting match players:", error);
-    throw error;
-  }
+  // const { data, error } = await supabase
+  //   .from('match_players')
+  //   .insert(matchPlayerRows)
+  //   .select();
 
-  console.log(`Successfully inserted ${String(matchPlayerRows.length)} players for match ${String(matchData.id)}`);
-  return data as MatchPlayerRow[];
+  // if (error) {
+  //   console.error("Error inserting match players:", error);
+  //   throw error;
+  // }
+
+  // console.log(`Successfully inserted ${String(matchPlayerRows.length)} players for match ${String(matchData.id)}`);
+  // return data as MatchPlayerRow[];
 }
+
+
 
 export function convertMatchDataToMatchBansTable(matchData: Match) {
   // TODO: Implement conversion logic
@@ -243,6 +272,7 @@ export function convertMatchDataToMatchBansTable(matchData: Match) {
 // Main execution
 const matchId = getMatchIdFromCommandLine();
 const matchData = await getMatch(matchId);
-console.log(JSON.stringify(matchData, null, 2));
+convertMatchDataToMatchPlayersTable(matchData?.data.match ?? {} as Match).catch(console.error);
+// console.log(JSON.stringify(matchData, null, 2));
 
 
