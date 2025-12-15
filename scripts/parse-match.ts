@@ -2,10 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const API_URL = "https://api.stratz.com/graphql";
 const STRATZ_API_KEY = process.env.STRATZ_API_TOKEN ?? "";
-// const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
-// const SUPABASE_KEY = process.env.SUPABASE_KEY ?? "";
+const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
+const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
 
-// const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
 const QUERY = `query GetMatch($matchId: Long!) {
 	match(id: $matchId) {
@@ -133,6 +133,18 @@ type MatchPlayerRow = {
   tower_damage: number;
 }
 
+type MatchDraftRow = {
+  match_id: number;
+  league_id: number;
+  winning_team_id: number | null;
+  radiant_team_id: number | null;
+  dire_team_id: number | null;
+  order: number;
+  hero_id: number;
+  team_id: number | null;
+  is_pick: boolean;
+}
+
 function getVariablesForGetMatch(matchId: number) {
   return {
     "matchId": matchId
@@ -245,34 +257,58 @@ export async function convertMatchDataToMatchPlayersTable(matchData: Match): Pro
     tower_damage: player.towerDamage,
   }));
 
-  console.log(JSON.stringify(matchPlayerRows, null, 2));
-  return Promise.resolve(matchPlayerRows);
+  const { data, error } = await supabase
+    .from('match_player')
+    .insert(matchPlayerRows)
+    .select();
 
-  // const { data, error } = await supabase
-  //   .from('match_players')
-  //   .insert(matchPlayerRows)
-  //   .select();
+  if (error) {
+    console.error("Error inserting match player:", error);
+    throw error;
+  }
 
-  // if (error) {
-  //   console.error("Error inserting match players:", error);
-  //   throw error;
-  // }
-
-  // console.log(`Successfully inserted ${String(matchPlayerRows.length)} players for match ${String(matchData.id)}`);
-  // return data as MatchPlayerRow[];
+  console.log(`Successfully inserted ${String(matchPlayerRows.length)} players for match ${String(matchData.id)}`);
+  return data as MatchPlayerRow[];
 }
 
+export async function convertMatchDataToMatchDraftTable(matchData: Match): Promise<MatchDraftRow[]> {
+  const winningTeamId = matchData.didRadiantWin
+    ? matchData.radiantTeam?.id ?? null
+    : matchData.direTeam?.id ?? null;
 
+  const matchDraftRows: MatchDraftRow[] = matchData.pickBans.map((pickBan) => ({
+    match_id: matchData.id,
+    league_id: matchData.leagueId,
+    winning_team_id: winningTeamId,
+    radiant_team_id: matchData.radiantTeam?.id ?? null,
+    dire_team_id: matchData.direTeam?.id ?? null,
+    order: pickBan.order,
+    hero_id: pickBan.heroId,
+    team_id: pickBan.isRadiant
+      ? matchData.radiantTeam?.id ?? null
+      : matchData.direTeam?.id ?? null,
+    is_pick: pickBan.isPick,
+  }));
 
-export function convertMatchDataToMatchBansTable(matchData: Match) {
-  // TODO: Implement conversion logic
-  return matchData;
+  const { data, error } = await supabase
+    .from('match_draft')
+    .insert(matchDraftRows)
+    .select();
+
+  if (error) {
+    console.error("Error inserting match draft:", error);
+    throw error;
+  }
+
+  console.log(`Successfully inserted ${String(matchDraftRows.length)} picks/bans for match ${String(matchData.id)}`);
+  return data as MatchDraftRow[];
 }
 
 // Main execution
 const matchId = getMatchIdFromCommandLine();
 const matchData = await getMatch(matchId);
 convertMatchDataToMatchPlayersTable(matchData?.data.match ?? {} as Match).catch(console.error);
+convertMatchDataToMatchDraftTable(matchData?.data.match ?? {} as Match).catch(console.error);
 // console.log(JSON.stringify(matchData, null, 2));
 
 
