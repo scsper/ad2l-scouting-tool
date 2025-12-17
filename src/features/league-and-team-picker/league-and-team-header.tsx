@@ -6,10 +6,9 @@ type LeagueAndTeamHeaderProps = {
   setLeagueId: (leagueId: number) => void;
   teamId: number | undefined;
   setTeamId: (teamId: number) => void;
-  loadMatches: ({leagueId, teamId}: {leagueId: number; teamId: number}) => void;
 }
 
-export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, loadMatches}: LeagueAndTeamHeaderProps) => {
+export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: LeagueAndTeamHeaderProps) => {
   const leaguesResult = useGetLeaguesQuery();
   const { data: leagues, isLoading: isLoadingLeagues, isError: isErrorLeagues } = leaguesResult;
   const [triggerTeams, { data: teams, isLoading: isLoadingTeams, isError: isErrorTeams }] = useLazyGetTeamsByLeagueQuery();
@@ -42,17 +41,6 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, l
           <option key={teamId} value={teamId}>{teamName}</option>
         )}
       </select>}
-      <button
-        className="bg-blue-500 text-white p-2 rounded-md"
-        disabled={!leagueId || !teamId}
-        onClick={() => {
-          if (leagueId && teamId) {
-            loadMatches({ leagueId, teamId });
-          }
-        }}
-      >
-        Search
-      </button>
     </div>
   )
 }
