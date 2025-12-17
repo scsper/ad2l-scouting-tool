@@ -91,7 +91,7 @@ function getBansAgainst(matches: SupabaseMatchData[], scoutedTeamId: number) {
     }
 
     match.draft.forEach(draft => {
-      if (draft.team_id !== scoutedTeamId) {
+      if (draft.team_id === scoutedTeamId) {
         return;
       }
 
