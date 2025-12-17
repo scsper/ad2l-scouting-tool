@@ -3,59 +3,61 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
 import type { MatchApiResponse } from "../../utils/types"
 import { getHero } from "../../utils/get-hero"
 
-type ApiResponse = {
-  data: {
-    league: {
-      id: number
-      name: string
-      matches: MatchApiResponse[]
-    }
+// Types for Supabase API response
+export type MatchPlayerRow = {
+  player_id: number;
+  match_id: number;
+  league_id: number;
+  team_id: number | null;
+  winning_team_id: number | null;
+  radiant_team_id: number | null;
+  dire_team_id: number | null;
+  player_name: string | null;
+  hero_id: number;
+  position: string | null;
+  lane_outcome: string | null;
+  lane: string | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  last_hits: number;
+  denies: number;
+  gpm: number;
+  xpm: number;
+  hero_damage: number;
+  tower_damage: number;
+}
+
+export type MatchDraftRow = {
+  match_id: number;
+  league_id: number;
+  winning_team_id: number | null;
+  radiant_team_id: number | null;
+  dire_team_id: number | null;
+  order: number;
+  hero_id: number;
+  team_id: number | null;
+  is_pick: boolean;
+}
+
+export type SupabaseMatchData = {
+  match_id: number;
+  league_id: number;
+  winning_team_id: number | null;
+  radiant_team_id: number | null;
+  dire_team_id: number | null;
+  players: MatchPlayerRow[];
+  draft: MatchDraftRow[];
+}
+
+export type SupabaseMatchesTransformedResponse = {
+  matches: SupabaseMatchData[];
+  aggregate: {
+    bansAgainst: Record<string, number>;
+    heroesPlayedByPosition: Record<string, Record<string, number>>;
   }
 }
 
-type Player = {
-  heroId: string
-  heroName: string
-  position: string
-  name: string
-  id: string
-}
-
-type PickBan = {
-  heroId: string
-  heroName: string
-  order: number
-}
-
-type Match = {
-  id: string
-  winningTeamName: string
-  duration: string
-  radiant: {
-    id: string
-    name: string
-    players: Player[]
-    picks: PickBan[]
-    bans: PickBan[]
-  }
-  dire: {
-    id: string
-    name: string
-    players: Player[]
-    picks: PickBan[]
-    bans: PickBan[]
-  }
-}
-
-type TransformedMatchResponse = {
-  league: {
-    id: string
-    name: string
-    matches: Match[],
-    heroesPlayedByPosition: Record<string, Record<string, number>>,
-    bansAgainst: Record<string, number>,
-  }
-}
 
 // Define a service using a base URL and expected endpoints
 export const matchesApiSlice = createApi({
@@ -64,22 +66,17 @@ export const matchesApiSlice = createApi({
   // Tag types are used for caching and invalidation.
   tagTypes: ["Matches"],
   endpoints: build => ({
-    getMatches: build.query<TransformedMatchResponse, { leagueId: string; teamId: string }>({
+    getMatches: build.query<SupabaseMatchesTransformedResponse, { leagueId: number; teamId: number }>({
       query: ({ leagueId, teamId }) =>
-        `api/matches?leagueId=${leagueId}&teamId=${teamId}`,
-      transformResponse: (response: ApiResponse, _, arg: { leagueId: string; teamId: string }) => {
-        const scoutedTeamId = arg.teamId;
-        const matches = response.data.league.matches.map(match => parseMatch(match));
-        const heroesPlayedByPosition = accumulateHeroesPlayedByPosition(matches, scoutedTeamId);
-        const bansAgainst = getBansAgainst(matches, scoutedTeamId);
+        `api/matches?leagueId=${String(leagueId)}&teamId=${String(teamId)}`,
+      transformResponse: (response: SupabaseMatchData[], _, arg: { leagueId: number; teamId: number }) => {
+        const { teamId } = arg;
 
         return {
-          league: {
-            id: response.data.league.id.toString(),
-            name: response.data.league.name,
-            matches,
-            heroesPlayedByPosition,
-            bansAgainst,
+          matches: response,
+          aggregate: {
+            bansAgainst: getBansAgainst(response, teamId),
+            heroesPlayedByPosition: accumulateHeroesPlayedByPosition(response, teamId),
           }
         }
       }
@@ -87,27 +84,36 @@ export const matchesApiSlice = createApi({
   }),
 })
 
-function getBansAgainst(matches: Match[], scoutedTeamId: string) {
+function getBansAgainst(matches: SupabaseMatchData[], scoutedTeamId: number) {
   const bansAgainst: Record<string, number> = {};
 
   for (const match of matches) {
-    const scoutedSide = match.radiant.id === scoutedTeamId ? "radiant" : "dire";
-    const otherSide = scoutedSide === "radiant" ? "dire" : "radiant";
+    if (match.draft.length === 0) {
+      continue;
+    }
 
-    for (const ban of match[otherSide].bans) {
-      const { heroName } = ban;
-      if (!bansAgainst[heroName]) {
-        bansAgainst[heroName] = 0;
+    match.draft.forEach(draft => {
+      if (draft.team_id !== scoutedTeamId) {
+        return;
       }
 
-      bansAgainst[heroName]++;
-    }
+      if (draft.is_pick) {
+        return;
+      }
+
+      const { hero_id } = draft;
+      if (!bansAgainst[hero_id]) {
+        bansAgainst[hero_id] = 0;
+      }
+
+      bansAgainst[hero_id]++;
+    })
   }
 
   return bansAgainst;
 }
 
-function accumulateHeroesPlayedByPosition(matches: Match[], scoutedTeamId: string) {
+function accumulateHeroesPlayedByPosition(matches: SupabaseMatchData[], scoutedTeamId: number): Record<string, Record<string, number>> {
   const heroesPlayedByPosition: Record<string, Record<string, number>> = {
     "POSITION_1": {},
     "POSITION_2": {},
@@ -118,78 +124,18 @@ function accumulateHeroesPlayedByPosition(matches: Match[], scoutedTeamId: strin
   };
 
   for (const match of matches) {
-    const scoutedSide = match.radiant.id === scoutedTeamId ? "radiant" : "dire";
+    for (const player of match.players) {
+      const { hero_id } = player;
+      const position = player.position ?? "UNCATEGORIZED";
 
-    for (const player of match[scoutedSide].players) {
-      const { heroName } = player;
-      let { position } = player;
-      if (!position) {
-        position = "UNCATEGORIZED";
+      if (!heroesPlayedByPosition[position][hero_id]) {
+        heroesPlayedByPosition[position][hero_id] = 0;
       }
-      if (!heroesPlayedByPosition[position][heroName]) {
-        heroesPlayedByPosition[position][heroName] = 0;
-      }
-      heroesPlayedByPosition[position][heroName]++;
+      heroesPlayedByPosition[position][hero_id]++;
     }
   }
 
   return heroesPlayedByPosition;
-}
-
-function convertDurationToMinutesAndSeconds(duration: number): string {
-  const minutes = Math.floor(duration / 60);
-  const seconds = duration % 60;
-  return `${minutes.toString()}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function parseMatch(match: MatchApiResponse): Match {
-  return {
-    id: match.id.toString(),
-    winningTeamName: match.didRadiantWin ? match.radiantTeam.name : match.direTeam.name,
-    duration: convertDurationToMinutesAndSeconds(match.durationSeconds),
-    radiant: {
-      id: match.radiantTeam.id.toString(),
-      name: match.radiantTeam.name,
-      players: match.players.filter(player => player.isRadiant).map(player => ({
-        heroId: player.heroId.toString(),
-        heroName: getHero(player.heroId),
-        position: player.position,
-        name: player.steamAccount.name,
-        id: player.steamAccount.id.toString(),
-      })),
-      picks: match.pickBans ? match.pickBans.filter(pickBan => pickBan.isPick && pickBan.isRadiant).map(pickBan => ({
-        heroId: pickBan.heroId.toString(),
-        heroName: getHero(pickBan.heroId),
-        order: pickBan.order,
-      })) : [], // TODO: Handle null case
-      bans: match.pickBans ? match.pickBans.filter(pickBan => !pickBan.isPick && pickBan.isRadiant).map(pickBan => ({
-        heroId: pickBan.heroId.toString(),
-        heroName: getHero(pickBan.heroId),
-        order: pickBan.order,
-      })) : [],
-    },
-    dire: {
-      id: match.direTeam.id.toString(),
-      name: match.direTeam.name,
-      players: match.players.filter(player => !player.isRadiant).map(player => ({
-        heroId: player.heroId.toString(),
-        heroName: getHero(player.heroId),
-        position: player.position,
-        name: player.steamAccount.name,
-        id: player.steamAccount.id.toString(),
-      })),
-      picks: match.pickBans ? match.pickBans.filter(pickBan => pickBan.isPick && !pickBan.isRadiant).map(pickBan => ({
-        heroId: pickBan.heroId.toString(),
-        heroName: getHero(pickBan.heroId),
-        order: pickBan.order,
-      })) : [],
-      bans: match.pickBans ? match.pickBans.filter(pickBan => !pickBan.isPick && !pickBan.isRadiant).map(pickBan => ({
-        heroId: pickBan.heroId.toString(),
-        heroName: getHero(pickBan.heroId),
-        order: pickBan.order,
-      })) : [],
-    }
-  }
 }
 
 export const { useLazyGetMatchesQuery } = matchesApiSlice

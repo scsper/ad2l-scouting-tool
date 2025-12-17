@@ -237,6 +237,7 @@ export async function convertMatchDataToMatchPlayersTable(matchData: Match): Pro
   const matchPlayerRows: MatchPlayerRow[] = matchData.players.map((player) => ({
     player_id: player.steamAccount?.id ?? 0,
     match_id: matchData.id,
+    team_id: player.isRadiant ? matchData.radiantTeam?.id ?? null : matchData.direTeam?.id ?? null,
     league_id: matchData.leagueId,
     winning_team_id: winningTeamId,
     radiant_team_id: matchData.radiantTeam?.id ?? null,

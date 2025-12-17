@@ -11,6 +11,7 @@ type MatchPlayerRow = {
   player_id: number;
   match_id: number;
   league_id: number;
+  team_id: number | null;
   winning_team_id: number | null;
   radiant_team_id: number | null;
   dire_team_id: number | null;
