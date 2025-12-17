@@ -138,4 +138,4 @@ function accumulateHeroesPlayedByPosition(matches: SupabaseMatchData[], scoutedT
   return heroesPlayedByPosition;
 }
 
-export const { useLazyGetMatchesQuery } = matchesApiSlice
+export const { useLazyGetMatchesQuery, useGetMatchesQuery } = matchesApiSlice

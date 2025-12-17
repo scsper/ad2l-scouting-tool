@@ -2,8 +2,8 @@ import type { Action, ThunkAction } from "@reduxjs/toolkit"
 import { combineSlices, configureStore } from "@reduxjs/toolkit"
 import { setupListeners } from "@reduxjs/toolkit/query"
 import { matchesApiSlice } from "../features/matches/matches-api"
-import { leagueApiSlice } from "../features/league/league"
-import { teamsApiSlice } from "../features/team/teams-api"
+import { leagueApiSlice } from "../features/league-and-team-picker/league-api"
+import { teamsApiSlice } from "../features/league-and-team-picker/teams-api"
 // `combineSlices` automatically combines the reducers using
 // their `reducerPath`s, therefore we no longer need to call `combineReducers`.
 const rootReducer = combineSlices(matchesApiSlice, leagueApiSlice, teamsApiSlice)
