@@ -1,7 +1,5 @@
 // Need to use the React-specific entry point to import `createApi`
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
-import type { MatchApiResponse } from "../../utils/types"
-import { getHero } from "../../utils/get-hero"
 
 // Types for Supabase API response
 export type MatchPlayerRow = {
@@ -125,6 +123,10 @@ function accumulateHeroesPlayedByPosition(matches: SupabaseMatchData[], scoutedT
 
   for (const match of matches) {
     for (const player of match.players) {
+      if (player.team_id !== scoutedTeamId) {
+        continue;
+      }
+
       const { hero_id } = player;
       const position = player.position ?? "UNCATEGORIZED";
 

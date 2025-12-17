@@ -13,5 +13,5 @@ export const teamsApiSlice = createApi({
   }),
 })
 
-export const { useLazyGetTeamsByLeagueQuery } = teamsApiSlice;
+export const { useLazyGetTeamsByLeagueQuery, useGetTeamsByLeagueQuery } = teamsApiSlice;
 
