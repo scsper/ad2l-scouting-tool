@@ -22,7 +22,7 @@ async function getMatchesByLeagueAndTeam(
     .select('*')
     .eq('league_id', leagueIdNum)
     .or(`radiant_team_id.eq.${String(teamIdNum)},dire_team_id.eq.${String(teamIdNum)}`)
-    .order('id', { ascending: false });
+    .order('start_date_time', { ascending: false });
 
   if (matchesError) {
     console.error("Error fetching matches:", matchesError);

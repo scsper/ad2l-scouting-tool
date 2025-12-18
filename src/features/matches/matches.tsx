@@ -28,11 +28,15 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
               const otherTeamName = otherTeamId ? teamsData[leagueId][otherTeamId] : "Unknown Team";
 
               const otherTeamBans = match.draft.filter(pickBan => pickBan.team_id !== teamId && !pickBan.is_pick);
+              const matchDate = new Date(match.start_date_time * 1000).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
               return (
                 <div key={match.id}>
                   {/* <h2 className="text-xl font-bold">{scoutedTeam.id} vs {otherTeam.id}</h2> */}
                   <div className="flex flex-row">
+                    <div>
+                      <p>{matchDate}</p>
+                    </div>
                     <div className="flex flex-col pl-4">
                       <h3 className="text-lg font-bold">{scoutedTeamName}</h3>
                       <ul>
