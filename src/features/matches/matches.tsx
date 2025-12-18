@@ -30,32 +30,28 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
               const otherTeamBans = match.draft.filter(pickBan => pickBan.team_id !== teamId && !pickBan.is_pick);
 
               return (
-                <div key={match.match_id}>
+                <div key={match.id}>
                   {/* <h2 className="text-xl font-bold">{scoutedTeam.id} vs {otherTeam.id}</h2> */}
                   <div className="flex flex-row">
                     <div className="flex flex-col pl-4">
                       <h3 className="text-lg font-bold">{scoutedTeamName}</h3>
                       <ul>
-                        <li>
                           {scoutedTeam.slice().sort((a,b) => {
                             const posA = a.position ?? "UNCATEGORIZED";
                             const posB = b.position ?? "UNCATEGORIZED";
                             return posA > posB ? 1 : -1;
                           }).map(player => <li key={player.player_id}>{getHero(player.hero_id)}</li>)}
-                        </li>
                       </ul>
                     </div>
 
                     <div className="flex flex-col pl-4">
                       <h3 className="text-lg font-bold">{otherTeamName}</h3>
                       <ul>
-                        <li>
                         {otherTeam.slice().sort((a,b) => {
                             const posA = a.position ?? "UNCATEGORIZED";
                             const posB = b.position ?? "UNCATEGORIZED";
                             return posA > posB ? 1 : -1;
                           }).map(player => <li key={player.player_id}>{getHero(player.hero_id)}</li>)}
-                        </li>
                       </ul>
                     </div>
 
