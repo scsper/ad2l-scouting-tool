@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import type { MatchApiResponse } from "../types/api";
+import type { MatchRow, MatchDraftRow, MatchPlayerRow } from "../types/db";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -7,82 +9,43 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-type MatchPlayerRow = {
-  player_id: number;
-  match_id: number;
-  league_id: number;
-  team_id: number | null;
-  start_date_time: number;
-  end_date_time: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  player_name: string | null;
-  hero_id: number;
-  position: string | null;
-  lane_outcome: string | null;
-  lane: string | null;
-  kills: number;
-  deaths: number;
-  assists: number;
-  last_hits: number;
-  denies: number;
-  gpm: number;
-  xpm: number;
-  hero_damage: number;
-  tower_damage: number;
-}
-
-type MatchDraftRow = {
-  match_id: number;
-  league_id: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  order: number;
-  hero_id: number;
-  team_id: number | null;
-  is_pick: boolean;
-}
-
-type MatchData = {
-  match_id: number;
-  league_id: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  start_date_time: number;
-  end_date_time: number;
-  players: MatchPlayerRow[];
-  draft: MatchDraftRow[];
-}
-
 async function getMatchesByLeagueAndTeam(
   leagueId: string,
   teamId: string
-): Promise<MatchData[]> {
+): Promise<MatchApiResponse[]> {
   const leagueIdNum = parseInt(leagueId, 10);
   const teamIdNum = parseInt(teamId, 10);
 
-  // Get all match players for the specified league and team
-  const { data: players, error: playersError } = await supabase
-    .from('match_player')
+  // Get all matches for the specified league and team
+  const { data: matches, error: matchesError } = await supabase
+    .from('match')
     .select('*')
     .eq('league_id', leagueIdNum)
     .or(`radiant_team_id.eq.${String(teamIdNum)},dire_team_id.eq.${String(teamIdNum)}`)
-    .order('match_id', { ascending: false });
+    .order('id', { ascending: false });
+
+  if (matchesError) {
+    console.error("Error fetching matches:", matchesError);
+    throw matchesError;
+  }
+
+  if (matches.length === 0) {
+    return [];
+  }
+
+  // Get match IDs
+  const matchIds = (matches as MatchRow[]).map(m => m.id);
+
+  // Get all match players for these matches
+  const { data: players, error: playersError } = await supabase
+    .from('match_player')
+    .select('*')
+    .in('match_id', matchIds);
 
   if (playersError) {
     console.error("Error fetching match players:", playersError);
     throw playersError;
   }
-
-  if (players.length === 0) {
-    return [];
-  }
-
-  // Get unique match IDs
-  const matchIds = [...new Set((players as MatchPlayerRow[]).map(p => p.match_id))];
 
   // Get draft data for these matches
   const { data: drafts, error: draftsError } = await supabase
@@ -97,28 +60,26 @@ async function getMatchesByLeagueAndTeam(
   }
 
   // Group data by match_id
-  const matchesMap = new Map<number, MatchData>();
+  const matchesMap = new Map<number, MatchApiResponse>();
 
+  // Initialize with match data
+  (matches as MatchRow[]).forEach(match => {
+    matchesMap.set(match.id, {
+      ...match,
+      players: [],
+      draft: []
+    });
+  });
+
+  // Add players to their matches
   (players as MatchPlayerRow[]).forEach(player => {
-    if (!matchesMap.has(player.match_id)) {
-      matchesMap.set(player.match_id, {
-        match_id: player.match_id,
-        league_id: player.league_id,
-        winning_team_id: player.winning_team_id,
-        radiant_team_id: player.radiant_team_id,
-        dire_team_id: player.dire_team_id,
-        start_date_time: player.start_date_time,
-        end_date_time: player.end_date_time,
-        players: [],
-        draft: []
-      });
-    }
     const match = matchesMap.get(player.match_id);
     if (match) {
       match.players.push(player);
     }
   });
 
+  // Add drafts to their matches
   (drafts as MatchDraftRow[]).forEach(draft => {
     const match = matchesMap.get(draft.match_id);
     if (match) {

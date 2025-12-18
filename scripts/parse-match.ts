@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { MatchRow, MatchPlayerRow, MatchDraftRow } from "../types/db";
 
 const API_URL = "https://api.stratz.com/graphql";
 const STRATZ_API_KEY = process.env.STRATZ_API_TOKEN ?? "";
@@ -110,41 +111,6 @@ type MatchResponse = {
   };
 }
 
-type MatchPlayerRow = {
-  player_id: number;
-  match_id: number;
-  league_id: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  player_name: string | null;
-  hero_id: number;
-  position: string | null;
-  lane_outcome: string | null;
-  lane: string | null;
-  kills: number;
-  deaths: number;
-  assists: number;
-  last_hits: number;
-  denies: number;
-  gpm: number;
-  xpm: number;
-  hero_damage: number;
-  tower_damage: number;
-}
-
-type MatchDraftRow = {
-  match_id: number;
-  league_id: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  order: number;
-  hero_id: number;
-  team_id: number | null;
-  is_pick: boolean;
-}
-
 function getVariablesForGetMatch(matchId: number) {
   return {
     "matchId": matchId
@@ -230,20 +196,10 @@ function getLaneOutcome(match: Match, player: Player): string | null {
 }
 
 export async function convertMatchDataToMatchPlayersTable(matchData: Match): Promise<MatchPlayerRow[]> {
-  const winningTeamId = matchData.didRadiantWin
-    ? matchData.radiantTeam?.id ?? null
-    : matchData.direTeam?.id ?? null;
-
   const matchPlayerRows: MatchPlayerRow[] = matchData.players.map((player) => ({
     player_id: player.steamAccount?.id ?? 0,
     match_id: matchData.id,
     team_id: player.isRadiant ? matchData.radiantTeam?.id ?? null : matchData.direTeam?.id ?? null,
-    league_id: matchData.leagueId,
-    winning_team_id: winningTeamId,
-    start_date_time: matchData.startDateTime,
-    end_date_time: matchData.endDateTime,
-    radiant_team_id: matchData.radiantTeam?.id ?? null,
-    dire_team_id: matchData.direTeam?.id ?? null,
     player_name: player.steamAccount?.name ?? null,
     hero_id: player.heroId,
     position: player.position,
@@ -275,16 +231,8 @@ export async function convertMatchDataToMatchPlayersTable(matchData: Match): Pro
 }
 
 export async function convertMatchDataToMatchDraftTable(matchData: Match): Promise<MatchDraftRow[]> {
-  const winningTeamId = matchData.didRadiantWin
-    ? matchData.radiantTeam?.id ?? null
-    : matchData.direTeam?.id ?? null;
-
   const matchDraftRows: MatchDraftRow[] = matchData.pickBans.map((pickBan) => ({
     match_id: matchData.id,
-    league_id: matchData.leagueId,
-    winning_team_id: winningTeamId,
-    radiant_team_id: matchData.radiantTeam?.id ?? null,
-    dire_team_id: matchData.direTeam?.id ?? null,
     order: pickBan.order,
     hero_id: pickBan.heroId,
     team_id: pickBan.isRadiant
@@ -307,9 +255,34 @@ export async function convertMatchDataToMatchDraftTable(matchData: Match): Promi
   return data as MatchDraftRow[];
 }
 
+async function convertMatchDataToMatchTable(matchData: Match): Promise<MatchRow[]> {
+  const matchRow: MatchRow = {
+    id: matchData.id,
+    league_id: matchData.leagueId,
+    winning_team_id: matchData.didRadiantWin ? matchData.radiantTeam?.id ?? null : matchData.direTeam?.id ?? null,
+    radiant_team_id: matchData.radiantTeam?.id ?? null,
+    dire_team_id: matchData.direTeam?.id ?? null,
+    start_date_time: matchData.startDateTime,
+    end_date_time: matchData.endDateTime,
+  };
+
+  const { data, error } = await supabase
+    .from('match')
+    .insert(matchRow)
+    .select();
+
+  if (error) {
+    console.error("Error inserting match:", error);
+    throw error;
+  }
+
+  console.log(`Successfully inserted match ${String(matchData.id)}`);
+  return data as MatchRow[];
+}
 // Main execution
 const matchId = getMatchIdFromCommandLine();
 const matchData = await getMatch(matchId);
+convertMatchDataToMatchTable(matchData?.data.match ?? {} as Match).catch(console.error);
 convertMatchDataToMatchPlayersTable(matchData?.data.match ?? {} as Match).catch(console.error);
 convertMatchDataToMatchDraftTable(matchData?.data.match ?? {} as Match).catch(console.error);
 // console.log(JSON.stringify(matchData, null, 2));

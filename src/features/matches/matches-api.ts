@@ -1,57 +1,9 @@
 // Need to use the React-specific entry point to import `createApi`
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
+import type { MatchApiResponse } from "../../../types/api"
 
-// Types for Supabase API response
-export type MatchPlayerRow = {
-  player_id: number;
-  match_id: number;
-  league_id: number;
-  team_id: number | null;
-  start_date_time: number;
-  end_date_time: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  player_name: string | null;
-  hero_id: number;
-  position: string | null;
-  lane_outcome: string | null;
-  lane: string | null;
-  kills: number;
-  deaths: number;
-  assists: number;
-  last_hits: number;
-  denies: number;
-  gpm: number;
-  xpm: number;
-  hero_damage: number;
-  tower_damage: number;
-}
-
-export type MatchDraftRow = {
-  match_id: number;
-  league_id: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  order: number;
-  hero_id: number;
-  team_id: number | null;
-  is_pick: boolean;
-}
-
-export type SupabaseMatchData = {
-  match_id: number;
-  league_id: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  players: MatchPlayerRow[];
-  draft: MatchDraftRow[];
-}
-
-export type SupabaseMatchesTransformedResponse = {
-  matches: SupabaseMatchData[];
+export type TransformedMatchesApiResponse = {
+  matches: MatchApiResponse[];
   aggregate: {
     bansAgainst: Record<string, number>;
     heroesPlayedByPosition: Record<string, Record<string, number>>;
@@ -66,10 +18,10 @@ export const matchesApiSlice = createApi({
   // Tag types are used for caching and invalidation.
   tagTypes: ["Matches"],
   endpoints: build => ({
-    getMatches: build.query<SupabaseMatchesTransformedResponse, { leagueId: number; teamId: number }>({
+    getMatches: build.query<TransformedMatchesApiResponse, { leagueId: number; teamId: number }>({
       query: ({ leagueId, teamId }) =>
         `api/matches?leagueId=${String(leagueId)}&teamId=${String(teamId)}`,
-      transformResponse: (response: SupabaseMatchData[], _, arg: { leagueId: number; teamId: number }) => {
+      transformResponse: (response: MatchApiResponse[], _, arg: { leagueId: number; teamId: number }) => {
         const { teamId } = arg;
 
         return {
@@ -84,7 +36,7 @@ export const matchesApiSlice = createApi({
   }),
 })
 
-function getBansAgainst(matches: SupabaseMatchData[], scoutedTeamId: number) {
+function getBansAgainst(matches: MatchApiResponse[], scoutedTeamId: number) {
   const bansAgainst: Record<string, number> = {};
 
   for (const match of matches) {
@@ -113,7 +65,7 @@ function getBansAgainst(matches: SupabaseMatchData[], scoutedTeamId: number) {
   return bansAgainst;
 }
 
-function accumulateHeroesPlayedByPosition(matches: SupabaseMatchData[], scoutedTeamId: number): Record<string, Record<string, number>> {
+function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTeamId: number): Record<string, Record<string, number>> {
   const heroesPlayedByPosition: Record<string, Record<string, number>> = {
     "POSITION_1": {},
     "POSITION_2": {},
