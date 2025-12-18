@@ -12,6 +12,8 @@ type MatchPlayerRow = {
   match_id: number;
   league_id: number;
   team_id: number | null;
+  start_date_time: number;
+  end_date_time: number;
   winning_team_id: number | null;
   radiant_team_id: number | null;
   dire_team_id: number | null;
@@ -49,6 +51,8 @@ type MatchData = {
   winning_team_id: number | null;
   radiant_team_id: number | null;
   dire_team_id: number | null;
+  start_date_time: number;
+  end_date_time: number;
   players: MatchPlayerRow[];
   draft: MatchDraftRow[];
 }
@@ -103,6 +107,8 @@ async function getMatchesByLeagueAndTeam(
         winning_team_id: player.winning_team_id,
         radiant_team_id: player.radiant_team_id,
         dire_team_id: player.dire_team_id,
+        start_date_time: player.start_date_time,
+        end_date_time: player.end_date_time,
         players: [],
         draft: []
       });

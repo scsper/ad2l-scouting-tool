@@ -7,6 +7,8 @@ export type MatchPlayerRow = {
   match_id: number;
   league_id: number;
   team_id: number | null;
+  start_date_time: number;
+  end_date_time: number;
   winning_team_id: number | null;
   radiant_team_id: number | null;
   dire_team_id: number | null;

@@ -240,6 +240,8 @@ export async function convertMatchDataToMatchPlayersTable(matchData: Match): Pro
     team_id: player.isRadiant ? matchData.radiantTeam?.id ?? null : matchData.direTeam?.id ?? null,
     league_id: matchData.leagueId,
     winning_team_id: winningTeamId,
+    start_date_time: matchData.startDateTime,
+    end_date_time: matchData.endDateTime,
     radiant_team_id: matchData.radiantTeam?.id ?? null,
     dire_team_id: matchData.direTeam?.id ?? null,
     player_name: player.steamAccount?.name ?? null,
