@@ -47,6 +47,8 @@ type OpenDotaMatch = {
   start_time: number;
   duration: number;
   leagueid?: number;
+  radiant_team_id?: number;
+  dire_team_id?: number;
   radiant_team?: OpenDotaTeam;
   dire_team?: OpenDotaTeam;
   picks_bans?: OpenDotaPickBan[];
@@ -179,15 +181,18 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
     isRadiant: pb.team === 0
   }));
 
-  // Transform teams
-  const radiantTeam: Team | null = openDotaMatch.radiant_team ? {
-    id: openDotaMatch.radiant_team.team_id ?? 0,
-    name: openDotaMatch.radiant_team.name ?? "Radiant"
+  // Transform teams - prioritize direct team IDs, fall back to nested team object
+  const radiantTeamId = openDotaMatch.radiant_team_id ?? openDotaMatch.radiant_team?.team_id;
+  const direTeamId = openDotaMatch.dire_team_id ?? openDotaMatch.dire_team?.team_id;
+
+  const radiantTeam: Team | null = radiantTeamId ? {
+    id: radiantTeamId,
+    name: openDotaMatch.radiant_team?.name ?? "Radiant"
   } : null;
 
-  const direTeam: Team | null = openDotaMatch.dire_team ? {
-    id: openDotaMatch.dire_team.team_id ?? 0,
-    name: openDotaMatch.dire_team.name ?? "Dire"
+  const direTeam: Team | null = direTeamId ? {
+    id: direTeamId,
+    name: openDotaMatch.dire_team?.name ?? "Dire"
   } : null;
 
   return {
