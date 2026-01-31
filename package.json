@@ -6,13 +6,13 @@
   "scripts": {
     "build": "tsc -b && vite build",
     "dev": "vite",
+    "start": "vercel dev",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "lint:fix": "eslint --fix .",
     "lint": "eslint .",
     "parse-matches": "tsx scripts/parse-matches.ts",
     "preview": "vite preview",
-    "start": "vite",
     "test": "vitest --run",
     "type-check": "tsc -b --noEmit"
   },
