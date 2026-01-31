@@ -49,7 +49,7 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
                             const posA = a.position ?? "UNCATEGORIZED";
                             const posB = b.position ?? "UNCATEGORIZED";
                             return posA > posB ? 1 : -1;
-                          }).map(player => <li key={player.player_id}>{getHero(player.hero_id)}</li>)}
+                          }).map(player => <li key={player.player_id}>{getHero(player.hero_id)} ({player.kills}/{player.deaths}/{player.assists})</li>)}
                       </ul>
                     </div>
 
@@ -62,7 +62,7 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
                             const posA = a.position ?? "UNCATEGORIZED";
                             const posB = b.position ?? "UNCATEGORIZED";
                             return posA > posB ? 1 : -1;
-                          }).map(player => <li key={player.player_id}>{getHero(player.hero_id)}</li>)}
+                          }).map(player => <li key={player.player_id}>{getHero(player.hero_id)} ({player.kills}/{player.deaths}/{player.assists})</li>)}
                       </ul>
                     </div>
 
