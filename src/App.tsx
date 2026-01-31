@@ -9,19 +9,20 @@ export const App = () => {
   const [leagueId, setLeagueId] = useState<number>();
 
   return (
-    <div className="App">
+    <div className="App min-h-screen">
       <LeagueAndTeamHeader
         leagueId={leagueId}
         setLeagueId={setLeagueId}
         teamId={teamId}
         setTeamId={setTeamId}
       />
-      <div className="flex flex-row">
-        {leagueId && teamId && <Matches leagueId={leagueId} teamId={teamId} />}
-        {leagueId && teamId && <AggregateBansAgainst leagueId={leagueId} teamId={teamId} />}
-        {leagueId && teamId && <AggregateHeroesPlayedByPosition leagueId={leagueId} teamId={teamId} />}
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr_1fr] gap-6">
+          {leagueId && teamId && <Matches leagueId={leagueId} teamId={teamId} />}
+          {leagueId && teamId && <AggregateBansAgainst leagueId={leagueId} teamId={teamId} />}
+          {leagueId && teamId && <AggregateHeroesPlayedByPosition leagueId={leagueId} teamId={teamId} />}
+        </div>
       </div>
-
     </div>
   )
 }
