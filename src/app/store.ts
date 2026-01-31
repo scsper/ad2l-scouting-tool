@@ -73,7 +73,7 @@ export const makeStore = (preloadedState?: Partial<RootState>) => {
 }
 
 // Create initial state with preloaded data
-const initialState: Partial<RootState> = {
+const initialState = {
   [leagueApiSlice.reducerPath]: {
     queries: {
       'getLeagues(undefined)': {
@@ -96,7 +96,8 @@ const initialState: Partial<RootState> = {
       refetchOnReconnect: false,
       refetchOnMountOrArgChange: false,
       keepUnusedDataFor: 60,
-      reducerPath: 'league'
+      reducerPath: 'league',
+      invalidationBehavior: 'delayed' as const
     }
   },
   [teamsApiSlice.reducerPath]: {
@@ -122,12 +123,13 @@ const initialState: Partial<RootState> = {
       refetchOnReconnect: false,
       refetchOnMountOrArgChange: false,
       keepUnusedDataFor: 60,
-      reducerPath: 'teams'
+      reducerPath: 'teams',
+      invalidationBehavior: 'delayed' as const
     }
   }
-}
+} as Partial<RootState>
 
-export const store = makeStore(initialState as RootState)
+export const store = makeStore(initialState)
 
 // Infer the type of `store`
 export type AppStore = typeof store
