@@ -6,7 +6,7 @@ import { AggregateHeroesPlayedByPosition } from "./features/matches/aggregate-he
 
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
-  const [leagueId, setLeagueId] = useState<number>();
+  const [leagueId, setLeagueId] = useState<number>(19137); // AD2L Season 46
 
   return (
     <div className="App min-h-screen">

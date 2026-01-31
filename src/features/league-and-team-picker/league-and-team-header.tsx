@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useGetLeaguesQuery } from "./league-api";
 import { useLazyGetTeamsByLeagueQuery } from "./teams-api";
 
@@ -12,6 +13,13 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
   const leaguesResult = useGetLeaguesQuery();
   const { data: leagues, isLoading: isLoadingLeagues, isError: isErrorLeagues } = leaguesResult;
   const [triggerTeams, { data: teams, isLoading: isLoadingTeams, isError: isErrorTeams }] = useLazyGetTeamsByLeagueQuery();
+
+  // Automatically load teams when leagueId is set (including on initial mount)
+  useEffect(() => {
+    if (leagueId) {
+      void triggerTeams({ leagueId });
+    }
+  }, [leagueId, triggerTeams]);
 
   if (isLoadingLeagues) {
     return (

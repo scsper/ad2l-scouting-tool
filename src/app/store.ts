@@ -4,11 +4,54 @@ import { setupListeners } from "@reduxjs/toolkit/query"
 import { matchesApiSlice } from "../features/matches/matches-api"
 import { leagueApiSlice } from "../features/league-and-team-picker/league-api"
 import { teamsApiSlice } from "../features/league-and-team-picker/teams-api"
+import type { League } from "../../api/league"
+import type { LeagueTeamsResponse } from "../../api/team"
+
 // `combineSlices` automatically combines the reducers using
 // their `reducerPath`s, therefore we no longer need to call `combineReducers`.
 const rootReducer = combineSlices(matchesApiSlice, leagueApiSlice, teamsApiSlice)
 // Infer the `RootState` type from the root reducer
 export type RootState = ReturnType<typeof rootReducer>
+
+// Preloaded data
+const preloadedLeagues: League[] = [
+  {
+    id: 18604,
+    created_at: "2025-12-11T17:06:11.58572+00:00",
+    updated_at: "2025-12-11T17:06:11.58572",
+    name: "AD2L Season 45",
+    has_divisions: true
+  },
+  {
+    id: 18988,
+    created_at: "2025-12-11T17:11:25.230376+00:00",
+    updated_at: "2025-12-11T17:11:25.230376",
+    name: "DreamLeague Season 27 - Playoffs",
+    has_divisions: false
+  },
+  {
+    id: 19137,
+    created_at: "2026-01-20T18:31:06.521396+00:00",
+    updated_at: "2026-01-20T18:31:06.521396",
+    name: "AD2L Season 46",
+    has_divisions: true
+  }
+]
+
+const preloadedTeams: LeagueTeamsResponse = {
+  19137: {
+    7957380: "Savage Sabres",
+    8290779: "Sandshrew and Associates",
+    8326846: "Team Unrivaled",
+    8750033: "BUTCUM",
+    9175179: "Disinformation Campaign",
+    9403219: "Sharkhorse",
+    9408493: "Random Gaming",
+    9622244: "Solar Gravity",
+    10014373: "Gigadadz",
+    10027404: "Cyber Cloud"
+  }
+}
 
 // The store setup is wrapped in `makeStore` to allow reuse
 // when setting up tests that need the same store config
@@ -28,7 +71,62 @@ export const makeStore = (preloadedState?: Partial<RootState>) => {
   return store
 }
 
-export const store = makeStore()
+// Create initial state with preloaded data
+const initialState: Partial<RootState> = {
+  [leagueApiSlice.reducerPath]: {
+    queries: {
+      'getLeagues(undefined)': {
+        status: 'fulfilled',
+        endpointName: 'getLeagues',
+        requestId: 'preloaded',
+        data: preloadedLeagues,
+        startedTimeStamp: Date.now(),
+        fulfilledTimeStamp: Date.now()
+      }
+    },
+    mutations: {},
+    provided: {},
+    subscriptions: {},
+    config: {
+      online: true,
+      focused: true,
+      middlewareRegistered: true,
+      refetchOnFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMountOrArgChange: false,
+      keepUnusedDataFor: 60,
+      reducerPath: 'league'
+    }
+  },
+  [teamsApiSlice.reducerPath]: {
+    queries: {
+      'getTeamsByLeague({"leagueId":19137})': {
+        status: 'fulfilled',
+        endpointName: 'getTeamsByLeague',
+        requestId: 'preloaded',
+        originalArgs: { leagueId: 19137 },
+        data: preloadedTeams,
+        startedTimeStamp: Date.now(),
+        fulfilledTimeStamp: Date.now()
+      }
+    },
+    mutations: {},
+    provided: {},
+    subscriptions: {},
+    config: {
+      online: true,
+      focused: true,
+      middlewareRegistered: true,
+      refetchOnFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMountOrArgChange: false,
+      keepUnusedDataFor: 60,
+      reducerPath: 'teams'
+    }
+  }
+}
+
+export const store = makeStore(initialState as RootState)
 
 // Infer the type of `store`
 export type AppStore = typeof store
