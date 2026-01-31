@@ -1,7 +1,4 @@
-import {
-  createClient,
-  REALTIME_POSTGRES_CHANGES_LISTEN_EVENT,
-} from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import type { MatchRow, MatchPlayerRow, MatchDraftRow } from "../types/db"
 
 const API_URL = "https://api.opendota.com/api/matches"
@@ -144,7 +141,7 @@ function getPositionString(
   player: OpenDotaPlayer,
   allPlayers: OpenDotaPlayer[],
 ): string | null {
-  const { lane_role, is_roaming, player_slot } = player
+  const { lane_role, player_slot } = player
   if (lane_role === undefined || lane_role === null) return null
 
   // Mid lane is always position 2
