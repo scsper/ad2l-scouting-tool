@@ -2,9 +2,9 @@ import { useGetMatchesQuery, type HeroStats } from "./matches-api";
 import { getHero } from "../../utils/get-hero";
 
 export const AggregateHeroesPlayedByPosition = ({leagueId, teamId}: {leagueId: number; teamId: number}) => {
-  const { data: matchesData, isLoading: isLoadingMatches, isError: isErrorMatches } = useGetMatchesQuery({ leagueId, teamId })
+  const { data: matchesData, isLoading: isLoadingMatches, isFetching: isFetchingMatches, isError: isErrorMatches } = useGetMatchesQuery({ leagueId, teamId })
 
-  if (isLoadingMatches) {
+  if (isLoadingMatches || isFetchingMatches) {
     return (
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
         <div className="flex items-center gap-3">

@@ -3,10 +3,10 @@ import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api";
 import { getHero } from "../../utils/get-hero";
 
 export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) => {
-  const { data: matchesData, isLoading: isLoadingMatches, isError: isErrorMatches } = useGetMatchesQuery({ leagueId, teamId })
+  const { data: matchesData, isLoading: isLoadingMatches, isFetching: isFetchingMatches, isError: isErrorMatches } = useGetMatchesQuery({ leagueId, teamId })
   const { data: teamsData, isLoading: isLoadingTeams, isError: isErrorTeams } = useGetTeamsByLeagueQuery({ leagueId })
 
-  if (isLoadingMatches || isLoadingTeams) {
+  if (isLoadingMatches || isLoadingTeams || isFetchingMatches) {
     return (
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
         <div className="flex items-center gap-3">
