@@ -80,7 +80,9 @@ const initialState = {
         status: 'fulfilled',
         endpointName: 'getLeagues',
         requestId: 'preloaded',
+        originalArgs: undefined,
         data: preloadedLeagues,
+        error: undefined,
         startedTimeStamp: Date.now(),
         fulfilledTimeStamp: Date.now()
       }
@@ -108,6 +110,7 @@ const initialState = {
         requestId: 'preloaded',
         originalArgs: { leagueId: 19137 },
         data: preloadedTeams,
+        error: undefined,
         startedTimeStamp: Date.now(),
         fulfilledTimeStamp: Date.now()
       }
@@ -127,7 +130,7 @@ const initialState = {
       invalidationBehavior: 'delayed' as const
     }
   }
-} as Partial<RootState>
+} as unknown as Partial<RootState>
 
 export const store = makeStore(initialState)
 
