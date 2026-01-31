@@ -125,6 +125,7 @@ const heroIdMap: Record<string, string> = {
   "137": "Primal Beast",
   "138": "Muerta",
   "145": "Kez",
+  "155": "Largo",
 }
 
 export function getHero(id: string | number): string {
