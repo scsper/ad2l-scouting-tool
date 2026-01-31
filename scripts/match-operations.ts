@@ -127,19 +127,58 @@ function getLaneString(lane?: number, isRoaming?: boolean): string | null {
   }
 }
 
-// Helper to convert lane_role to position string
-function getPositionString(laneRole?: number): string | null {
-  if (laneRole === undefined || laneRole === null) return null;
+// Helper to determine position based on lane_role and farm priority
+// OpenDota lane_role: 1=safelane, 2=mid, 3=offlane, 4=jungle
+// Positions: 1=carry, 2=mid, 3=offlane, 4=soft support, 5=hard support
+function getPositionString(player: OpenDotaPlayer, allPlayers: OpenDotaPlayer[]): string | null {
+  const { lane_role, is_roaming, player_slot } = player;
 
-  // OpenDota lane_role values: 1=carry, 2=mid, 3=offlane, 4=support, 5=hard support
-  switch (laneRole) {
-    case 1: return "POSITION_1";
-    case 2: return "POSITION_2";
-    case 3: return "POSITION_3";
-    case 4: return "POSITION_4";
-    case 5: return "POSITION_5";
-    default: return null;
+  if (is_roaming) {
+    // Roaming is typically position 4
+    return "POSITION_4";
   }
+
+  if (lane_role === undefined || lane_role === null) return null;
+
+  // Mid lane is always position 2
+  if (lane_role === 2) {
+    return "POSITION_2";
+  }
+
+  // Jungle is typically position 4
+  if (lane_role === 4) {
+    return "POSITION_4";
+  }
+
+  // For safelane (1) and offlane (3), we need to distinguish core from support
+  // based on farm priority within the same team
+  const isRadiant = player_slot < 128;
+  const teammates = allPlayers.filter(p => (p.player_slot < 128) === isRadiant);
+
+  // Sort teammates by farm priority (GPM * 0.7 + last_hits * 0.3 for weighted score)
+  const teamWithFarmScore = teammates.map(p => ({
+    player: p,
+    farmScore: (p.gold_per_min * 0.7) + (p.last_hits * 0.3)
+  })).sort((a, b) => b.farmScore - a.farmScore);
+
+  // Find this player's rank in farm priority (0-4, where 0 is highest farm)
+  const farmRank = teamWithFarmScore.findIndex(t => t.player === player);
+
+  // Safelane: highest farm = pos 1, lowest farm = pos 5
+  if (lane_role === 1) {
+    // Top 2 farmers in safelane are cores (position 1)
+    // Bottom 3 are supports (position 5)
+    return farmRank <= 1 ? "POSITION_1" : "POSITION_5";
+  }
+
+  // Offlane: highest farm = pos 3, lower farm = pos 4
+  if (lane_role === 3) {
+    // Top 2 farmers in offlane are cores (position 3)
+    // Bottom 3 are supports (position 4)
+    return farmRank <= 1 ? "POSITION_3" : "POSITION_4";
+  }
+
+  return null;
 }
 
 // Transform OpenDota match to internal Match format
@@ -160,7 +199,7 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
       isVictory,
       isRadiant,
       lane: getLaneString(player.lane, player.is_roaming),
-      position: getPositionString(player.lane_role),
+      position: getPositionString(player, openDotaMatch.players),
       kills: player.kills,
       deaths: player.deaths,
       assists: player.assists,
