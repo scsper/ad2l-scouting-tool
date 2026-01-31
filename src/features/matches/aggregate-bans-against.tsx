@@ -37,12 +37,15 @@ export const AggregateBansAgainst = ({leagueId, teamId}: {leagueId: number; team
         Overall Bans Against
       </h2>
       <ul className="space-y-2">
-        {Object.entries(matchesData.aggregate.bansAgainst).sort((a, b) => b[1] - a[1]).map(([heroId, count]) => (
+        {Object.entries(matchesData.aggregate.bansAgainst).sort((a, b) => b[1].count - a[1].count).map(([heroId, stats]) => (
           <li key={heroId} className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-all">
             <span className="font-medium text-slate-200">{getHero(heroId)}</span>
-            <span className="text-xs px-2.5 py-1 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30 font-semibold">
-              {count}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">{stats.wins} - {stats.losses}</span>
+              <span className="text-xs px-2.5 py-1 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30 font-semibold">
+                {stats.count}
+              </span>
+            </div>
           </li>
         ))}
       </ul>
