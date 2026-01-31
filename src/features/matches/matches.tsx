@@ -30,6 +30,9 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
               const otherTeamBans = match.draft.filter(pickBan => pickBan.team_id !== teamId && !pickBan.is_pick);
               const matchDate = new Date(match.start_date_time * 1000).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
+              const scoutedTeamWon = match.winning_team_id === scoutedTeamId;
+              const otherTeamWon = match.winning_team_id === otherTeamId;
+
               return (
                 <div key={match.id}>
                   {/* <h2 className="text-xl font-bold">{scoutedTeam.id} vs {otherTeam.id}</h2> */}
@@ -38,7 +41,9 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
                       <p>{matchDate}</p>
                     </div>
                     <div className="flex flex-col pl-4">
-                      <h3 className="text-lg font-bold">{scoutedTeamName}</h3>
+                      <h3 className="text-lg font-bold">
+                        {scoutedTeamName} {scoutedTeamWon && <span className="text-green-600">✓ Win</span>}{otherTeamWon && <span className="text-red-600">✗ Loss</span>}
+                      </h3>
                       <ul>
                           {scoutedTeam.slice().sort((a,b) => {
                             const posA = a.position ?? "UNCATEGORIZED";
@@ -49,7 +54,9 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
                     </div>
 
                     <div className="flex flex-col pl-4">
-                      <h3 className="text-lg font-bold">{otherTeamName}</h3>
+                      <h3 className="text-lg font-bold">
+                        {otherTeamName} {otherTeamWon && <span className="text-green-600">✓ Win</span>}{scoutedTeamWon && <span className="text-red-600">✗ Loss</span>}
+                      </h3>
                       <ul>
                         {otherTeam.slice().sort((a,b) => {
                             const posA = a.position ?? "UNCATEGORIZED";
