@@ -2,11 +2,17 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
 import type { MatchApiResponse } from "../../../types/api"
 
+export type HeroStats = {
+  games: number;
+  wins: number;
+  losses: number;
+}
+
 export type TransformedMatchesApiResponse = {
   matches: MatchApiResponse[];
   aggregate: {
     bansAgainst: Record<string, number>;
-    heroesPlayedByPosition: Record<string, Record<string, number>>;
+    heroesPlayedByPosition: Record<string, Record<string, HeroStats>>;
   }
 }
 
@@ -65,8 +71,8 @@ function getBansAgainst(matches: MatchApiResponse[], scoutedTeamId: number) {
   return bansAgainst;
 }
 
-function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTeamId: number): Record<string, Record<string, number>> {
-  const heroesPlayedByPosition: Record<string, Record<string, number>> = {
+function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTeamId: number): Record<string, Record<string, HeroStats>> {
+  const heroesPlayedByPosition: Record<string, Record<string, HeroStats>> = {
     "POSITION_1": {},
     "POSITION_2": {},
     "POSITION_3": {},
@@ -76,6 +82,8 @@ function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTe
   };
 
   for (const match of matches) {
+    const teamWon = match.winning_team_id === scoutedTeamId;
+
     for (const player of match.players) {
       if (player.team_id !== scoutedTeamId) {
         continue;
@@ -85,9 +93,19 @@ function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTe
       const position = player.position ?? "UNCATEGORIZED";
 
       if (!heroesPlayedByPosition[position][hero_id]) {
-        heroesPlayedByPosition[position][hero_id] = 0;
+        heroesPlayedByPosition[position][hero_id] = {
+          games: 0,
+          wins: 0,
+          losses: 0,
+        };
       }
-      heroesPlayedByPosition[position][hero_id]++;
+      
+      heroesPlayedByPosition[position][hero_id].games++;
+      if (teamWon) {
+        heroesPlayedByPosition[position][hero_id].wins++;
+      } else {
+        heroesPlayedByPosition[position][hero_id].losses++;
+      }
     }
   }
 

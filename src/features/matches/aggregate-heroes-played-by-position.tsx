@@ -1,4 +1,4 @@
-import { useGetMatchesQuery } from "./matches-api";
+import { useGetMatchesQuery, type HeroStats } from "./matches-api";
 import { getHero } from "../../utils/get-hero";
 
 export const AggregateHeroesPlayedByPosition = ({leagueId, teamId}: {leagueId: number; teamId: number}) => {
@@ -50,7 +50,7 @@ export const AggregateHeroesPlayedByPosition = ({leagueId, teamId}: {leagueId: n
   )
 }
 
-const HeroList = ({heroes, position, color}: {heroes: Record<string, number>; position: string; color: string}) => {
+const HeroList = ({heroes, position, color}: {heroes: Record<string, HeroStats>; position: string; color: string}) => {
   const colorClasses = {
     red: "from-red-500/20 to-red-600/20 border-red-500/30 text-red-300",
     yellow: "from-yellow-500/20 to-yellow-600/20 border-yellow-500/30 text-yellow-300",
@@ -69,20 +69,36 @@ const HeroList = ({heroes, position, color}: {heroes: Record<string, number>; po
     gray: "bg-gray-500/20 text-gray-300 border-gray-500/30",
   };
 
+  const sortedHeroIds = Object.keys(heroes).sort((a, b) => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unsafe-member-access
+    return heroes[b]!.games - heroes[a]!.games;
+  });
+
   return (
     <div>
       <h4 className={`text-sm font-bold mb-2 px-3 py-1.5 rounded-lg bg-linear-to-r ${colorClasses[color as keyof typeof colorClasses]} border inline-block`}>
         {position}
       </h4>
       <ul className="space-y-1.5 mt-2">
-        {Object.entries(heroes).sort((a, b) => b[1] - a[1]).map(([heroId, count]) => (
-          <li key={heroId} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-slate-700/20 hover:bg-slate-700/40 transition-all">
-            <span className="text-sm font-medium text-slate-200">{getHero(heroId)}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${badgeClasses[color as keyof typeof badgeClasses]}`}>
-              {count}
-            </span>
-          </li>
-        ))}
+        {sortedHeroIds.map((heroId) => {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unsafe-assignment
+          const stats = heroes[heroId]!;
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          const { wins, losses, games } = stats;
+          return (
+            <li key={heroId} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-slate-700/20 hover:bg-slate-700/40 transition-all">
+              <span className="text-sm font-medium text-slate-200">{getHero(heroId)}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-medium">
+                  {wins}-{losses}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${badgeClasses[color as keyof typeof badgeClasses]}`}>
+                  {games}
+                </span>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   )
