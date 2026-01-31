@@ -34,7 +34,7 @@ export const AggregateHeroesPlayedByPosition = ({leagueId, teamId}: {leagueId: n
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6 hover:border-slate-600 transition-all h-fit">
       <h2 className="text-xl font-bold mb-4 pb-3 border-b border-slate-700 bg-linear-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-        Aggregated Heroes Played By Position
+        Heroes Played
       </h2>
       <div className="space-y-5">
         <HeroList position="Carry" heroes={matchesData.aggregate.heroesPlayedByPosition.POSITION_1} color="red" />
@@ -42,7 +42,9 @@ export const AggregateHeroesPlayedByPosition = ({leagueId, teamId}: {leagueId: n
         <HeroList position="Offlane" heroes={matchesData.aggregate.heroesPlayedByPosition.POSITION_3} color="cyan" />
         <HeroList position="Soft Support" heroes={matchesData.aggregate.heroesPlayedByPosition.POSITION_4} color="green" />
         <HeroList position="Hard Support" heroes={matchesData.aggregate.heroesPlayedByPosition.POSITION_5} color="blue" />
-        <HeroList position="Uncategorized" heroes={matchesData.aggregate.heroesPlayedByPosition.UNCATEGORIZED} color="gray" />
+        {Object.keys(matchesData.aggregate.heroesPlayedByPosition.UNCATEGORIZED).length > 0 && (
+          <HeroList position="Uncategorized" heroes={matchesData.aggregate.heroesPlayedByPosition.UNCATEGORIZED} color="gray" />
+        )}
       </div>
     </div>
   )

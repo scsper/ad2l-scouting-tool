@@ -34,7 +34,7 @@ export const AggregateBansAgainst = ({leagueId, teamId}: {leagueId: number; team
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6 hover:border-slate-600 transition-all h-fit">
       <h2 className="text-xl font-bold mb-4 pb-3 border-b border-slate-700 bg-linear-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-        Aggregated Bans Against
+        Overall Bans Against
       </h2>
       <ul className="space-y-2">
         {Object.entries(matchesData.aggregate.bansAgainst).sort((a, b) => b[1] - a[1]).map(([heroId, count]) => (

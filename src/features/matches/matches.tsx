@@ -8,7 +8,7 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
 
   if (isLoadingMatches || isLoadingTeams) {
     return (
-      <div className="xl:col-span-1 bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
         <div className="flex items-center gap-3">
           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
           <span className="text-slate-400">Loading matches...</span>
@@ -18,14 +18,14 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
   }
   if (isErrorMatches || isErrorTeams) {
     return (
-      <div className="xl:col-span-1 bg-slate-800/50 backdrop-blur-sm rounded-lg border border-red-500/30 shadow-lg p-6">
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-red-500/30 shadow-lg p-6">
         <div className="text-red-400">Error: Please try again</div>
       </div>
     );
   }
 
   return (
-    <div className="xl:col-span-1 space-y-4">
+    <div className="space-y-4">
       {matchesData && teamsData && (
           <div className="space-y-4">
             {matchesData.matches.map((match) => {
@@ -52,9 +52,9 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <h3 className="text-base font-bold flex items-center gap-2 pb-2 border-b border-slate-700">
-                        {scoutedTeamName} 
-                        {scoutedTeamWon && <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30">✓ Win</span>}
-                        {otherTeamWon && <span className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-full border border-red-500/30">✗ Loss</span>}
+                        <span className="truncate" title={scoutedTeamName}>{scoutedTeamName}</span>
+                        {scoutedTeamWon && <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30 flex-shrink-0">✓ W</span>}
+                        {otherTeamWon && <span className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-full border border-red-500/30 flex-shrink-0">✗ L</span>}
                       </h3>
                       <ul className="space-y-1">
                           {scoutedTeam.slice().sort((a,b) => {
@@ -72,9 +72,9 @@ export const Matches = ({leagueId, teamId}: {leagueId: number; teamId: number}) 
 
                     <div className="space-y-2">
                       <h3 className="text-base font-bold flex items-center gap-2 pb-2 border-b border-slate-700">
-                        {otherTeamName}
-                        {otherTeamWon && <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30">✓ Win</span>}
-                        {scoutedTeamWon && <span className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-full border border-red-500/30">✗ Loss</span>}
+                        <span className="truncate" title={otherTeamName}>{otherTeamName}</span>
+                        {otherTeamWon && <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30 flex-shrink-0">✓ W</span>}
+                        {scoutedTeamWon && <span className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-full border border-red-500/30 flex-shrink-0">✗ L</span>}
                       </h3>
                       <ul className="space-y-1">
                         {otherTeam.slice().sort((a,b) => {
