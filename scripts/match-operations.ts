@@ -1,60 +1,59 @@
 import { createClient } from "@supabase/supabase-js";
 import type { MatchRow, MatchPlayerRow, MatchDraftRow } from "../types/db";
 
-const API_URL = "https://api.stratz.com/graphql";
-const STRATZ_API_KEY = process.env.STRATZ_API_TOKEN ?? "";
+const API_URL = "https://api.opendota.com/api/matches";
+const OPENDOTA_API_KEY = process.env.OPENDOTA_API_TOKEN ?? "";
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
 
 const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
-const QUERY = `query GetMatch($matchId: Long!) {
-	match(id: $matchId) {
-    id
-    didRadiantWin
-    startDateTime
-    endDateTime
-    leagueId
-    radiantTeam {
-      id
-      name
-    }
-    direTeam {
-      id
-      name
-    }
-    topLaneOutcome
-    midLaneOutcome
-    bottomLaneOutcome
-    pickBans {
-      isPick
-      heroId
-      order
-      isRadiant
-    }
-		players {
-      steamAccount {
-        id
-        name
-      }
-      heroId
-      isVictory
-      isRadiant
-      lane
-      position
-      kills
-      deaths
-      assists
-      numLastHits
-      numDenies
-      goldPerMinute
-      experiencePerMinute
-      heroDamage
-      towerDamage
-    }
-  }
-}`
+// OpenDota API response types
+type OpenDotaTeam = {
+  team_id?: number;
+  name?: string;
+}
 
+type OpenDotaPickBan = {
+  is_pick: boolean;
+  hero_id: number;
+  team: 0 | 1; // 0 = radiant, 1 = dire
+  order: number;
+}
+
+type OpenDotaPlayer = {
+  account_id?: number;
+  personaname?: string;
+  hero_id: number;
+  player_slot: number; // 0-127 = radiant, 128-255 = dire
+  kills: number;
+  deaths: number;
+  assists: number;
+  last_hits: number;
+  denies: number;
+  gold_per_min: number;
+  xp_per_min: number;
+  hero_damage: number;
+  tower_damage: number;
+  lane?: number;
+  lane_role?: number;
+  is_roaming?: boolean;
+}
+
+// OpenDota match response
+type OpenDotaMatch = {
+  match_id: number;
+  radiant_win: boolean;
+  start_time: number;
+  duration: number;
+  leagueid?: number;
+  radiant_team?: OpenDotaTeam;
+  dire_team?: OpenDotaTeam;
+  picks_bans?: OpenDotaPickBan[];
+  players: OpenDotaPlayer[];
+}
+
+// Internal types (matching Stratz structure for compatibility)
 type Team = {
   id: number;
   name: string;
@@ -111,31 +110,131 @@ type MatchResponse = {
   };
 }
 
-function getVariablesForGetMatch(matchId: number) {
-  return {
-    "matchId": matchId
+// Helper to convert lane number to lane string
+function getLaneString(lane?: number, isRoaming?: boolean): string | null {
+  if (isRoaming) return "ROAMING";
+  if (lane === undefined || lane === null) return null;
+
+  // OpenDota lane values: 1=safe, 2=mid, 3=off, 4=jungle
+  switch (lane) {
+    case 1: return "SAFE_LANE";
+    case 2: return "MID_LANE";
+    case 3: return "OFF_LANE";
+    case 4: return "JUNGLE";
+    default: return null;
   }
 }
 
-export async function getMatch(matchId: number): Promise<MatchResponse | undefined> {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": 'STRATZ_API',
-      "Authorization": `Bearer ${STRATZ_API_KEY}`
-    },
-    body: JSON.stringify({ query: QUERY, variables: getVariablesForGetMatch(matchId) })
+// Helper to convert lane_role to position string
+function getPositionString(laneRole?: number): string | null {
+  if (laneRole === undefined || laneRole === null) return null;
+
+  // OpenDota lane_role values: 1=carry, 2=mid, 3=offlane, 4=support, 5=hard support
+  switch (laneRole) {
+    case 1: return "POSITION_1";
+    case 2: return "POSITION_2";
+    case 3: return "POSITION_3";
+    case 4: return "POSITION_4";
+    case 5: return "POSITION_5";
+    default: return null;
+  }
+}
+
+// Transform OpenDota match to internal Match format
+function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
+  const endDateTime = openDotaMatch.start_time + openDotaMatch.duration;
+
+  // Transform players
+  const players: Player[] = openDotaMatch.players.map(player => {
+    const isRadiant = player.player_slot < 128;
+    const isVictory = (isRadiant && openDotaMatch.radiant_win) || (!isRadiant && !openDotaMatch.radiant_win);
+
+    return {
+      steamAccount: player.account_id ? {
+        id: player.account_id,
+        name: player.personaname ?? null
+      } : null,
+      heroId: player.hero_id,
+      isVictory,
+      isRadiant,
+      lane: getLaneString(player.lane, player.is_roaming),
+      position: getPositionString(player.lane_role),
+      kills: player.kills,
+      deaths: player.deaths,
+      assists: player.assists,
+      numLastHits: player.last_hits,
+      numDenies: player.denies,
+      goldPerMinute: player.gold_per_min,
+      experiencePerMinute: player.xp_per_min,
+      heroDamage: player.hero_damage,
+      towerDamage: player.tower_damage
+    };
   });
 
-  const matchData = await response.json() as MatchResponse;
+  // Transform picks and bans
+  const pickBans: PickBan[] = (openDotaMatch.picks_bans ?? []).map(pb => ({
+    isPick: pb.is_pick,
+    heroId: pb.hero_id,
+    order: pb.order,
+    isRadiant: pb.team === 0
+  }));
 
-  if ('errors' in matchData) {
-    console.error("GraphQL Error:", matchData.errors);
+  // Transform teams
+  const radiantTeam: Team | null = openDotaMatch.radiant_team ? {
+    id: openDotaMatch.radiant_team.team_id ?? 0,
+    name: openDotaMatch.radiant_team.name ?? "Radiant"
+  } : null;
+
+  const direTeam: Team | null = openDotaMatch.dire_team ? {
+    id: openDotaMatch.dire_team.team_id ?? 0,
+    name: openDotaMatch.dire_team.name ?? "Dire"
+  } : null;
+
+  return {
+    id: openDotaMatch.match_id,
+    didRadiantWin: openDotaMatch.radiant_win,
+    startDateTime: openDotaMatch.start_time,
+    endDateTime,
+    leagueId: openDotaMatch.leagueid ?? 0,
+    radiantTeam,
+    direTeam,
+    topLaneOutcome: null, // OpenDota doesn't provide lane outcomes
+    midLaneOutcome: null,
+    bottomLaneOutcome: null,
+    pickBans,
+    players
+  };
+}
+
+export async function getMatch(matchId: number): Promise<MatchResponse | undefined> {
+  const url = `${API_URL}/${matchId}${OPENDOTA_API_KEY ? `?api_key=${OPENDOTA_API_KEY}` : ''}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    }
+  });
+
+  if (!response.ok) {
+    console.error(`API Error: ${response.status} ${response.statusText}`);
     return;
   }
 
-  return matchData;
+  const openDotaMatch = await response.json() as OpenDotaMatch;
+
+  if ('error' in openDotaMatch) {
+    console.error("OpenDota API Error:", openDotaMatch.error);
+    return;
+  }
+
+  const match = transformOpenDotaMatch(openDotaMatch);
+
+  return {
+    data: {
+      match
+    }
+  };
 }
 
 function getLaneOutcome(match: Match, player: Player): string | null {
