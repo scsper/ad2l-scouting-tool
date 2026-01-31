@@ -49,7 +49,8 @@ const preloadedTeams: LeagueTeamsResponse = {
     9408493: "Random Gaming",
     9622244: "Solar Gravity",
     10014373: "Gigadadz",
-    10027404: "Cyber Cloud"
+    10027404: "Cyber Cloud",
+    9186949: "Team Blunder"
   }
 }
 
