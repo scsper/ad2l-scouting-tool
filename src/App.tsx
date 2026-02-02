@@ -4,6 +4,7 @@ import { Matches } from "./features/matches/matches";
 import { AggregateBansAgainst } from "./features/matches/aggregate-bans-against";
 import { AggregateHeroesPlayedByPosition } from "./features/matches/aggregate-heroes-played-by-position";
 import { AggregateContestRate } from "./features/matches/aggregate-contest-rate";
+import { Players } from "./features/players/players";
 
 type Tab = "team" | "players" | "lanes";
 
@@ -64,11 +65,8 @@ export const App = () => {
           </div>
         )}
         
-        {activeTab === "players" && (
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
-            <div className="text-slate-400 text-lg font-medium">Coming Soon</div>
-            <div className="text-slate-500 text-sm mt-2">Player statistics and analysis will be available here</div>
-          </div>
+        {activeTab === "players" && leagueId && teamId && (
+          <Players leagueId={leagueId} teamId={teamId} />
         )}
         
         {activeTab === "lanes" && (

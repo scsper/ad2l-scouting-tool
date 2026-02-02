@@ -130,7 +130,7 @@ function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTe
           losses: 0,
         };
       }
-      
+
       heroesPlayedByPosition[position][hero_id].games++;
       if (teamWon) {
         heroesPlayedByPosition[position][hero_id].wins++;
@@ -165,7 +165,7 @@ function getContestRate(matches: MatchApiResponse[], scoutedTeamId: number): Rec
       }
       contestRate[hero_id].count++;
       contestRate[hero_id].picks++;
-      
+
       if (team_id === scoutedTeamId) {
         contestRate[hero_id].breakdown.scoutedTeamPicks++;
       } else {
@@ -192,7 +192,7 @@ function getContestRate(matches: MatchApiResponse[], scoutedTeamId: number): Rec
         }
         contestRate[hero_id].count++;
         contestRate[hero_id].bans++;
-        
+
         if (team_id === scoutedTeamId) {
           contestRate[hero_id].breakdown.scoutedTeamBans++;
         } else {

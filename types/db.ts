@@ -36,4 +36,14 @@ type MatchDraftRow = {
   is_pick: boolean;
 }
 
-export type { MatchRow, MatchPlayerRow, MatchDraftRow };
+type PlayerRow = {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  team_id: number;
+  role: string;
+  name: string;
+  rank: string;
+}
+
+export type { MatchRow, MatchPlayerRow, MatchDraftRow, PlayerRow };
