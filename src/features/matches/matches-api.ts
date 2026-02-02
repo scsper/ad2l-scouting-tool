@@ -14,11 +14,18 @@ export type BanStats = {
   losses: number;
 }
 
+export type ContestRateStats = {
+  count: number;
+  picks: number;
+  bans: number;
+}
+
 export type TransformedMatchesApiResponse = {
   matches: MatchApiResponse[];
   aggregate: {
     bansAgainst: Record<string, BanStats>;
     heroesPlayedByPosition: Record<string, Record<string, HeroStats>>;
+    contestRate: Record<string, ContestRateStats>;
   }
 }
 
@@ -41,6 +48,7 @@ export const matchesApiSlice = createApi({
           aggregate: {
             bansAgainst: getBansAgainst(response, teamId),
             heroesPlayedByPosition: accumulateHeroesPlayedByPosition(response, teamId),
+            contestRate: getContestRate(response),
           }
         }
       }
@@ -127,6 +135,44 @@ function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTe
   }
 
   return heroesPlayedByPosition;
+}
+
+function getContestRate(matches: MatchApiResponse[]): Record<string, ContestRateStats> {
+  const contestRate: Record<string, ContestRateStats> = {};
+
+  for (const match of matches) {
+    // Track heroes picked
+    for (const player of match.players) {
+      const { hero_id } = player;
+      if (!contestRate[hero_id]) {
+        contestRate[hero_id] = {
+          count: 0,
+          picks: 0,
+          bans: 0,
+        };
+      }
+      contestRate[hero_id].count++;
+      contestRate[hero_id].picks++;
+    }
+
+    // Track heroes banned
+    for (const draft of match.draft) {
+      if (!draft.is_pick) {
+        const { hero_id } = draft;
+        if (!contestRate[hero_id]) {
+          contestRate[hero_id] = {
+            count: 0,
+            picks: 0,
+            bans: 0,
+          };
+        }
+        contestRate[hero_id].count++;
+        contestRate[hero_id].bans++;
+      }
+    }
+  }
+
+  return contestRate;
 }
 
 export const { useLazyGetMatchesQuery, useGetMatchesQuery } = matchesApiSlice
