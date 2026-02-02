@@ -18,6 +18,12 @@ export type ContestRateStats = {
   count: number;
   picks: number;
   bans: number;
+  breakdown: {
+    scoutedTeamPicks: number;
+    opponentPicks: number;
+    scoutedTeamBans: number;
+    opponentBans: number;
+  }
 }
 
 export type TransformedMatchesApiResponse = {
@@ -48,7 +54,7 @@ export const matchesApiSlice = createApi({
           aggregate: {
             bansAgainst: getBansAgainst(response, teamId),
             heroesPlayedByPosition: accumulateHeroesPlayedByPosition(response, teamId),
-            contestRate: getContestRate(response),
+            contestRate: getContestRate(response, teamId),
           }
         }
       }
@@ -137,37 +143,61 @@ function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTe
   return heroesPlayedByPosition;
 }
 
-function getContestRate(matches: MatchApiResponse[]): Record<string, ContestRateStats> {
+function getContestRate(matches: MatchApiResponse[], scoutedTeamId: number): Record<string, ContestRateStats> {
   const contestRate: Record<string, ContestRateStats> = {};
 
   for (const match of matches) {
     // Track heroes picked
     for (const player of match.players) {
-      const { hero_id } = player;
+      const { hero_id, team_id } = player;
       if (!contestRate[hero_id]) {
         contestRate[hero_id] = {
           count: 0,
           picks: 0,
           bans: 0,
+          breakdown: {
+            scoutedTeamPicks: 0,
+            opponentPicks: 0,
+            scoutedTeamBans: 0,
+            opponentBans: 0,
+          }
         };
       }
       contestRate[hero_id].count++;
       contestRate[hero_id].picks++;
+      
+      if (team_id === scoutedTeamId) {
+        contestRate[hero_id].breakdown.scoutedTeamPicks++;
+      } else {
+        contestRate[hero_id].breakdown.opponentPicks++;
+      }
     }
 
     // Track heroes banned
     for (const draft of match.draft) {
       if (!draft.is_pick) {
-        const { hero_id } = draft;
+        const { hero_id, team_id } = draft;
         if (!contestRate[hero_id]) {
           contestRate[hero_id] = {
             count: 0,
             picks: 0,
             bans: 0,
+            breakdown: {
+              scoutedTeamPicks: 0,
+              opponentPicks: 0,
+              scoutedTeamBans: 0,
+              opponentBans: 0,
+            }
           };
         }
         contestRate[hero_id].count++;
         contestRate[hero_id].bans++;
+        
+        if (team_id === scoutedTeamId) {
+          contestRate[hero_id].breakdown.scoutedTeamBans++;
+        } else {
+          contestRate[hero_id].breakdown.opponentBans++;
+        }
       }
     }
   }
