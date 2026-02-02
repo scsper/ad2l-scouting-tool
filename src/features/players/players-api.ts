@@ -15,6 +15,10 @@ export const playersApiSlice = createApi({
   // Tag types are used for caching and invalidation.
   tagTypes: ["Players"],
   endpoints: build => ({
+    getPlayersByTeam: build.query<PlayerRow[], { teamId: number }>({
+      query: ({ teamId }) => `api/player?teamId=${String(teamId)}`,
+      providesTags: ["Players"],
+    }),
     createPlayer: build.mutation<PlayerRow, CreatePlayerRequest>({
       query: (playerData) => ({
         url: 'api/player',
@@ -23,7 +27,14 @@ export const playersApiSlice = createApi({
       }),
       invalidatesTags: ["Players"],
     }),
+    deletePlayer: build.mutation<void, { playerId: number }>({
+      query: ({ playerId }) => ({
+        url: `api/player?playerId=${String(playerId)}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ["Players"],
+    }),
   }),
 })
 
-export const { useCreatePlayerMutation } = playersApiSlice;
+export const { useGetPlayersByTeamQuery, useCreatePlayerMutation, useDeletePlayerMutation } = playersApiSlice;
