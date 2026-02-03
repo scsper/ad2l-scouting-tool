@@ -1,49 +1,66 @@
 type MatchRow = {
-  id: number;
-  league_id: number;
-  winning_team_id: number | null;
-  radiant_team_id: number | null;
-  dire_team_id: number | null;
-  start_date_time: number;
-  end_date_time: number;
+  id: number
+  league_id: number
+  winning_team_id: number | null
+  radiant_team_id: number | null
+  dire_team_id: number | null
+  start_date_time: number
+  end_date_time: number
 }
 
 type MatchPlayerRow = {
-  player_id: number;
-  match_id: number;
-  team_id: number | null;
-  player_name: string | null;
-  hero_id: number;
-  position: string | null;
-  lane_outcome: string | null;
-  lane: string | null;
-  kills: number;
-  deaths: number;
-  assists: number;
-  last_hits: number;
-  denies: number;
-  gpm: number;
-  xpm: number;
-  hero_damage: number;
-  tower_damage: number;
+  player_id: number
+  match_id: number
+  team_id: number | null
+  player_name: string | null
+  hero_id: number
+  position: string | null
+  lane_outcome: string | null
+  lane: string | null
+  kills: number
+  deaths: number
+  assists: number
+  last_hits: number
+  denies: number
+  gpm: number
+  xpm: number
+  hero_damage: number
+  tower_damage: number
 }
 
 type MatchDraftRow = {
-  match_id: number;
-  order: number;
-  hero_id: number;
-  team_id: number | null;
-  is_pick: boolean;
+  match_id: number
+  order: number
+  hero_id: number
+  team_id: number | null
+  is_pick: boolean
 }
 
 type PlayerRow = {
-  id: number;
-  created_at: string;
-  updated_at: string;
-  team_id: number;
-  role: string;
-  name: string;
-  rank: string;
+  id: number
+  created_at: string
+  updated_at: string
+  team_id: number
+  role: string
+  name: string
+  rank: string
 }
 
-export type { MatchRow, MatchPlayerRow, MatchDraftRow, PlayerRow };
+type PlayerPubMatchStatsRow = {
+  id: number
+  player_id: number
+  created_at: string
+  hero_id: number
+  wins: number
+  losses: number
+  type: "RECENT_MATCH" | "TOP_10_HEROES_BY_POSITION" | "TOP_10_HEROES_OVERALL"
+  last_match_date_time: string | null
+}
+
+export type {
+  MatchRow,
+  MatchPlayerRow,
+  MatchDraftRow,
+  PlayerRow,
+  PlayerPubMatchStatsRow,
+}
