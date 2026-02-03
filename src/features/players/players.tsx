@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CreatePlayerModal } from "./CreatePlayerModal"
 import {
   useGetPlayersByTeamQuery,
@@ -18,20 +18,40 @@ type PlayersProps = {
 export const Players = ({ leagueId, teamId }: PlayersProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [playerToDelete, setPlayerToDelete] = useState<PlayerRow | null>(null)
-  const [collapsedPlayerIds, setCollapsedPlayerIds] = useState<Set<number>>(
-    new Set(),
-  )
   const {
     data: players = [],
     isLoading,
     error,
   } = useGetPlayersByTeamQuery({ teamId })
+  const [collapsedPlayerIds, setCollapsedPlayerIds] = useState<Set<number>>(
+    new Set(players.map(p => p.id)),
+  )
   const { data: matchesData } = useGetMatchesQuery({ leagueId, teamId })
   const [deletePlayer, { isLoading: isDeleting }] = useDeletePlayerMutation()
   const [fetchPlayerPubMatches] = useFetchPlayerPubMatchesMutation()
   const [fetchingPlayerIds, setFetchingPlayerIds] = useState<Set<number>>(
     new Set(),
   )
+
+  // Initialize collapsed state with all player IDs when players load
+  // Only add new players to collapsed set, don't reset existing state
+  useEffect(() => {
+    if (players.length > 0) {
+      setCollapsedPlayerIds(prev => {
+        const newSet = new Set(prev)
+        players.forEach(p => {
+          if (!prev.has(p.id) && prev.size > 0) {
+            // Only auto-collapse newly added players
+            newSet.add(p.id)
+          } else if (prev.size === 0) {
+            // Initial load - collapse all
+            newSet.add(p.id)
+          }
+        })
+        return newSet
+      })
+    }
+  }, [players])
 
   const togglePlayerExpanded = (playerId: number) => {
     setCollapsedPlayerIds(prev => {

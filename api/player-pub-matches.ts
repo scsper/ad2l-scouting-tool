@@ -331,7 +331,7 @@ async function insertStats(
   return result.data as PlayerPubMatchStatsRow[]
 }
 
-async function fetchAndStorePlayerStats(
+export async function fetchAndStorePlayerStats(
   playerId: number,
   positions?: string[],
 ): Promise<FetchPlayerPubMatchesResponse> {
