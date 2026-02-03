@@ -7,6 +7,8 @@ import {
 } from "./players-api"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { PlayerPubMatchStats } from "./PlayerPubMatchStats"
+import { PlayerLeagueHeroes } from "./PlayerLeagueHeroes"
+import { useGetMatchesQuery } from "../matches/matches-api"
 import type { PlayerRow } from "../../../types/db"
 
 type PlayersProps = {
@@ -25,6 +27,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
     isLoading,
     error,
   } = useGetPlayersByTeamQuery({ teamId })
+  const { data: matchesData } = useGetMatchesQuery({ leagueId, teamId })
   const [deletePlayer, { isLoading: isDeleting }] = useDeletePlayerMutation()
   const [fetchPlayerPubMatches, { isLoading: isFetchingMap }] =
     useFetchPlayerPubMatchesMutation()
@@ -225,8 +228,8 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                       className="text-blue-400 hover:text-blue-300 transition-colors"
                       title={
                         isPlayerExpanded(player.id)
-                          ? "Hide pub match stats"
-                          : "Show pub match stats"
+                          ? "Hide hero stats"
+                          : "Show hero stats"
                       }
                     >
                       <svg
@@ -268,7 +271,11 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                 </div>
               </div>
               {isPlayerExpanded(player.id) && (
-                <div className="mt-0">
+                <div className="mt-0 space-y-0">
+                  <PlayerLeagueHeroes
+                    playerId={player.id}
+                    matchesData={matchesData}
+                  />
                   <PlayerPubMatchStats
                     playerId={player.id}
                     playerRole={player.role}
