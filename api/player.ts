@@ -93,6 +93,18 @@ async function getPlayersByTeamId(teamId: string): Promise<PlayerRow[]> {
 async function deletePlayer(playerId: string): Promise<void> {
   const playerIdNum = parseInt(playerId, 10)
 
+  // First, delete all public match stats for this player
+  const statsResult = await supabase
+    .from("player_pub_match_stats")
+    .delete()
+    .eq("player_id", playerIdNum)
+
+  if (statsResult.error) {
+    console.error("Error deleting player pub match stats:", statsResult.error)
+    throw statsResult.error
+  }
+
+  // Then delete the player
   const result = await supabase.from("player").delete().eq("id", playerIdNum)
 
   if (result.error) {
