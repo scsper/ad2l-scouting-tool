@@ -47,12 +47,14 @@ const HeroStatsDisplay = ({
     )
   }
 
-  // Sort by total games (wins + losses) descending
-  const sortedStats = [...stats].sort((a, b) => {
-    const totalA = a.wins + a.losses
-    const totalB = b.wins + b.losses
-    return totalB - totalA
-  })
+  // Filter out heroes with only 1 game, then sort by total games descending
+  const sortedStats = [...stats]
+    .filter(stat => stat.wins + stat.losses > 1)
+    .sort((a, b) => {
+      const totalA = a.wins + a.losses
+      const totalB = b.wins + b.losses
+      return totalB - totalA
+    })
 
   const getRelativeTime = (timestampStr: string | null): string => {
     if (!timestampStr) return "Unknown"
@@ -100,19 +102,40 @@ const HeroStatsDisplay = ({
           const totalGames = stat.wins + stat.losses
           const winRate =
             totalGames > 0 ? ((stat.wins / totalGames) * 100).toFixed(1) : "0.0"
+          const winRateNum = totalGames > 0 ? (stat.wins / totalGames) * 100 : 0
           const lastPlayed = getRelativeTime(stat.last_match_date_time)
+          const isHighWinRate = winRateNum >= 55 && totalGames > 7
+
           return (
             <div
               key={stat.id}
               className="flex items-center justify-between text-base"
             >
               <div className="flex flex-col">
-                <span className="text-slate-300">{getHero(stat.hero_id)}</span>
+                <span
+                  className={
+                    isHighWinRate
+                      ? "text-green-300 font-bold"
+                      : "text-slate-300"
+                  }
+                >
+                  {getHero(stat.hero_id)}
+                </span>
                 <span className="text-slate-500 text-sm">{lastPlayed}</span>
               </div>
-              <span className="text-slate-400">
+              <span
+                className={
+                  isHighWinRate ? "text-green-300 font-bold" : "text-slate-400"
+                }
+              >
                 {stat.wins}-{stat.losses}{" "}
-                <span className="text-slate-500">({winRate}%)</span>
+                <span
+                  className={
+                    isHighWinRate ? "text-green-400" : "text-slate-500"
+                  }
+                >
+                  ({winRate}%)
+                </span>
               </span>
             </div>
           )
