@@ -168,7 +168,10 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
             <div key={player.id} className="space-y-0">
               <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg hover:bg-slate-900/30 transition-colors">
                 <div className="p-6 flex items-center justify-between">
-                  <div className="flex-1 grid grid-cols-3 gap-6">
+                  <div
+                    className="flex-1 grid grid-cols-3 gap-6 cursor-pointer"
+                    onClick={() => togglePlayerExpanded(player.id)}
+                  >
                     <div>
                       <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
                         Name
