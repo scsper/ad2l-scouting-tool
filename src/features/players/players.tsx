@@ -1,34 +1,75 @@
-import { useState } from "react";
-import { CreatePlayerModal } from "./CreatePlayerModal";
-import { useGetPlayersByTeamQuery, useDeletePlayerMutation } from "./players-api";
-import { ConfirmDialog } from "../../components/ConfirmDialog";
-import type { PlayerRow } from "../../../types/db";
+import { useState } from "react"
+import { CreatePlayerModal } from "./CreatePlayerModal"
+import {
+  useGetPlayersByTeamQuery,
+  useDeletePlayerMutation,
+} from "./players-api"
+import { ConfirmDialog } from "../../components/ConfirmDialog"
+import { PlayerPubMatchStats } from "./PlayerPubMatchStats"
+import type { PlayerRow } from "../../../types/db"
 
 type PlayersProps = {
-  leagueId: number;
-  teamId: number;
+  leagueId: number
+  teamId: number
 }
 
 export const Players = ({ leagueId, teamId }: PlayersProps) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [playerToDelete, setPlayerToDelete] = useState<PlayerRow | null>(null);
-  const { data: players = [], isLoading, error } = useGetPlayersByTeamQuery({ teamId });
-  const [deletePlayer, { isLoading: isDeleting }] = useDeletePlayerMutation();
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [playerToDelete, setPlayerToDelete] = useState<PlayerRow | null>(null)
+  const [collapsedPlayerIds, setCollapsedPlayerIds] = useState<Set<number>>(
+    new Set(),
+  )
+  const {
+    data: players = [],
+    isLoading,
+    error,
+  } = useGetPlayersByTeamQuery({ teamId })
+  const [deletePlayer, { isLoading: isDeleting }] = useDeletePlayerMutation()
+
+  const togglePlayerExpanded = (playerId: number) => {
+    setCollapsedPlayerIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(playerId)) {
+        newSet.delete(playerId)
+      } else {
+        newSet.add(playerId)
+      }
+      return newSet
+    })
+  }
+
+  const isPlayerExpanded = (playerId: number) =>
+    !collapsedPlayerIds.has(playerId)
+
+  // Sort players by role order: Carry, Mid, Offlane, Soft Support, Hard Support
+  const roleOrder: Record<string, number> = {
+    Carry: 1,
+    Mid: 2,
+    Offlane: 3,
+    "Soft Support": 4,
+    "Hard Support": 5,
+  }
+
+  const sortedPlayers = [...players].sort((a, b) => {
+    const orderA = roleOrder[a.role] ?? 999
+    const orderB = roleOrder[b.role] ?? 999
+    return orderA - orderB
+  })
 
   const handleDeleteClick = (player: PlayerRow) => {
-    setPlayerToDelete(player);
-  };
+    setPlayerToDelete(player)
+  }
 
   const handleConfirmDelete = async () => {
-    if (!playerToDelete) return;
+    if (!playerToDelete) return
 
     try {
-      await deletePlayer({ playerId: playerToDelete.id }).unwrap();
-      setPlayerToDelete(null);
+      await deletePlayer({ playerId: playerToDelete.id }).unwrap()
+      setPlayerToDelete(null)
     } catch (err) {
-      console.error("Failed to delete player:", err);
+      console.error("Failed to delete player:", err)
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -42,8 +83,18 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
           onClick={() => setIsModalOpen(true)}
           className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors flex items-center gap-2"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
           </svg>
           Add Player
         </button>
@@ -56,12 +107,18 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
         </div>
       ) : error ? (
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
-          <div className="text-red-400 text-lg font-medium">Error loading players</div>
+          <div className="text-red-400 text-lg font-medium">
+            Error loading players
+          </div>
         </div>
       ) : players.length === 0 ? (
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
-          <div className="text-slate-400 text-lg font-medium">No Players Yet</div>
-          <div className="text-slate-500 text-sm mt-2">Click "Add Player" to create your first player</div>
+          <div className="text-slate-400 text-lg font-medium">
+            No Players Yet
+          </div>
+          <div className="text-slate-500 text-sm mt-2">
+            Click "Add Player" to create your first player
+          </div>
         </div>
       ) : (
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg overflow-hidden">
@@ -86,32 +143,84 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
-              {players.map((player) => (
-                <tr key={player.id} className="hover:bg-slate-900/30 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                    {player.id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-200">
-                    {player.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                    {player.role}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                    {player.rank}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                    <button
-                      onClick={() => handleDeleteClick(player)}
-                      className="text-red-400 hover:text-red-300 transition-colors"
-                      title="Delete player"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
+              {sortedPlayers.map(player => (
+                <>
+                  <tr
+                    key={player.id}
+                    className="hover:bg-slate-900/30 transition-colors"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                      {player.id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-200">
+                      {player.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                      {player.role}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                      {player.rank}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => togglePlayerExpanded(player.id)}
+                          className="text-blue-400 hover:text-blue-300 transition-colors"
+                          title={
+                            isPlayerExpanded(player.id)
+                              ? "Hide pub match stats"
+                              : "Show pub match stats"
+                          }
+                        >
+                          <svg
+                            className={`w-5 h-5 transition-transform ${
+                              isPlayerExpanded(player.id) ? "rotate-180" : ""
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(player)}
+                          className="text-red-400 hover:text-red-300 transition-colors"
+                          title="Delete player"
+                        >
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {isPlayerExpanded(player.id) && (
+                    <tr key={`${player.id}-stats`}>
+                      <td colSpan={5} className="px-0 py-0">
+                        <PlayerPubMatchStats
+                          playerId={player.id}
+                          playerRole={player.role}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
@@ -137,5 +246,5 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
         isLoading={isDeleting}
       />
     </div>
-  );
-};
+  )
+}
