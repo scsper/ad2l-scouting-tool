@@ -3,6 +3,7 @@ import { CreatePlayerModal } from "./CreatePlayerModal"
 import {
   useGetPlayersByTeamQuery,
   useDeletePlayerMutation,
+  useFetchPlayerPubMatchesMutation,
 } from "./players-api"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { PlayerPubMatchStats } from "./PlayerPubMatchStats"
@@ -25,6 +26,11 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
     error,
   } = useGetPlayersByTeamQuery({ teamId })
   const [deletePlayer, { isLoading: isDeleting }] = useDeletePlayerMutation()
+  const [fetchPlayerPubMatches, { isLoading: isFetchingMap }] =
+    useFetchPlayerPubMatchesMutation()
+  const [fetchingPlayerIds, setFetchingPlayerIds] = useState<Set<number>>(
+    new Set(),
+  )
 
   const togglePlayerExpanded = (playerId: number) => {
     setCollapsedPlayerIds(prev => {
@@ -68,6 +74,42 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
       setPlayerToDelete(null)
     } catch (err) {
       console.error("Failed to delete player:", err)
+    }
+  }
+
+  // Map player roles to Stratz position IDs
+  function roleToPositions(role: string): string[] {
+    switch (role) {
+      case "Carry":
+        return ["POSITION_1"]
+      case "Mid":
+        return ["POSITION_2"]
+      case "Offlane":
+        return ["POSITION_3"]
+      case "Soft Support":
+      case "Hard Support":
+        return ["POSITION_4", "POSITION_5"]
+      default:
+        return []
+    }
+  }
+
+  const handleRefreshPlayerData = async (player: PlayerRow) => {
+    setFetchingPlayerIds(prev => new Set(prev).add(player.id))
+    try {
+      const positions = roleToPositions(player.role)
+      await fetchPlayerPubMatches({
+        playerId: player.id,
+        positions: positions.length > 0 ? positions : undefined,
+      }).unwrap()
+    } catch (err) {
+      console.error("Failed to fetch player pub matches:", err)
+    } finally {
+      setFetchingPlayerIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(player.id)
+        return newSet
+      })
     }
   }
 
@@ -121,109 +163,117 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
           </div>
         </div>
       ) : (
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-900/50 border-b border-slate-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700">
-              {sortedPlayers.map(player => (
-                <>
-                  <tr
-                    key={player.id}
-                    className="hover:bg-slate-900/30 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {player.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-200">
-                      {player.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {player.role}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                      {player.rank}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => togglePlayerExpanded(player.id)}
-                          className="text-blue-400 hover:text-blue-300 transition-colors"
-                          title={
-                            isPlayerExpanded(player.id)
-                              ? "Hide pub match stats"
-                              : "Show pub match stats"
-                          }
-                        >
-                          <svg
-                            className={`w-5 h-5 transition-transform ${
-                              isPlayerExpanded(player.id) ? "rotate-180" : ""
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 9l-7 7-7-7"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(player)}
-                          className="text-red-400 hover:text-red-300 transition-colors"
-                          title="Delete player"
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
+        <div className="grid gap-4">
+          {sortedPlayers.map(player => (
+            <div key={player.id} className="space-y-0">
+              <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg hover:bg-slate-900/30 transition-colors">
+                <div className="p-6 flex items-center justify-between">
+                  <div className="flex-1 grid grid-cols-3 gap-6">
+                    <div>
+                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                        Name
                       </div>
-                    </td>
-                  </tr>
-                  {isPlayerExpanded(player.id) && (
-                    <tr key={`${player.id}-stats`}>
-                      <td colSpan={5} className="px-0 py-0">
-                        <PlayerPubMatchStats
-                          playerId={player.id}
-                          playerRole={player.role}
+                      <div className="text-lg font-medium text-slate-200">
+                        {player.name}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                        Role
+                      </div>
+                      <div className="text-lg text-slate-300">
+                        {player.role}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                        Rank
+                      </div>
+                      <div className="text-lg text-slate-300">
+                        {player.rank}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-6">
+                    <button
+                      onClick={() => handleRefreshPlayerData(player)}
+                      disabled={fetchingPlayerIds.has(player.id)}
+                      className="text-blue-400 hover:text-blue-300 disabled:text-blue-400/50 disabled:cursor-not-allowed transition-colors"
+                      title="Refresh player data"
+                    >
+                      <svg
+                        className={`w-5 h-5 ${
+                          fetchingPlayerIds.has(player.id) ? "animate-spin" : ""
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                         />
-                      </td>
-                    </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => togglePlayerExpanded(player.id)}
+                      className="text-blue-400 hover:text-blue-300 transition-colors"
+                      title={
+                        isPlayerExpanded(player.id)
+                          ? "Hide pub match stats"
+                          : "Show pub match stats"
+                      }
+                    >
+                      <svg
+                        className={`w-5 h-5 transition-transform ${
+                          isPlayerExpanded(player.id) ? "rotate-180" : ""
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(player)}
+                      className="text-red-400 hover:text-red-300 transition-colors"
+                      title="Delete player"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {isPlayerExpanded(player.id) && (
+                <div className="mt-0">
+                  <PlayerPubMatchStats
+                    playerId={player.id}
+                    playerRole={player.role}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
