@@ -7,7 +7,6 @@ import {
 } from "./players-api"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { PlayerPubMatchStats } from "./PlayerPubMatchStats"
-import { PlayerLeagueHeroes } from "./PlayerLeagueHeroes"
 import { useGetMatchesQuery } from "../matches/matches-api"
 import type { PlayerRow } from "../../../types/db"
 
@@ -271,14 +270,11 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                 </div>
               </div>
               {isPlayerExpanded(player.id) && (
-                <div className="mt-0 space-y-0">
-                  <PlayerLeagueHeroes
-                    playerId={player.id}
-                    matchesData={matchesData}
-                  />
+                <div className="mt-0">
                   <PlayerPubMatchStats
                     playerId={player.id}
                     playerRole={player.role}
+                    matchesData={matchesData}
                   />
                 </div>
               )}

@@ -3,11 +3,14 @@ import {
   useFetchPlayerPubMatchesMutation,
 } from "./players-api"
 import { getHero } from "../../utils/get-hero"
+import { aggregatePlayerLeagueHeroes } from "./player-league-heroes-utils"
 import type { PlayerPubMatchStatsRow } from "../../../types/db"
+import type { TransformedMatchesApiResponse } from "../matches/matches-api"
 
 type PlayerPubMatchStatsProps = {
   playerId: number
   playerRole: string
+  matchesData?: TransformedMatchesApiResponse
 }
 
 // Map player roles to Stratz position IDs
@@ -30,6 +33,7 @@ function roleToPositions(role: string): string[] {
 type HeroStatsDisplayProps = {
   title: string
   stats: PlayerPubMatchStatsRow[]
+  filterLeastPlayedHeroes: boolean
   emptyMessage: string
 }
 
@@ -37,6 +41,7 @@ const HeroStatsDisplay = ({
   title,
   stats,
   emptyMessage,
+  filterLeastPlayedHeroes,
 }: HeroStatsDisplayProps) => {
   if (stats.length === 0) {
     return (
@@ -47,14 +52,18 @@ const HeroStatsDisplay = ({
     )
   }
 
+  let myStats: PlayerPubMatchStatsRow[] = stats
+
+  if (filterLeastPlayedHeroes) {
+    myStats = [...myStats].filter(stat => stat.wins + stat.losses > 1)
+  }
+
   // Filter out heroes with only 1 game, then sort by total games descending
-  const sortedStats = [...stats]
-    .filter(stat => stat.wins + stat.losses > 1)
-    .sort((a, b) => {
-      const totalA = a.wins + a.losses
-      const totalB = b.wins + b.losses
-      return totalB - totalA
-    })
+  const sortedStats = [...myStats].sort((a, b) => {
+    const totalA = a.wins + a.losses
+    const totalB = b.wins + b.losses
+    return totalB - totalA
+  })
 
   const getRelativeTime = (timestampStr: string | null): string => {
     if (!timestampStr) return "Unknown"
@@ -148,6 +157,7 @@ const HeroStatsDisplay = ({
 export const PlayerPubMatchStats = ({
   playerId,
   playerRole,
+  matchesData,
 }: PlayerPubMatchStatsProps) => {
   const { data, isLoading, error, refetch } = useGetPlayerPubMatchesQuery({
     playerId,
@@ -167,6 +177,24 @@ export const PlayerPubMatchStats = ({
       console.error("Failed to fetch player pub matches:", err)
     }
   }
+
+  // Get league match heroes if matchesData is provided
+  const leagueHeroStats = matchesData
+    ? aggregatePlayerLeagueHeroes(matchesData.matches, playerId)
+    : []
+
+  // Convert league hero stats to match the PlayerPubMatchStatsRow format for HeroStatsDisplay
+  const leagueHeroStatsForDisplay: PlayerPubMatchStatsRow[] =
+    leagueHeroStats.map((stat, index) => ({
+      id: index,
+      player_id: playerId,
+      hero_id: stat.heroId,
+      wins: stat.wins,
+      losses: stat.losses,
+      last_match_date_time: new Date(stat.lastPlayed).toISOString(),
+      type: "TOP_10_HEROES_OVERALL" as const,
+      created_at: "",
+    }))
 
   return (
     <div className="bg-slate-800/30 border-t border-slate-700 p-6">
@@ -195,21 +223,30 @@ export const PlayerPubMatchStats = ({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <HeroStatsDisplay
+            title="League Match Heroes"
+            stats={leagueHeroStatsForDisplay}
+            emptyMessage="No league matches found"
+            filterLeastPlayedHeroes={false}
+          />
           <HeroStatsDisplay
             title="Recent Matches (Last 3 Months)"
             stats={data.data.recentMatches}
             emptyMessage="No recent matches found"
+            filterLeastPlayedHeroes={true}
           />
           <HeroStatsDisplay
             title="Top 10 Heroes by Position"
             stats={data.data.topHeroesByPosition}
             emptyMessage="No position data available"
+            filterLeastPlayedHeroes={true}
           />
           <HeroStatsDisplay
             title="Top 10 Heroes Overall"
             stats={data.data.topHeroesOverall}
             emptyMessage="No overall stats available"
+            filterLeastPlayedHeroes={true}
           />
         </div>
       )}

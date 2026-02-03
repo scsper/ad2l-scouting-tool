@@ -22,6 +22,7 @@ export const PlayerLeagueHeroes = ({
   }
 
   const heroStats = aggregatePlayerLeagueHeroes(matchesData.matches, playerId)
+  console.log(heroStats, playerId)
 
   if (heroStats.length === 0) {
     return (

@@ -13,9 +13,15 @@ export type PlayerLeagueHeroStats = {
 
 export function aggregatePlayerLeagueHeroes(
   matches: MatchApiResponse[],
-  playerId: number
+  playerId: number,
 ): PlayerLeagueHeroStats[] {
   const heroStats: Record<number, PlayerLeagueHeroStats> = {}
+
+  console.log(playerId, matches)
+
+  if (!matches || matches.length === 0) {
+    return []
+  }
 
   for (const match of matches) {
     // Find this player in the match
@@ -24,7 +30,7 @@ export function aggregatePlayerLeagueHeroes(
 
     const { hero_id, kills, deaths, assists, team_id } = playerInMatch
     const teamWon = match.winning_team_id === team_id
-    const matchTimestamp = new Date(match.start_date_time).getTime()
+    const matchTimestamp = match.start_date_time * 1000 // Convert from seconds to milliseconds
 
     // Initialize hero stats if not exists
     if (!heroStats[hero_id]) {
