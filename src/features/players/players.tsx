@@ -197,8 +197,44 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                       <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
                         Name
                       </div>
-                      <div className="text-lg font-medium text-slate-200">
-                        {player.name}
+                      <div className="flex items-center gap-2">
+                        <div className="text-lg font-medium text-slate-200">
+                          {player.name}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <a
+                            href={`https://www.dotabuff.com/players/${player.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            title="View on Dotabuff"
+                          >
+                            DB
+                          </a>
+                          <span className="text-slate-600">|</span>
+                          <a
+                            href={`https://www.stratz.com/players/${player.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            title="View on Stratz"
+                          >
+                            STZ
+                          </a>
+                          <span className="text-slate-600">|</span>
+                          <a
+                            href={`https://www.opendota.com/players/${player.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            title="View on OpenDota"
+                          >
+                            OD
+                          </a>
+                        </div>
                       </div>
                     </div>
                     <div>
