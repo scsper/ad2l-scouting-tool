@@ -162,8 +162,7 @@ export const PlayerPubMatchStats = ({
   const { data, isLoading, error, refetch } = useGetPlayerPubMatchesQuery({
     playerId,
   })
-  const [fetchPlayerPubMatches, { isLoading: isFetching }] =
-    useFetchPlayerPubMatchesMutation()
+  const [fetchPlayerPubMatches] = useFetchPlayerPubMatchesMutation()
 
   const handleRefresh = async () => {
     try {

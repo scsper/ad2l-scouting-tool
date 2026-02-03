@@ -28,8 +28,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
   } = useGetPlayersByTeamQuery({ teamId })
   const { data: matchesData } = useGetMatchesQuery({ leagueId, teamId })
   const [deletePlayer, { isLoading: isDeleting }] = useDeletePlayerMutation()
-  const [fetchPlayerPubMatches, { isLoading: isFetchingMap }] =
-    useFetchPlayerPubMatchesMutation()
+  const [fetchPlayerPubMatches] = useFetchPlayerPubMatchesMutation()
   const [fetchingPlayerIds, setFetchingPlayerIds] = useState<Set<number>>(
     new Set(),
   )
