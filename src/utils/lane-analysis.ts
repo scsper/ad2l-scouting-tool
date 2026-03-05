@@ -127,3 +127,78 @@ export function calculateAdvantage(
     csAdvantage: lh1 + d1 - (lh2 + d2),
   }
 }
+
+/** Combined gold at 10 for a set of players. */
+function combinedGoldAt10(players: MatchPlayerRow[]): number {
+  return players.reduce((sum, p) => sum + (p.gold_at_10 ?? 0), 0)
+}
+
+/** Combined XP at 10 for a set of players. */
+function combinedXpAt10(players: MatchPlayerRow[]): number {
+  return players.reduce((sum, p) => sum + (p.xp_at_10 ?? 0), 0)
+}
+
+/**
+ * Safe lane 2v2: carry + hard support vs opposing offlaner + soft support.
+ * One side = pos 1 + pos 5, other side = pos 3 + pos 4 (opposing team).
+ */
+export type DuoLaneMatchup = {
+  /** Carry + Hard support (pos 1 + 5) for the safe-lane side. */
+  carryLanePlayers: MatchPlayerRow[]
+  /** Offlaner + Soft support (pos 3 + 4) for the opposing side. */
+  offLanePlayers: MatchPlayerRow[]
+  carryLaneGold: number
+  carryLaneXp: number
+  offLaneGold: number
+  offLaneXp: number
+  /** "carry" = carry+hs won, "off" = off+ss won, "even" = draw. */
+  winner: "carry" | "off" | "even"
+  goldAdvantage: number
+  xpAdvantage: number
+}
+
+/**
+ * Returns the safe-lane 2v2: carry+hs (pos1+5) of first team vs off+ss (pos3+4) of second team.
+ * Pass (scoutedPlayers, opponentPlayers) to get "our carry+hs vs their off+ss".
+ * Gold/XP are combined for each duo.
+ */
+export function getSafeLaneDuoMatchup(
+  carryLaneTeamPlayers: MatchPlayerRow[],
+  offLaneTeamPlayers: MatchPlayerRow[],
+): DuoLaneMatchup | null {
+  const carryByPos = getPlayersByPosition(carryLaneTeamPlayers)
+  const offByPos = getPlayersByPosition(offLaneTeamPlayers)
+
+  const carryLanePlayers = [
+    carryByPos.get("POSITION_1"),
+    carryByPos.get("POSITION_5"),
+  ].filter((p): p is MatchPlayerRow => p != null)
+  const offLanePlayers = [
+    offByPos.get("POSITION_3"),
+    offByPos.get("POSITION_4"),
+  ].filter((p): p is MatchPlayerRow => p != null)
+
+  const carryLaneGold = combinedGoldAt10(carryLanePlayers)
+  const carryLaneXp = combinedXpAt10(carryLanePlayers)
+  const offLaneGold = combinedGoldAt10(offLanePlayers)
+  const offLaneXp = combinedXpAt10(offLanePlayers)
+
+  const goldAdv = carryLaneGold - offLaneGold
+  const xpAdv = carryLaneXp - offLaneXp
+  const weightedScore = goldAdv * 0.75 + xpAdv * 0.25
+  let winner: "carry" | "off" | "even" = "even"
+  if (weightedScore >= 501) winner = "carry"
+  else if (weightedScore <= -501) winner = "off"
+
+  return {
+    carryLanePlayers,
+    offLanePlayers,
+    carryLaneGold,
+    carryLaneXp,
+    offLaneGold,
+    offLaneXp,
+    winner,
+    goldAdvantage: goldAdv,
+    xpAdvantage: xpAdv,
+  }
+}

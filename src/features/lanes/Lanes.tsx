@@ -3,7 +3,9 @@ import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { getHero } from "../../utils/get-hero"
 import {
   analyzeLaneMatchups,
+  getSafeLaneDuoMatchup,
   type LaneMatchup,
+  type DuoLaneMatchup,
 } from "../../utils/lane-analysis"
 import type { MatchPlayerRow } from "../../../types/db"
 
@@ -96,15 +98,29 @@ export const Lanes = ({
                 },
               }))
 
-        const lanesWonByScouted = matchupsForDisplay.filter(
-          (m) =>
-            (m.radiantPlayer?.team_id === teamId && m.winner === "radiant") ||
-            (m.direPlayer?.team_id === teamId && m.winner === "dire")
+        // Safe lane 2v2: our carry+hs vs their off+ss (single card)
+        const safeLaneDuo = getSafeLaneDuoMatchup(scoutedPlayers, opponentPlayers)
+        // Off lane 2v2: our off+ss vs their carry+hs (getSafeLaneDuo with args swapped gives their carry+hs vs our off+ss; we display our off first)
+        const offLaneDuoRaw = getSafeLaneDuoMatchup(opponentPlayers, scoutedPlayers)
+
+        const midMatchup = matchupsForDisplay.find((m) => m.position === "POSITION_2")
+        const midWonByScouted =
+          midMatchup &&
+          ((midMatchup.radiantPlayer?.team_id === teamId && midMatchup.winner === "radiant") ||
+            (midMatchup.direPlayer?.team_id === teamId && midMatchup.winner === "dire"))
+        const midWonByOpponent =
+          midMatchup &&
+          midMatchup.winner !== "even" &&
+          !midWonByScouted
+        const safeWonByScouted = safeLaneDuo?.winner === "carry"
+        const safeWonByOpponent = safeLaneDuo?.winner === "off"
+        const offWonByScouted = offLaneDuoRaw?.winner === "off"
+        const offWonByOpponent = offLaneDuoRaw?.winner === "carry"
+        const lanesWonByScouted = [safeWonByScouted, midWonByScouted, offWonByScouted].filter(
+          Boolean
         ).length
-        const lanesWonByOpponent = matchupsForDisplay.filter(
-          (m) =>
-            (m.radiantPlayer?.team_id !== teamId && m.winner === "radiant") ||
-            (m.direPlayer?.team_id !== teamId && m.winner === "dire")
+        const lanesWonByOpponent = [safeWonByOpponent, midWonByOpponent, offWonByOpponent].filter(
+          Boolean
         ).length
 
         const has10MinData = match.players.some(
@@ -162,19 +178,161 @@ export const Lanes = ({
               </div>
             )}
 
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {matchupsForDisplay.map((mu) => (
-                <LaneMatchupCard
-                  key={mu.position}
-                  matchup={mu}
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {safeLaneDuo && (
+                <CarryLaneDuoCard
+                  duo={safeLaneDuo}
                   teamId={teamId}
                   use10Min={has10MinData}
+                  label="Carry Lane"
                 />
-              ))}
+              )}
+              {matchupsForDisplay
+                .filter((m) => m.position === "POSITION_2")
+                .map((mu) => (
+                  <LaneMatchupCard
+                    key={mu.position}
+                    matchup={mu}
+                    teamId={teamId}
+                    use10Min={has10MinData}
+                  />
+                ))}
+              {offLaneDuoRaw && (
+                <CarryLaneDuoCard
+                  duo={{
+                    ...offLaneDuoRaw,
+                    carryLanePlayers: offLaneDuoRaw.offLanePlayers,
+                    offLanePlayers: offLaneDuoRaw.carryLanePlayers,
+                    carryLaneGold: offLaneDuoRaw.offLaneGold,
+                    carryLaneXp: offLaneDuoRaw.offLaneXp,
+                    offLaneGold: offLaneDuoRaw.carryLaneGold,
+                    offLaneXp: offLaneDuoRaw.carryLaneXp,
+                    winner:
+                      offLaneDuoRaw.winner === "carry"
+                        ? "off"
+                        : offLaneDuoRaw.winner === "off"
+                          ? "carry"
+                          : "even",
+                    goldAdvantage: -offLaneDuoRaw.goldAdvantage,
+                    xpAdvantage: -offLaneDuoRaw.xpAdvantage,
+                  }}
+                  teamId={teamId}
+                  use10Min={has10MinData}
+                  label="Off Lane"
+                />
+              )}
             </div>
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function CarryLaneDuoCard({
+  duo,
+  teamId,
+  use10Min,
+  label,
+}: {
+  duo: DuoLaneMatchup
+  teamId: number
+  use10Min: boolean
+  label: "Carry Lane" | "Off Lane"
+}) {
+  const ourSideIsCarry = label === "Carry Lane"
+  const ourPlayers = duo.carryLanePlayers
+  const theirPlayers = duo.offLanePlayers
+  const ourGold = duo.carryLaneGold
+  const ourXp = duo.carryLaneXp
+  const theirGold = duo.offLaneGold
+  const theirXp = duo.offLaneXp
+  const weWon = duo.winner === "carry"
+  const theyWon = duo.winner === "off"
+
+  const ourLabel = ourSideIsCarry ? "Carry + Hard Support" : "Offlaner + Soft Support"
+  const theirLabel = ourSideIsCarry ? "Offlaner + Soft Support" : "Carry + Hard Support"
+
+  const borderColor =
+    duo.winner === "even"
+      ? "border-slate-600"
+      : weWon
+        ? "border-green-500/50"
+        : "border-red-500/50"
+
+  return (
+    <div
+      className={`rounded-lg border bg-slate-800/30 p-3 transition-all ${borderColor}`}
+    >
+      <div className="text-xs font-medium text-slate-400 mb-3">{label}</div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <div className="text-xs text-blue-400 font-medium">(you)</div>
+          <div className="text-sm font-medium text-slate-200 flex flex-wrap gap-x-1 gap-y-0.5">
+            {ourPlayers.map((p) => getHero(p.hero_id)).join(", ")}
+          </div>
+          {use10Min ? (
+            <>
+              <div className="flex justify-between gap-2 text-sm text-slate-300">
+                <span className="text-slate-500">Gold @10:</span>
+                <span>{ourGold.toLocaleString()}g</span>
+              </div>
+              <div className="flex justify-between gap-2 text-sm text-slate-300">
+                <span className="text-slate-500">XP @10:</span>
+                <span>{ourXp.toLocaleString()}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-slate-500">Gold / XP (match avg)</div>
+              <div className="text-sm text-slate-400">
+                {ourPlayers.reduce((s, p) => s + (p.gpm ?? 0), 0)} GPM,{" "}
+                {ourPlayers.reduce((s, p) => s + (p.xpm ?? 0), 0)} XPM
+              </div>
+            </>
+          )}
+        </div>
+        <div className="space-y-2">
+          <div className="text-xs text-slate-500 font-medium">{theirLabel}</div>
+          <div className="text-sm font-medium text-slate-400 flex flex-wrap gap-x-1 gap-y-0.5">
+            {theirPlayers.map((p) => getHero(p.hero_id)).join(", ")}
+          </div>
+          {use10Min ? (
+            <>
+              <div className="flex justify-between gap-2 text-sm text-slate-400">
+                <span className="text-slate-500">Gold @10:</span>
+                <span>{theirGold.toLocaleString()}g</span>
+              </div>
+              <div className="flex justify-between gap-2 text-sm text-slate-400">
+                <span className="text-slate-500">XP @10:</span>
+                <span>{theirXp.toLocaleString()}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-slate-500">Gold / XP (match avg)</div>
+              <div className="text-sm text-slate-400">
+                {theirPlayers.reduce((s, p) => s + (p.gpm ?? 0), 0)} GPM,{" "}
+                {theirPlayers.reduce((s, p) => s + (p.xpm ?? 0), 0)} XPM
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      {use10Min && (duo.goldAdvantage !== 0 || duo.xpAdvantage !== 0) && (
+        <div className="mt-2 pt-2 border-t border-slate-600 text-xs text-slate-400">
+          Advantage:{" "}
+          <span className={duo.goldAdvantage >= 0 ? "text-green-400" : "text-red-400"}>
+            {duo.goldAdvantage >= 0 ? "+" : ""}
+            {duo.goldAdvantage}g
+          </span>
+          {" · "}
+          <span className={duo.xpAdvantage >= 0 ? "text-green-400" : "text-red-400"}>
+            {duo.xpAdvantage >= 0 ? "+" : ""}
+            {duo.xpAdvantage} XP
+          </span>
+        </div>
+      )}
     </div>
   )
 }
