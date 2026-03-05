@@ -9,7 +9,7 @@ const POSITION_ORDER = [
 ] as const
 
 const LANE_LABELS: Record<string, string> = {
-  POSITION_1: "Carry Lane",
+  POSITION_1: "Safe Lane",
   POSITION_2: "Mid Lane",
   POSITION_3: "Off Lane",
   POSITION_4: "Soft Support",
@@ -80,7 +80,7 @@ export function analyzeLaneMatchups(
 
 /**
  * Lane win: weighted score = gold_adv * 0.75 + xp_adv * 0.25.
- * 0–500: even, 501–1500: won, 1501+: stomp (we just return player1/player2 won or even).
+ * score = goldAdv + xpAdv; >1000: won, >= -1000 and <=1000: even, <-1000: lost.
  */
 export function calculateLaneWinner(
   player1: MatchPlayerRow,
@@ -95,12 +95,10 @@ export function calculateLaneWinner(
     return "even"
   }
 
-  const goldAdv = g1 - g2
-  const xpAdv = x1 - x2
-  const weightedScore = goldAdv * 0.75 + xpAdv * 0.25
+  const score = (g1 - g2) + (x1 - x2)
 
-  if (weightedScore >= 501) return "player1"
-  if (weightedScore <= -501) return "player2"
+  if (score > 1000) return "player1"
+  if (score < -1000) return "player2"
   return "even"
 }
 
@@ -185,10 +183,10 @@ export function getSafeLaneDuoMatchup(
 
   const goldAdv = carryLaneGold - offLaneGold
   const xpAdv = carryLaneXp - offLaneXp
-  const weightedScore = goldAdv * 0.75 + xpAdv * 0.25
+  const score = goldAdv + xpAdv
   let winner: "carry" | "off" | "even" = "even"
-  if (weightedScore >= 501) winner = "carry"
-  else if (weightedScore <= -501) winner = "off"
+  if (score > 1000) winner = "carry"
+  else if (score < -1000) winner = "off"
 
   return {
     carryLanePlayers,

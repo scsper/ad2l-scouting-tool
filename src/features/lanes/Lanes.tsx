@@ -58,8 +58,67 @@ export const Lanes = ({
       ? teamsData[leagueId][tid]
       : "Unknown Team"
 
+  type LaneRecord = { wins: number; draws: number; losses: number }
+  const laneTotals: Record<"safe" | "mid" | "off", LaneRecord> = {
+    safe: { wins: 0, draws: 0, losses: 0 },
+    mid: { wins: 0, draws: 0, losses: 0 },
+    off: { wins: 0, draws: 0, losses: 0 },
+  }
+
+  for (const match of matchesData.matches) {
+    const has10 = match.players.some(
+      (p) => p.gold_at_10 != null || p.xp_at_10 != null
+    )
+    if (!has10) continue
+
+    const sp = match.players.filter((p) => p.team_id === teamId)
+    const op = match.players.filter((p) => p.team_id !== teamId)
+    const scoutedTeamId = sp[0]?.team_id ?? null
+
+    // Safe lane
+    const safe = getSafeLaneDuoMatchup(sp, op)
+    if (safe) {
+      const r = getLaneResult(safe.goldAdvantage, safe.xpAdvantage)
+      if (r === "win" || r === "win_stomp") laneTotals.safe.wins++
+      else if (r === "draw") laneTotals.safe.draws++
+      else laneTotals.safe.losses++
+    }
+
+    // Mid lane
+    const radiantPlayers = match.radiant_team_id === scoutedTeamId ? sp : op
+    const direPlayers = match.radiant_team_id === scoutedTeamId ? op : sp
+    const midMatchups = analyzeLaneMatchups(radiantPlayers, direPlayers)
+    const midMu = midMatchups.find((m) => m.position === "POSITION_2")
+    if (midMu) {
+      const scoutedIsRadiant = midMu.radiantPlayer?.team_id === teamId
+      const goldAdv = scoutedIsRadiant
+        ? midMu.advantage.goldAdvantage
+        : -midMu.advantage.goldAdvantage
+      const xpAdv = scoutedIsRadiant
+        ? midMu.advantage.xpAdvantage
+        : -midMu.advantage.xpAdvantage
+      const r = getLaneResult(goldAdv, xpAdv)
+      if (r === "win" || r === "win_stomp") laneTotals.mid.wins++
+      else if (r === "draw") laneTotals.mid.draws++
+      else laneTotals.mid.losses++
+    }
+
+    // Off lane
+    const off = getSafeLaneDuoMatchup(op, sp)
+    if (off) {
+      // off.winner === "carry" means opponent carry+hs won → our off lane lost
+      const goldAdv = -off.goldAdvantage
+      const xpAdv = -off.xpAdvantage
+      const r = getLaneResult(goldAdv, xpAdv)
+      if (r === "win" || r === "win_stomp") laneTotals.off.wins++
+      else if (r === "draw") laneTotals.off.draws++
+      else laneTotals.off.losses++
+    }
+  }
+
   return (
     <div className="space-y-6">
+      <LaneSummaryTable totals={laneTotals} />
       {matchesData.matches.map((match) => {
         const scoutedPlayers = match.players.filter((p) => p.team_id === teamId)
         const opponentPlayers = match.players.filter((p) => p.team_id !== teamId)
@@ -182,9 +241,8 @@ export const Lanes = ({
               {safeLaneDuo && (
                 <CarryLaneDuoCard
                   duo={safeLaneDuo}
-                  teamId={teamId}
                   use10Min={has10MinData}
-                  label="Carry Lane"
+                  label="Safe Lane"
                 />
               )}
               {matchupsForDisplay
@@ -216,7 +274,6 @@ export const Lanes = ({
                     goldAdvantage: -offLaneDuoRaw.goldAdvantage,
                     xpAdvantage: -offLaneDuoRaw.xpAdvantage,
                   }}
-                  teamId={teamId}
                   use10Min={has10MinData}
                   label="Off Lane"
                 />
@@ -229,14 +286,72 @@ export const Lanes = ({
   )
 }
 
+type LaneSummaryRecord = { wins: number; draws: number; losses: number }
+
+function LaneSummaryTable({
+  totals,
+}: {
+  totals: Record<"safe" | "mid" | "off", LaneSummaryRecord>
+}) {
+  const lanes = [
+    { key: "safe" as const, label: "Safe Lane" },
+    { key: "mid" as const, label: "Mid Lane" },
+    { key: "off" as const, label: "Off Lane" },
+  ]
+
+  const pct = (n: number, total: number) =>
+    total > 0 ? `${Math.round((n / total) * 100)}%` : "—"
+
+  return (
+    <div className="inline-block bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-slate-700 bg-slate-700/30">
+        <h2 className="text-sm font-semibold text-slate-200">Lane Record Summary</h2>
+      </div>
+      <table className="text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left px-4 py-2 text-slate-400 font-medium">Lane</th>
+            <th className="px-4 py-2 text-green-400 font-medium">W</th>
+            <th className="px-4 py-2 text-slate-400 font-medium">D</th>
+            <th className="px-4 py-2 text-red-400 font-medium">L</th>
+            <th className="px-4 py-2 text-green-400 font-medium text-right">W%</th>
+            <th className="px-4 py-2 text-slate-400 font-medium text-right">D%</th>
+            <th className="px-4 py-2 text-red-400 font-medium text-right">L%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lanes.map(({ key, label }) => {
+            const { wins, draws, losses } = totals[key]
+            const total = wins + draws + losses
+            const winPct = total > 0 ? Math.round((wins / total) * 100) : null
+            const winPctColor =
+              winPct == null ? "text-slate-500" : winPct >= 60 ? "text-green-400" : winPct >= 40 ? "text-slate-300" : "text-red-400"
+            return (
+              <tr key={key} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
+                <td className="px-4 py-2 text-slate-200 font-medium">{label}</td>
+                <td className="px-4 py-2 text-green-400 font-medium">{wins}</td>
+                <td className="px-4 py-2 text-slate-400">{draws}</td>
+                <td className="px-4 py-2 text-red-400 font-medium">{losses}</td>
+                <td className={`px-4 py-2 text-right font-medium ${winPctColor}`}>{pct(wins, total)}</td>
+                <td className="px-4 py-2 text-slate-400 text-right">{pct(draws, total)}</td>
+                <td className="px-4 py-2 text-red-400/80 text-right">{pct(losses, total)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 type LaneResult = "win_stomp" | "win" | "draw" | "loss" | "loss_stomp"
 
 function getLaneResult(goldAdv: number, xpAdv: number): LaneResult {
-  const score = goldAdv * 0.75 + xpAdv * 0.25
-  if (score >= 1501) return "win_stomp"
-  if (score >= 501) return "win"
-  if (score >= -500) return "draw"
-  if (score >= -1500) return "loss"
+  const score = goldAdv + xpAdv
+  if (score >= 2500) return "win_stomp"
+  if (score > 1000) return "win"
+  if (score >= -1000) return "draw"
+  if (score > -2500) return "loss"
   return "loss_stomp"
 }
 
@@ -312,14 +427,13 @@ function DuoSideStats({
   totalGold,
   totalXp,
   sideLabel,
-  isOurTeam,
   use10Min,
 }: {
   players: MatchPlayerRow[]
   totalGold: number
   totalXp: number
   sideLabel: string
-  isOurTeam: boolean
+  isOurTeam?: boolean
   use10Min: boolean
 }) {
   const labelColor = "text-blue-400"
@@ -386,16 +500,14 @@ function DuoSideStats({
 
 function CarryLaneDuoCard({
   duo,
-  teamId,
   use10Min,
   label,
 }: {
   duo: DuoLaneMatchup
-  teamId: number
   use10Min: boolean
-  label: "Carry Lane" | "Off Lane"
+  label: "Safe Lane" | "Off Lane"
 }) {
-  const ourSideIsCarry = label === "Carry Lane"
+  const ourSideIsCarry = label === "Safe Lane"
   const ourPlayers = duo.carryLanePlayers
   const theirPlayers = duo.offLanePlayers
   const ourGold = duo.carryLaneGold
@@ -479,7 +591,7 @@ function LaneMatchupCard({
   teamId: number
   use10Min: boolean
 }) {
-  const { laneLabel, radiantPlayer, direPlayer, winner, advantage } = matchup
+  const { laneLabel, radiantPlayer, direPlayer, advantage } = matchup
   const scoutedIsRadiant = radiantPlayer?.team_id === teamId
 
   const ourPlayer = scoutedIsRadiant ? radiantPlayer : direPlayer
