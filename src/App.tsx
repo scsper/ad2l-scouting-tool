@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LeagueAndTeamHeader } from "./features/league-and-team-picker/league-and-team-header"
 import { Matches } from "./features/matches/matches";
 import { AggregateBansAgainst } from "./features/matches/aggregate-bans-against";
+import { AggregateBansFor } from "./features/matches/aggregate-bans-for";
 import { AggregateHeroesPlayedByPosition } from "./features/matches/aggregate-heroes-played-by-position";
 import { AggregateContestRate } from "./features/matches/aggregate-contest-rate";
 import { Players } from "./features/players/players";
@@ -27,7 +28,7 @@ export const App = () => {
         teamId={teamId}
         setTeamId={setTeamId}
       />
-      
+
       {leagueId && teamId && (
         <div className="bg-slate-800/30 border-b border-slate-700">
           <div className="container mx-auto px-4">
@@ -57,18 +58,23 @@ export const App = () => {
 
       <div className="container mx-auto px-4 py-6">
         {activeTab === "team" && (
-          <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr_1fr_1fr] gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-6">
             {leagueId && teamId && <Matches leagueId={leagueId} teamId={teamId} />}
-            {leagueId && teamId && <AggregateBansAgainst leagueId={leagueId} teamId={teamId} />}
+            {leagueId && teamId && (
+              <div className="flex flex-col gap-6">
+                <AggregateBansAgainst leagueId={leagueId} teamId={teamId} />
+                <AggregateBansFor leagueId={leagueId} teamId={teamId} />
+              </div>
+            )}
             {leagueId && teamId && <AggregateHeroesPlayedByPosition leagueId={leagueId} teamId={teamId} />}
             {leagueId && teamId && <AggregateContestRate leagueId={leagueId} teamId={teamId} />}
           </div>
         )}
-        
+
         {activeTab === "players" && leagueId && teamId && (
           <Players leagueId={leagueId} teamId={teamId} />
         )}
-        
+
         {activeTab === "lanes" && (
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
             <div className="text-slate-400 text-lg font-medium">Coming Soon</div>

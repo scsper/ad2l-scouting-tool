@@ -64,6 +64,9 @@ export const Matches = ({
             const otherTeamBans = match.draft.filter(
               pickBan => pickBan.team_id !== teamId && !pickBan.is_pick,
             )
+            const scoutedTeamBans = match.draft.filter(
+              pickBan => pickBan.team_id === teamId && !pickBan.is_pick,
+            )
             const matchDate = new Date(
               match.start_date_time * 1000,
             ).toLocaleDateString("en-US", {
@@ -106,7 +109,7 @@ export const Matches = ({
                     </svg>
                   </a>
                 </div>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 grid grid-cols-1 md:grid-cols-[1fr_1fr_1.5fr_1.5fr] gap-4">
                   <div className="space-y-2">
                     <h3 className="text-base font-bold flex items-center gap-2 pb-2 border-b border-slate-700">
                       <span className="truncate" title={scoutedTeamName}>
@@ -187,24 +190,43 @@ export const Matches = ({
                     </ul>
                   </div>
 
-                  <div className="space-y-2">
-                    <h3 className="text-base font-bold pb-2 border-b border-slate-700">
-                      Bans Against
-                    </h3>
-                    {otherTeamBans.length > 0 ? (
-                      <ul className="space-y-1">
-                        {otherTeamBans.map(ban => (
-                          <li
-                            key={ban.hero_id}
-                            className="text-sm text-slate-300 hover:text-slate-100 transition-colors"
-                          >
-                            {getHero(ban.hero_id)}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm text-slate-400">No bans</div>
-                    )}
+                    <div className="space-y-2">
+                      <h3 className="text-base font-bold pb-2 border-b border-slate-700">
+                        Bans Against
+                      </h3>
+                      {otherTeamBans.length > 0 ? (
+                        <ul className="space-y-1">
+                          {otherTeamBans.map(ban => (
+                            <li
+                              key={ban.hero_id}
+                              className="text-sm text-slate-300 hover:text-slate-100 transition-colors"
+                            >
+                              {getHero(ban.hero_id)}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-sm text-slate-400">No bans</div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-base font-bold pb-2 border-b border-slate-700">
+                        Bans For
+                      </h3>
+                      {scoutedTeamBans.length > 0 ? (
+                        <ul className="space-y-1">
+                          {scoutedTeamBans.map(ban => (
+                            <li
+                              key={ban.hero_id}
+                              className="text-sm text-slate-300 hover:text-slate-100 transition-colors"
+                            >
+                              {getHero(ban.hero_id)}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-sm text-slate-400">No bans</div>
+                      )}
                   </div>
                 </div>
               </div>
