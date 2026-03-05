@@ -26,6 +26,10 @@ type MatchPlayerRow = {
   xpm: number
   hero_damage: number
   tower_damage: number
+  gold_at_10?: number | null
+  xp_at_10?: number | null
+  lh_at_10?: number | null
+  denies_at_10?: number | null
 }
 
 type MatchDraftRow = {
