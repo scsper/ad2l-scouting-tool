@@ -6,6 +6,7 @@ import { AggregateBansFor } from "./features/matches/aggregate-bans-for";
 import { AggregateHeroesPlayedByPosition } from "./features/matches/aggregate-heroes-played-by-position";
 import { AggregateContestRate } from "./features/matches/aggregate-contest-rate";
 import { Players } from "./features/players/players";
+import { Lanes } from "./features/lanes/Lanes";
 
 type Tab = "team" | "players" | "lanes";
 
@@ -75,11 +76,8 @@ export const App = () => {
           <Players leagueId={leagueId} teamId={teamId} />
         )}
 
-        {activeTab === "lanes" && (
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
-            <div className="text-slate-400 text-lg font-medium">Coming Soon</div>
-            <div className="text-slate-500 text-sm mt-2">Lane matchup analysis will be available here</div>
-          </div>
+        {activeTab === "lanes" && leagueId && teamId && (
+          <Lanes leagueId={leagueId} teamId={teamId} />
         )}
       </div>
     </div>

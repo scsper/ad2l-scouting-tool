@@ -40,6 +40,11 @@ type OpenDotaPlayer = {
   lane?: number
   lane_role?: number
   is_roaming?: boolean
+  times?: number[]
+  gold_t?: number[]
+  xp_t?: number[]
+  lh_t?: number[]
+  dn_t?: number[]
 }
 
 // OpenDota match response
@@ -91,6 +96,10 @@ type Player = {
   experiencePerMinute: number
   heroDamage: number
   towerDamage: number
+  goldAt10: number | null
+  xpAt10: number | null
+  lastHitsAt10: number | null
+  deniesAt10: number | null
 }
 
 export type Match = {
@@ -111,6 +120,29 @@ export type Match = {
 type MatchResponse = {
   data: {
     match: Match
+  }
+}
+
+function get10MinuteStats(player: OpenDotaPlayer): {
+  goldAt10: number | null
+  xpAt10: number | null
+  lastHitsAt10: number | null
+  deniesAt10: number | null
+} {
+  if (!player.times || !player.gold_t || !player.xp_t) {
+    return { goldAt10: null, xpAt10: null, lastHitsAt10: null, deniesAt10: null }
+  }
+
+  const index10Min = player.times.findIndex(t => t === 600)
+  if (index10Min === -1) {
+    return { goldAt10: null, xpAt10: null, lastHitsAt10: null, deniesAt10: null }
+  }
+
+  return {
+    goldAt10: player.gold_t[index10Min] ?? null,
+    xpAt10: player.xp_t[index10Min] ?? null,
+    lastHitsAt10: player.lh_t?.[index10Min] ?? null,
+    deniesAt10: player.dn_t?.[index10Min] ?? null,
   }
 }
 
@@ -195,6 +227,7 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
     const isVictory =
       (isRadiant && openDotaMatch.radiant_win) ||
       (!isRadiant && !openDotaMatch.radiant_win)
+    const at10 = get10MinuteStats(player)
 
     return {
       steamAccount: player.account_id
@@ -217,6 +250,10 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
       experiencePerMinute: player.xp_per_min,
       heroDamage: player.hero_damage,
       towerDamage: player.tower_damage,
+      goldAt10: at10.goldAt10,
+      xpAt10: at10.xpAt10,
+      lastHitsAt10: at10.lastHitsAt10,
+      deniesAt10: at10.deniesAt10,
     }
   })
 
@@ -353,6 +390,10 @@ export async function convertMatchDataToMatchPlayersTable(
     xpm: player.experiencePerMinute,
     hero_damage: player.heroDamage,
     tower_damage: player.towerDamage,
+    gold_at_10: player.goldAt10,
+    xp_at_10: player.xpAt10,
+    lh_at_10: player.lastHitsAt10,
+    denies_at_10: player.deniesAt10,
   }))
 
   const { data, error } = await supabase
