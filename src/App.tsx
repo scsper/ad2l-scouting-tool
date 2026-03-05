@@ -58,7 +58,7 @@ export const App = () => {
 
       <div className="container mx-auto px-4 py-6">
         {activeTab === "team" && (
-          <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr_1fr_1fr] gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-6">
             {leagueId && teamId && <Matches leagueId={leagueId} teamId={teamId} />}
             {leagueId && teamId && (
               <div className="flex flex-col gap-6">
