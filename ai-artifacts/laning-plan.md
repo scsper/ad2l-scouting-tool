@@ -19,16 +19,16 @@ Add 10-minute snapshot data collection and storage.
 **1.1 Database Schema Extension**
 Add new columns to the `match_player` table:
 - `gold_at_10` (integer, nullable)
-- `xp_at_10` (integer, nullable)  
-- `last_hits_at_10` (integer, nullable)
+- `xp_at_10` (integer, nullable)
+- `lh_at_10` (integer, nullable) // last hits at 10 minutes
 - `denies_at_10` (integer, nullable)
 
 **Migration SQL:**
 ```sql
-ALTER TABLE match_player 
+ALTER TABLE match_player
 ADD COLUMN gold_at_10 INTEGER,
 ADD COLUMN xp_at_10 INTEGER,
-ADD COLUMN last_hits_at_10 INTEGER,
+ADD COLUMN lh_at_10 INTEGER,
 ADD COLUMN denies_at_10 INTEGER;
 ```
 
@@ -61,11 +61,11 @@ function get10MinuteStats(player: OpenDotaPlayer): {
   if (!player.times || !player.gold_t || !player.xp_t) {
     return { goldAt10: null, xpAt10: null, lastHitsAt10: null, deniesAt10: null }
   }
-  
+
   // Find index for 600 seconds (10 minutes)
   const index10Min = player.times.findIndex(t => t === 600)
   if (index10Min === -1) return { goldAt10: null, xpAt10: null, lastHitsAt10: null, deniesAt10: null }
-  
+
   return {
     goldAt10: player.gold_t[index10Min] ?? null,
     xpAt10: player.xp_t[index10Min] ?? null,
@@ -115,15 +115,17 @@ export function calculateAdvantage(
 ```
 
 **Lane Pairing Strategy:**
-- Match by position first: POS_1 vs POS_1, POS_2 vs POS_2, etc.
-- For supports (POS_4, POS_5), pair within the same lane if possible
-- Mid lane (POS_2) always pairs mid vs mid
+- Lanes in dota are:
+  - safe lane: POS_1 and POS_5 vs POS_3 and POS_4
+  - mid lane: POS_2 vs POS_2
+  - off lane: POS_3 and POS_4 vs POS_1 and POS_5
 
 **Lane Win Calculation (Weighted Score):**
-- Gold advantage at 10min: 50% weight (>150 gold = significant)
-- XP advantage at 10min: 30% weight (>300 XP = ~1 level)
-- CS advantage at 10min: 20% weight (>15 CS = significant)
-- Combined threshold: >250 score = won, <-250 = lost, otherwise even
+- Gold advantage at 10min: 75% weight
+- XP advantage at 10min: 25% weight
+- 0 - 500: lane is a draw
+- 501 - 1500: lane is won
+- 1501 or more: lane is a stomp
 
 ### Phase 3: Build Lanes UI Component
 
@@ -134,7 +136,7 @@ Component structure:
 ```tsx
 export const Lanes = ({ leagueId, teamId }: { leagueId: number, teamId: number }) => {
   const { data: matchesData, isLoading, isError } = useGetMatchesQuery({ leagueId, teamId })
-  
+
   // For each match:
   // - Display match header (teams, date, result)
   // - Show lane matchups in grid layout (5 lanes: carry, mid, off, sup4, sup5)
