@@ -1,7 +1,7 @@
 import { useGetMatchesQuery } from "./matches-api"
 import { getHero } from "../../utils/get-hero"
 
-export const AggregateBansAgainst = ({
+export const AggregateBansFor = ({
   leagueId,
   teamId,
 }: {
@@ -42,19 +42,19 @@ export const AggregateBansAgainst = ({
     )
   }
 
-  const bansAgainstEntries = Object.entries(
-    matchesData.aggregate.bansAgainst
-  ).filter(([, stats]) => stats.count > 2)
-  const hasBans = bansAgainstEntries.length > 0
+  const bansForEntries = Object.entries(matchesData.aggregate.bansFor).filter(
+    ([, stats]) => stats.count > 2
+  )
+  const hasBans = bansForEntries.length > 0
 
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6 hover:border-slate-600 transition-all h-fit">
       <h2 className="text-xl font-bold mb-4 pb-3 border-b border-slate-700 bg-linear-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-        Overall Bans Against
+        Overall Bans For
       </h2>
       {hasBans ? (
         <ul className="space-y-2">
-          {bansAgainstEntries
+          {bansForEntries
             .sort((a, b) => b[1].count - a[1].count)
             .map(([heroId, stats]) => (
               <li

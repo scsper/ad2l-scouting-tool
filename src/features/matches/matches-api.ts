@@ -30,6 +30,7 @@ export type TransformedMatchesApiResponse = {
   matches: MatchApiResponse[];
   aggregate: {
     bansAgainst: Record<string, BanStats>;
+    bansFor: Record<string, BanStats>;
     heroesPlayedByPosition: Record<string, Record<string, HeroStats>>;
     contestRate: Record<string, ContestRateStats>;
   }
@@ -53,6 +54,7 @@ export const matchesApiSlice = createApi({
           matches: response,
           aggregate: {
             bansAgainst: getBansAgainst(response, teamId),
+            bansFor: getBansFor(response, teamId),
             heroesPlayedByPosition: accumulateHeroesPlayedByPosition(response, teamId),
             contestRate: getContestRate(response, teamId),
           }
@@ -100,6 +102,46 @@ function getBansAgainst(matches: MatchApiResponse[], scoutedTeamId: number) {
   }
 
   return bansAgainst;
+}
+
+function getBansFor(matches: MatchApiResponse[], scoutedTeamId: number) {
+  const bansFor: Record<string, BanStats> = {};
+
+  for (const match of matches) {
+    if (match.draft.length === 0) {
+      continue;
+    }
+
+    const teamWon = match.winning_team_id === scoutedTeamId;
+
+    match.draft.forEach(draft => {
+      if (draft.team_id !== scoutedTeamId) {
+        return;
+      }
+
+      if (draft.is_pick) {
+        return;
+      }
+
+      const { hero_id } = draft;
+      if (!bansFor[hero_id]) {
+        bansFor[hero_id] = {
+          count: 0,
+          wins: 0,
+          losses: 0,
+        };
+      }
+
+      bansFor[hero_id].count++;
+      if (teamWon) {
+        bansFor[hero_id].wins++;
+      } else {
+        bansFor[hero_id].losses++;
+      }
+    });
+  }
+
+  return bansFor;
 }
 
 function accumulateHeroesPlayedByPosition(matches: MatchApiResponse[], scoutedTeamId: number): Record<string, Record<string, HeroStats>> {
