@@ -229,6 +229,161 @@ export const Lanes = ({
   )
 }
 
+type LaneResult = "win_stomp" | "win" | "draw" | "loss" | "loss_stomp"
+
+function getLaneResult(goldAdv: number, xpAdv: number): LaneResult {
+  const score = goldAdv * 0.75 + xpAdv * 0.25
+  if (score >= 1501) return "win_stomp"
+  if (score >= 501) return "win"
+  if (score >= -500) return "draw"
+  if (score >= -1500) return "loss"
+  return "loss_stomp"
+}
+
+function signedStr(n: number, suffix = "") {
+  return `${n >= 0 ? "+" : ""}${n.toLocaleString()}${suffix}`
+}
+
+function DiffRow({
+  label,
+  goldDiff,
+  xpDiff,
+}: {
+  label: string
+  goldDiff: number
+  xpDiff: number
+}) {
+  const goldColor = goldDiff >= 0 ? "text-green-400" : "text-red-400"
+  const xpColor = xpDiff >= 0 ? "text-green-400" : "text-red-400"
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-slate-500">{label}:</span>
+      <span className="flex gap-1.5">
+        <span className={goldColor}>{signedStr(goldDiff, "g")}</span>
+        <span className="text-slate-600">/</span>
+        <span className={xpColor}>{signedStr(xpDiff, " XP")}</span>
+      </span>
+    </div>
+  )
+}
+
+function LaneResultSection({
+  goldAdv,
+  xpAdv,
+  coreGoldDiff,
+  coreXpDiff,
+  supportGoldDiff,
+  supportXpDiff,
+}: {
+  goldAdv: number
+  xpAdv: number
+  coreGoldDiff?: number
+  coreXpDiff?: number
+  supportGoldDiff?: number
+  supportXpDiff?: number
+}) {
+  const result = getLaneResult(goldAdv, xpAdv)
+  const resultColor =
+    result === "win_stomp" || result === "win"
+      ? "text-green-400"
+      : result === "loss" || result === "loss_stomp"
+        ? "text-red-400"
+        : "text-slate-400"
+
+  return (
+    <div className="mt-3 pt-2 border-t border-slate-600 text-xs space-y-1">
+      <div className="flex justify-between gap-2">
+        <span className="text-slate-500">Result:</span>
+        <span className={`font-medium ${resultColor}`}>{result}</span>
+      </div>
+      <DiffRow label="Overall Difference" goldDiff={goldAdv} xpDiff={xpAdv} />
+      {coreGoldDiff != null && coreXpDiff != null && (
+        <DiffRow label="Core Difference" goldDiff={coreGoldDiff} xpDiff={coreXpDiff} />
+      )}
+      {supportGoldDiff != null && supportXpDiff != null && (
+        <DiffRow label="Support Difference" goldDiff={supportGoldDiff} xpDiff={supportXpDiff} />
+      )}
+    </div>
+  )
+}
+
+function DuoSideStats({
+  players,
+  totalGold,
+  totalXp,
+  sideLabel,
+  isOurTeam,
+  use10Min,
+}: {
+  players: MatchPlayerRow[]
+  totalGold: number
+  totalXp: number
+  sideLabel: string
+  isOurTeam: boolean
+  use10Min: boolean
+}) {
+  const labelColor = "text-blue-400"
+  const valueColor = "text-slate-200"
+  const names = players.map((p) => p.player_name ?? "Unknown").join(", ")
+
+  return (
+    <div className="space-y-1.5">
+      <div className={`text-xs font-medium ${labelColor}`}>
+        {sideLabel}
+        {names && <span className="font-normal"> — {names}</span>}
+      </div>
+      {players.map((p) => {
+        const gold = use10Min ? p.gold_at_10 : null
+        const xp = use10Min ? p.xp_at_10 : null
+        return (
+          <div key={p.player_id} className="space-y-0.5">
+            <div className={`text-sm font-medium ${valueColor}`}>{getHero(p.hero_id)}</div>
+            {use10Min ? (
+              <div className="grid grid-cols-2 gap-x-2 text-xs">
+                <div className="flex justify-between gap-1">
+                  <span className="text-slate-500">Gold:</span>
+                  <span className={valueColor}>
+                    {gold != null ? gold.toLocaleString() + "g" : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-1">
+                  <span className="text-slate-500">XP:</span>
+                  <span className={valueColor}>
+                    {xp != null ? xp.toLocaleString() : "—"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3 text-xs text-slate-400">
+                <span>{p.gpm ?? "—"} GPM</span>
+                <span>{p.xpm ?? "—"} XPM</span>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {players.length >= 2 && use10Min && (
+        <div className="pt-1 border-t border-slate-700/60 grid grid-cols-2 gap-x-2 text-xs font-medium">
+          <div className="flex justify-between gap-1">
+            <span className="text-slate-500">Total:</span>
+            <span className={valueColor}>{totalGold.toLocaleString()}g</span>
+          </div>
+          <div className="flex justify-between gap-1">
+            <span className="text-slate-500">Total:</span>
+            <span className={valueColor}>{totalXp.toLocaleString()} XP</span>
+          </div>
+        </div>
+      )}
+      {players.length >= 2 && !use10Min && (
+        <div className="pt-1 border-t border-slate-700/60 text-xs font-medium text-slate-500">
+          Combined: {players.reduce((s, p) => s + (p.gpm ?? 0), 0)} GPM ·{" "}
+          {players.reduce((s, p) => s + (p.xpm ?? 0), 0)} XPM
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CarryLaneDuoCard({
   duo,
   teamId,
@@ -247,16 +402,33 @@ function CarryLaneDuoCard({
   const ourXp = duo.carryLaneXp
   const theirGold = duo.offLaneGold
   const theirXp = duo.offLaneXp
-  const weWon = duo.winner === "carry"
-  const theyWon = duo.winner === "off"
 
   const ourLabel = ourSideIsCarry ? "Carry + Hard Support" : "Offlaner + Soft Support"
   const theirLabel = ourSideIsCarry ? "Offlaner + Soft Support" : "Carry + Hard Support"
 
+  // Core = carry (pos1) vs offlaner (pos3), Support = hard sup (pos5) vs soft sup (pos4)
+  const [ourCorePos, ourSupPos, theirCorePos, theirSupPos] = ourSideIsCarry
+    ? ["POSITION_1", "POSITION_5", "POSITION_3", "POSITION_4"]
+    : ["POSITION_3", "POSITION_4", "POSITION_1", "POSITION_5"]
+  const ourCore = ourPlayers.find((p) => p.position === ourCorePos)
+  const ourSup = ourPlayers.find((p) => p.position === ourSupPos)
+  const theirCore = theirPlayers.find((p) => p.position === theirCorePos)
+  const theirSup = theirPlayers.find((p) => p.position === theirSupPos)
+
+  const coreGoldDiff =
+    ourCore && theirCore ? (ourCore.gold_at_10 ?? 0) - (theirCore.gold_at_10 ?? 0) : undefined
+  const coreXpDiff =
+    ourCore && theirCore ? (ourCore.xp_at_10 ?? 0) - (theirCore.xp_at_10 ?? 0) : undefined
+  const supportGoldDiff =
+    ourSup && theirSup ? (ourSup.gold_at_10 ?? 0) - (theirSup.gold_at_10 ?? 0) : undefined
+  const supportXpDiff =
+    ourSup && theirSup ? (ourSup.xp_at_10 ?? 0) - (theirSup.xp_at_10 ?? 0) : undefined
+
+  const result = use10Min ? getLaneResult(duo.goldAdvantage, duo.xpAdvantage) : null
   const borderColor =
-    duo.winner === "even"
+    !result || result === "draw"
       ? "border-slate-600"
-      : weWon
+      : result === "win" || result === "win_stomp"
         ? "border-green-500/50"
         : "border-red-500/50"
 
@@ -265,73 +437,34 @@ function CarryLaneDuoCard({
       className={`rounded-lg border bg-slate-800/30 p-3 transition-all ${borderColor}`}
     >
       <div className="text-xs font-medium text-slate-400 mb-3">{label}</div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <div className="text-xs text-blue-400 font-medium">(you)</div>
-          <div className="text-sm font-medium text-slate-200 flex flex-wrap gap-x-1 gap-y-0.5">
-            {ourPlayers.map((p) => getHero(p.hero_id)).join(", ")}
-          </div>
-          {use10Min ? (
-            <>
-              <div className="flex justify-between gap-2 text-sm text-slate-300">
-                <span className="text-slate-500">Gold @10:</span>
-                <span>{ourGold.toLocaleString()}g</span>
-              </div>
-              <div className="flex justify-between gap-2 text-sm text-slate-300">
-                <span className="text-slate-500">XP @10:</span>
-                <span>{ourXp.toLocaleString()}</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-sm text-slate-500">Gold / XP (match avg)</div>
-              <div className="text-sm text-slate-400">
-                {ourPlayers.reduce((s, p) => s + (p.gpm ?? 0), 0)} GPM,{" "}
-                {ourPlayers.reduce((s, p) => s + (p.xpm ?? 0), 0)} XPM
-              </div>
-            </>
-          )}
-        </div>
-        <div className="space-y-2">
-          <div className="text-xs text-slate-500 font-medium">{theirLabel}</div>
-          <div className="text-sm font-medium text-slate-400 flex flex-wrap gap-x-1 gap-y-0.5">
-            {theirPlayers.map((p) => getHero(p.hero_id)).join(", ")}
-          </div>
-          {use10Min ? (
-            <>
-              <div className="flex justify-between gap-2 text-sm text-slate-400">
-                <span className="text-slate-500">Gold @10:</span>
-                <span>{theirGold.toLocaleString()}g</span>
-              </div>
-              <div className="flex justify-between gap-2 text-sm text-slate-400">
-                <span className="text-slate-500">XP @10:</span>
-                <span>{theirXp.toLocaleString()}</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-sm text-slate-500">Gold / XP (match avg)</div>
-              <div className="text-sm text-slate-400">
-                {theirPlayers.reduce((s, p) => s + (p.gpm ?? 0), 0)} GPM,{" "}
-                {theirPlayers.reduce((s, p) => s + (p.xpm ?? 0), 0)} XPM
-              </div>
-            </>
-          )}
-        </div>
+      <div className="space-y-3">
+        <DuoSideStats
+          players={ourPlayers}
+          totalGold={ourGold}
+          totalXp={ourXp}
+          sideLabel={ourLabel}
+          isOurTeam
+          use10Min={use10Min}
+        />
+        <div className="border-t border-slate-700" />
+        <DuoSideStats
+          players={theirPlayers}
+          totalGold={theirGold}
+          totalXp={theirXp}
+          sideLabel={theirLabel}
+          isOurTeam={false}
+          use10Min={use10Min}
+        />
       </div>
-      {use10Min && (duo.goldAdvantage !== 0 || duo.xpAdvantage !== 0) && (
-        <div className="mt-2 pt-2 border-t border-slate-600 text-xs text-slate-400">
-          Advantage:{" "}
-          <span className={duo.goldAdvantage >= 0 ? "text-green-400" : "text-red-400"}>
-            {duo.goldAdvantage >= 0 ? "+" : ""}
-            {duo.goldAdvantage}g
-          </span>
-          {" · "}
-          <span className={duo.xpAdvantage >= 0 ? "text-green-400" : "text-red-400"}>
-            {duo.xpAdvantage >= 0 ? "+" : ""}
-            {duo.xpAdvantage} XP
-          </span>
-        </div>
+      {use10Min && (
+        <LaneResultSection
+          goldAdv={duo.goldAdvantage}
+          xpAdv={duo.xpAdvantage}
+          coreGoldDiff={coreGoldDiff}
+          coreXpDiff={coreXpDiff}
+          supportGoldDiff={supportGoldDiff}
+          supportXpDiff={supportXpDiff}
+        />
       )}
     </div>
   )
@@ -348,10 +481,18 @@ function LaneMatchupCard({
 }) {
   const { laneLabel, radiantPlayer, direPlayer, winner, advantage } = matchup
   const scoutedIsRadiant = radiantPlayer?.team_id === teamId
+
+  const ourPlayer = scoutedIsRadiant ? radiantPlayer : direPlayer
+  const theirPlayer = scoutedIsRadiant ? direPlayer : radiantPlayer
+
+  const ourGoldAdv = scoutedIsRadiant ? advantage.goldAdvantage : -advantage.goldAdvantage
+  const ourXpAdv = scoutedIsRadiant ? advantage.xpAdvantage : -advantage.xpAdvantage
+
+  const result = use10Min ? getLaneResult(ourGoldAdv, ourXpAdv) : null
   const borderColor =
-    winner === "even"
+    !result || result === "draw"
       ? "border-slate-600"
-      : (winner === "radiant" && scoutedIsRadiant) || (winner === "dire" && !scoutedIsRadiant)
+      : result === "win" || result === "win_stomp"
         ? "border-green-500/50"
         : "border-red-500/50"
 
@@ -359,134 +500,33 @@ function LaneMatchupCard({
     <div
       className={`rounded-lg border bg-slate-800/30 p-3 transition-all ${borderColor}`}
     >
-      <div className="text-xs font-medium text-slate-400 mb-2">{laneLabel}</div>
+      <div className="text-xs font-medium text-slate-400 mb-3">{laneLabel}</div>
       <div className="space-y-3">
-        {radiantPlayer && (
-          <PlayerStats
-            player={radiantPlayer}
-            isScouted={radiantPlayer.team_id === teamId}
-            advantage={
-              winner === "radiant"
-                ? { gold: advantage.goldAdvantage, xp: advantage.xpAdvantage, cs: advantage.csAdvantage }
-                : winner === "dire"
-                  ? { gold: -advantage.goldAdvantage, xp: -advantage.xpAdvantage, cs: -advantage.csAdvantage }
-                  : null
-            }
+        {ourPlayer && (
+          <DuoSideStats
+            players={[ourPlayer]}
+            totalGold={ourPlayer.gold_at_10 ?? 0}
+            totalXp={ourPlayer.xp_at_10 ?? 0}
+            sideLabel="Mid"
+            isOurTeam
             use10Min={use10Min}
           />
         )}
-        {direPlayer && (
-          <PlayerStats
-            player={direPlayer}
-            isScouted={direPlayer.team_id === teamId}
-            advantage={
-              winner !== "even"
-                ? {
-                    gold: -advantage.goldAdvantage,
-                    xp: -advantage.xpAdvantage,
-                    cs: -advantage.csAdvantage,
-                  }
-                : null
-            }
+        {ourPlayer && theirPlayer && <div className="border-t border-slate-700" />}
+        {theirPlayer && (
+          <DuoSideStats
+            players={[theirPlayer]}
+            totalGold={theirPlayer.gold_at_10 ?? 0}
+            totalXp={theirPlayer.xp_at_10 ?? 0}
+            sideLabel="Mid"
+            isOurTeam={false}
             use10Min={use10Min}
           />
         )}
       </div>
-    </div>
-  )
-}
-
-function PlayerStats({
-  player,
-  isScouted,
-  advantage,
-  use10Min,
-}: {
-  player: MatchPlayerRow
-  isScouted: boolean
-  advantage: { gold: number; xp: number; cs: number } | null
-  use10Min: boolean
-}) {
-  const gold = use10Min ? player.gold_at_10 : null
-  const xp = use10Min ? player.xp_at_10 : null
-  const gpm = player.gpm
-  const xpm = player.xpm
-  const lh = use10Min ? player.lh_at_10 : player.last_hits
-  const dn = use10Min ? player.denies_at_10 : player.denies
-  const goldLabel = use10Min ? "10m" : "GPM (match avg)"
-  const xpLabel = use10Min ? "10m" : "XPM (match avg)"
-  const csLabel = use10Min ? "10m" : "Total"
-
-  const hasGold = use10Min ? (gold != null && gold > 0) : (gpm != null && gpm > 0)
-  const hasXp = use10Min ? (xp != null && xp > 0) : (xpm != null && xpm > 0)
-  const hasCs = (lh != null && lh > 0) || (dn != null && dn > 0)
-
-  return (
-    <div className={`text-sm ${isScouted ? "text-slate-200" : "text-slate-400"}`}>
-      <div className="font-medium flex items-center gap-1">
-        {getHero(player.hero_id)}
-        {isScouted && (
-          <span className="text-xs text-blue-400">(you)</span>
-        )}
-      </div>
-      <div className="space-y-1 mt-1">
-        {hasGold && (
-          <div className="flex justify-between gap-2">
-            <span className="text-slate-500">{use10Min ? `Gold (${goldLabel}):` : goldLabel}</span>
-            <span>
-              {use10Min && typeof gold === "number"
-                ? `${gold.toLocaleString()}g`
-                : typeof gpm === "number"
-                  ? `${gpm}`
-                  : "—"}
-              {advantage != null && use10Min && (
-                <span className={advantage.gold >= 0 ? "text-green-400" : "text-red-400"}>
-                  {" "}
-                  ({advantage.gold >= 0 ? "+" : ""}{advantage.gold})
-                </span>
-              )}
-            </span>
-          </div>
-        )}
-        {hasXp && (
-          <div className="flex justify-between gap-2">
-            <span className="text-slate-500">{use10Min ? `XP (${xpLabel}):` : xpLabel}</span>
-            <span>
-              {use10Min && typeof xp === "number"
-                ? xp.toLocaleString()
-                : typeof xpm === "number"
-                  ? String(xpm)
-                  : "—"}
-              {advantage != null && use10Min && (
-                <span className={advantage.xp >= 0 ? "text-green-400" : "text-red-400"}>
-                  {" "}
-                  ({advantage.xp >= 0 ? "+" : ""}{advantage.xp})
-                </span>
-              )}
-            </span>
-          </div>
-        )}
-        {(hasCs || (lh != null && dn != null)) && (
-          <div className="flex justify-between gap-2">
-            <span className="text-slate-500">CS ({csLabel}):</span>
-            <span>
-              {lh ?? 0}/{dn ?? 0}
-              {advantage != null && (
-                <span className={advantage.cs >= 0 ? "text-green-400" : "text-red-400"}>
-                  {" "}
-                  ({advantage.cs >= 0 ? "+" : ""}{advantage.cs})
-                </span>
-              )}
-            </span>
-          </div>
-        )}
-        {player.tower_damage != null && player.tower_damage > 0 && (
-          <div className="flex justify-between gap-2 text-slate-500">
-            <span>Total tower dmg:</span>
-            <span>{player.tower_damage.toLocaleString()}</span>
-          </div>
-        )}
-      </div>
+      {use10Min && (
+        <LaneResultSection goldAdv={ourGoldAdv} xpAdv={ourXpAdv} />
+      )}
     </div>
   )
 }
