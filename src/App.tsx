@@ -7,8 +7,9 @@ import { AggregateHeroesPlayedByPosition } from "./features/matches/aggregate-he
 import { AggregateContestRate } from "./features/matches/aggregate-contest-rate";
 import { Players } from "./features/players/players";
 import { Lanes } from "./features/lanes/Lanes";
+import { DraftCounters } from "./features/draft-counters/DraftCounters";
 
-type Tab = "team" | "players" | "lanes";
+type Tab = "team" | "players" | "lanes" | "draft-counters";
 
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
@@ -19,6 +20,7 @@ export const App = () => {
     { id: "team", label: "Team" },
     { id: "players", label: "Players" },
     { id: "lanes", label: "Lanes" },
+    { id: "draft-counters", label: "Draft Counters" },
   ];
 
   return (
@@ -78,6 +80,10 @@ export const App = () => {
 
         {activeTab === "lanes" && leagueId && teamId && (
           <Lanes leagueId={leagueId} teamId={teamId} />
+        )}
+
+        {activeTab === "draft-counters" && leagueId && teamId && (
+          <DraftCounters leagueId={leagueId} teamId={teamId} />
         )}
       </div>
     </div>

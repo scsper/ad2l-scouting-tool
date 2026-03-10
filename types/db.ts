@@ -61,10 +61,18 @@ type PlayerPubMatchStatsRow = {
   last_match_date_time: string | null
 }
 
+type HeroCounterRow = {
+  hero_id: number
+  counter_hero_id: number
+  synergy: number
+  updated_at: string
+}
+
 export type {
   MatchRow,
   MatchPlayerRow,
   MatchDraftRow,
   PlayerRow,
   PlayerPubMatchStatsRow,
+  HeroCounterRow,
 }
