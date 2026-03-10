@@ -75,7 +75,6 @@ function buildTeamAHeroOptions(
   const leagueHeroes = matchesData
     ? aggregatePlayerLeagueHeroes(matchesData, playerId)
     : []
-  const leagueIds = new Set(leagueHeroes.map(h => h.heroId))
   const league: HeroOption[] = leagueHeroes
     .sort((a, b) => b.games - a.games)
     .map(h => ({ heroId: h.heroId, label: `${getHero(h.heroId)} (${h.wins}-${h.losses})` }))
