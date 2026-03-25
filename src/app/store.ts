@@ -25,10 +25,10 @@ const preloadedLeagues: League[] = [
     has_divisions: true
   },
   {
-    id: 18988,
+    id: 19422,
     created_at: "2025-12-11T17:11:25.230376+00:00",
     updated_at: "2025-12-11T17:11:25.230376",
-    name: "DreamLeague Season 27 - Playoffs",
+    name: "ESL One Birmingham",
     has_divisions: false
   },
   {
