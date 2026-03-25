@@ -76,7 +76,7 @@ export const AggregateBansFor = ({
             ))}
         </ul>
       ) : (
-        <div className="text-center py-4 text-slate-400">No bans</div>
+        <div className="text-center py-4 text-slate-400">No bans over the threshold</div>
       )}
     </div>
   )
