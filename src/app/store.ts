@@ -6,22 +6,23 @@ import { leagueApiSlice } from "../features/league-and-team-picker/league-api"
 import { teamsApiSlice } from "../features/league-and-team-picker/teams-api"
 import { playersApiSlice } from "../features/players/players-api"
 import { draftCountersSlice } from "../features/draft-counters/draft-counters-slice"
+import { leagueAggregateApiSlice } from "../features/league-aggregate/league-aggregate-api"
 import type { League } from "../../api/league"
 import type { LeagueTeamsResponse } from "../../api/team"
 
 // `combineSlices` automatically combines the reducers using
 // their `reducerPath`s, therefore we no longer need to call `combineReducers`.
-const rootReducer = combineSlices(matchesApiSlice, leagueApiSlice, teamsApiSlice, playersApiSlice, draftCountersSlice)
+const rootReducer = combineSlices(matchesApiSlice, leagueApiSlice, teamsApiSlice, playersApiSlice, draftCountersSlice, leagueAggregateApiSlice)
 // Infer the `RootState` type from the root reducer
 export type RootState = ReturnType<typeof rootReducer>
 
 // Preloaded data
 const preloadedLeagues: League[] = [
   {
-    id: 18604,
-    created_at: "2025-12-11T17:06:11.58572+00:00",
-    updated_at: "2025-12-11T17:06:11.58572",
-    name: "AD2L Season 45",
+    id: 19137,
+    created_at: "2026-01-20T18:31:06.521396+00:00",
+    updated_at: "2026-01-20T18:31:06.521396",
+    name: "AD2L Season 46",
     has_divisions: true
   },
   {
@@ -30,14 +31,8 @@ const preloadedLeagues: League[] = [
     updated_at: "2025-12-11T17:11:25.230376",
     name: "ESL One Birmingham",
     has_divisions: false
-  },
-  {
-    id: 19137,
-    created_at: "2026-01-20T18:31:06.521396+00:00",
-    updated_at: "2026-01-20T18:31:06.521396",
-    name: "AD2L Season 46",
-    has_divisions: true
   }
+
 ]
 
 const preloadedTeams: LeagueTeamsResponse = {
@@ -54,7 +49,25 @@ const preloadedTeams: LeagueTeamsResponse = {
     10027404: "Cyber Cloud",
     9186949: "Team Blunder",
     10020060: "Not Quite Largos Tempo",
+  },
+
+  19422: {
+    9828897: "REKONIX",
+    8291895: "Tundra Esports",
+    9823272: "Team Yandex",
+    9338413: "MOUZ",
+    9572001: "Parivision",
+    9351740: "Yakult Brothers",
+    9964962: "GamerLegion",
+    8255888: "BetBoom",
+    9895392: "Virtus.pro",
+    9467224: "Aurora Gaming",
+    7554697: "Nigma Galaxy",
+    67: "paiN Gaming",
+    2586976: "OG",
+    7119388: "Team Spirit"
   }
+
 }
 
 // The store setup is wrapped in `makeStore` to allow reuse
@@ -65,7 +78,7 @@ export const makeStore = (preloadedState?: Partial<RootState>) => {
     // Adding the api middleware enables caching, invalidation, polling,
     // and other useful features of `rtk-query`.
     middleware: getDefaultMiddleware => {
-      return getDefaultMiddleware().concat(matchesApiSlice.middleware, leagueApiSlice.middleware, teamsApiSlice.middleware, playersApiSlice.middleware)
+      return getDefaultMiddleware().concat(matchesApiSlice.middleware, leagueApiSlice.middleware, teamsApiSlice.middleware, playersApiSlice.middleware, leagueAggregateApiSlice.middleware)
       // draftCountersSlice uses createAppSlice (not RTK Query), so no middleware needed
     },
     preloadedState,
