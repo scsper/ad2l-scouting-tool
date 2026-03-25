@@ -6,12 +6,13 @@ import { leagueApiSlice } from "../features/league-and-team-picker/league-api"
 import { teamsApiSlice } from "../features/league-and-team-picker/teams-api"
 import { playersApiSlice } from "../features/players/players-api"
 import { draftCountersSlice } from "../features/draft-counters/draft-counters-slice"
+import { leagueAggregateApiSlice } from "../features/league-aggregate/league-aggregate-api"
 import type { League } from "../../api/league"
 import type { LeagueTeamsResponse } from "../../api/team"
 
 // `combineSlices` automatically combines the reducers using
 // their `reducerPath`s, therefore we no longer need to call `combineReducers`.
-const rootReducer = combineSlices(matchesApiSlice, leagueApiSlice, teamsApiSlice, playersApiSlice, draftCountersSlice)
+const rootReducer = combineSlices(matchesApiSlice, leagueApiSlice, teamsApiSlice, playersApiSlice, draftCountersSlice, leagueAggregateApiSlice)
 // Infer the `RootState` type from the root reducer
 export type RootState = ReturnType<typeof rootReducer>
 
@@ -77,7 +78,7 @@ export const makeStore = (preloadedState?: Partial<RootState>) => {
     // Adding the api middleware enables caching, invalidation, polling,
     // and other useful features of `rtk-query`.
     middleware: getDefaultMiddleware => {
-      return getDefaultMiddleware().concat(matchesApiSlice.middleware, leagueApiSlice.middleware, teamsApiSlice.middleware, playersApiSlice.middleware)
+      return getDefaultMiddleware().concat(matchesApiSlice.middleware, leagueApiSlice.middleware, teamsApiSlice.middleware, playersApiSlice.middleware, leagueAggregateApiSlice.middleware)
       // draftCountersSlice uses createAppSlice (not RTK Query), so no middleware needed
     },
     preloadedState,

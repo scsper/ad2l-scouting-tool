@@ -8,6 +8,7 @@ import { AggregateContestRate } from "./features/matches/aggregate-contest-rate"
 import { Players } from "./features/players/players";
 import { Lanes } from "./features/lanes/Lanes";
 import { DraftCounters } from "./features/draft-counters/DraftCounters";
+import { LeagueAggregate } from "./features/league-aggregate/LeagueAggregate";
 
 type Tab = "team" | "players" | "lanes" | "draft-counters";
 
@@ -15,6 +16,7 @@ export const App = () => {
   const [teamId, setTeamId] = useState<number>();
   const [leagueId, setLeagueId] = useState<number>(19137); // AD2L Season 46
   const [activeTab, setActiveTab] = useState<Tab>("team");
+  const [showLeagueAggregate, setShowLeagueAggregate] = useState(false);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "team", label: "Team" },
@@ -56,6 +58,35 @@ export const App = () => {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {leagueId && !teamId && (
+        <div className="container mx-auto px-4 py-6">
+          {showLeagueAggregate ? (
+            <>
+              <div className="flex items-center gap-4 mb-6">
+                <button
+                  onClick={() => { setShowLeagueAggregate(false); }}
+                  className="text-sm text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  ← Back
+                </button>
+                <h2 className="text-lg font-semibold text-slate-200">League Aggregate Data</h2>
+              </div>
+              <LeagueAggregate leagueId={leagueId} />
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <span className="text-slate-400 text-lg">Select a team to continue</span>
+              <button
+                onClick={() => { setShowLeagueAggregate(true); }}
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
+              >
+                Generate aggregate league data
+              </button>
+            </div>
+          )}
         </div>
       )}
 
