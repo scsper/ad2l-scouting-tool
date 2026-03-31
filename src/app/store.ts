@@ -42,6 +42,7 @@ const preloadedTeams: LeagueTeamsResponse = {
     8326846: "Team Unrivaled",
     8750033: "BUTCUM",
     9175179: "Disinformation Campaign",
+    9181133: "Quasar Dreams",
     9403219: "Sharkhorse",
     9408493: "Random Gaming",
     9622244: "Solar Gravity",
