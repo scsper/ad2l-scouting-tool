@@ -6,6 +6,12 @@ import { App } from "./App"
 import { store } from "./app/store"
 import "./index.css"
 
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string
+
+if (!publishableKey) {
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env.local")
+}
+
 const container = document.getElementById("root")
 
 if (container) {
@@ -13,7 +19,7 @@ if (container) {
 
   root.render(
     <StrictMode>
-      <ClerkProvider afterSignOutUrl="/">
+      <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
         <Provider store={store}>
           <App />
         </Provider>
