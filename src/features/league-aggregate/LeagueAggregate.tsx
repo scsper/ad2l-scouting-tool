@@ -22,14 +22,12 @@ function HeroList({
   entries,
   countLabel,
   winPctLabel,
-  getWinPct,
   accentClass,
   badgeBg,
 }: {
   entries: [string, number, number | null][];
   countLabel: string;
   winPctLabel: string;
-  getWinPct: (entry: [string, number, number | null]) => number | null;
   accentClass: string;
   badgeBg: string;
 }) {
@@ -42,25 +40,22 @@ function HeroList({
           <span className="w-8 text-right">{countLabel}</span>
         </div>
       </li>
-      {entries.map(([heroId, count]) => {
-        const pct = getWinPct([heroId, count, null]);
-        return (
-          <li
-            key={heroId}
-            className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-all"
-          >
-            <span className="font-medium text-slate-200 text-sm">{getHero(heroId)}</span>
-            <div className="flex items-center gap-4">
-              <span className={`text-xs w-16 text-right font-semibold ${pct !== null ? winPctColor(pct) : "text-slate-500"}`}>
-                {pct !== null ? `${pct.toFixed(0)}%` : "—"}
-              </span>
-              <span className={`text-xs px-2.5 py-1 ${badgeBg} ${accentClass} rounded-full border font-semibold w-8 text-center`}>
-                {count}
-              </span>
-            </div>
-          </li>
-        );
-      })}
+      {entries.map(([heroId, count, pct]) => (
+        <li
+          key={heroId}
+          className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-all"
+        >
+          <span className="font-medium text-slate-200 text-sm">{getHero(heroId)}</span>
+          <div className="flex items-center gap-4">
+            <span className={`text-xs w-16 text-right font-semibold ${pct !== null ? winPctColor(pct) : "text-slate-500"}`}>
+              {pct !== null ? `${pct.toFixed(0)}%` : "—"}
+            </span>
+            <span className={`text-xs px-2.5 py-1 ${badgeBg} ${accentClass} rounded-full border font-semibold w-8 text-center`}>
+              {count}
+            </span>
+          </div>
+        </li>
+      ))}
     </ul>
   );
 }
@@ -85,25 +80,25 @@ export const LeagueAggregate = ({ leagueId }: { leagueId: number }) => {
     );
   }
 
-  const topPicks = Object.entries(data.picks)
-    .sort((a, b) => b[1].count - a[1].count)
+  const topPicks = Object.entries(data.heroDraftStats)
+    .sort((a, b) => b[1].picks - a[1].picks)
     .slice(0, TOP_N)
-    .map(([id, s]) => [id, s.count, s.wins] as [string, number, number]);
+    .map(([id, s]) => [id, s.picks, s.picks > 0 ? (s.wins / s.picks) * 100 : null] as [string, number, number | null]);
 
-  const topBans = Object.entries(data.bans)
-    .sort((a, b) => b[1].count - a[1].count)
+  const topBans = Object.entries(data.heroDraftStats)
+    .sort((a, b) => b[1].bans - a[1].bans)
     .slice(0, TOP_N)
-    .map(([id, s]) => [id, s.count, s.bannerWins] as [string, number, number]);
+    .map(([id, s]) => [id, s.bans, null] as [string, number, null]);
 
-  const topContested = Object.entries(data.contested)
-    .sort((a, b) => b[1].count - a[1].count)
+  const topContested = Object.entries(data.heroDraftStats)
+    .sort((a, b) => (b[1].picks + b[1].bans) - (a[1].picks + a[1].bans))
     .slice(0, TOP_N)
-    .map(([id, s]) => [id, s.count, s.picks > 0 ? s.pickWins / s.picks * 100 : null] as [string, number, number | null]);
+    .map(([id, s]) => [id, s.picks + s.bans, s.picks > 0 ? s.wins / s.picks * 100 : null] as [string, number, number | null]);
 
   const positionCards = POSITIONS.map(({ key, label }) => {
     const posMap = data.picksByPosition[key] ?? {};
     const entries = Object.entries(posMap)
-      .sort((a, b) => b[1].count - a[1].count)
+      .sort((a, b) => b[1].picks - a[1].picks)
       .slice(0, TOP_PER_POSITION);
     return { key, label, entries };
   });
@@ -121,7 +116,7 @@ export const LeagueAggregate = ({ leagueId }: { leagueId: number }) => {
               <li className="text-slate-500 text-xs text-center py-4">No data</li>
             )}
             {entries.map(([heroId, stats]) => {
-              const winPct = stats.count > 0 ? (stats.wins / stats.count) * 100 : null;
+              const winPct = stats.picks > 0 ? (stats.wins / stats.picks) * 100 : null;
               return (
                 <li key={heroId} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-700/30 hover:bg-slate-700/50 transition-all">
                   <span className="text-xs text-slate-200 truncate mr-2">{getHero(heroId)}</span>
@@ -129,7 +124,7 @@ export const LeagueAggregate = ({ leagueId }: { leagueId: number }) => {
                     {winPct !== null && (
                       <span className={`text-xs font-semibold ${winPctColor(winPct)}`}>{winPct.toFixed(0)}%</span>
                     )}
-                    <span className="text-xs px-1.5 py-0.5 bg-slate-600/50 text-slate-300 rounded font-semibold">{stats.count}</span>
+                    <span className="text-xs px-1.5 py-0.5 bg-slate-600/50 text-slate-300 rounded font-semibold">{stats.picks}</span>
                   </div>
                 </li>
               );
@@ -147,10 +142,6 @@ export const LeagueAggregate = ({ leagueId }: { leagueId: number }) => {
           entries={topPicks}
           countLabel="Picks"
           winPctLabel="Win%"
-          getWinPct={([heroId]) => {
-            const s = data.picks[heroId];
-            return s ? (s.wins / s.count) * 100 : null;
-          }}
           accentClass="text-blue-300 border-blue-500/30"
           badgeBg="bg-blue-500/20"
         />
@@ -164,10 +155,6 @@ export const LeagueAggregate = ({ leagueId }: { leagueId: number }) => {
           entries={topBans}
           countLabel="Bans"
           winPctLabel="Ban Win%"
-          getWinPct={([heroId]) => {
-            const s = data.bans[heroId];
-            return s ? (s.bannerWins / s.count) * 100 : null;
-          }}
           accentClass="text-purple-300 border-purple-500/30"
           badgeBg="bg-purple-500/20"
         />
@@ -181,11 +168,6 @@ export const LeagueAggregate = ({ leagueId }: { leagueId: number }) => {
           entries={topContested}
           countLabel="Total"
           winPctLabel="Pick Win%"
-          getWinPct={([heroId]) => {
-            const s = data.contested[heroId];
-            if (!s || s.picks === 0) return null;
-            return (s.pickWins / s.picks) * 100;
-          }}
           accentClass="text-orange-300 border-orange-500/30"
           badgeBg="bg-orange-500/20"
         />

@@ -15,7 +15,28 @@ export type LeagueMatchResponse = Pick<MatchRow, 'id' | 'winning_team_id' | 'rad
   players: LeagueMatchPlayer[];
 };
 
-async function getMatchesByLeague(leagueId: string): Promise<LeagueMatchResponse[]> {
+export type LeagueHeroPositionStats = {
+  picks: number;
+  wins: number;
+};
+
+export type LeaguePicksByPosition = Record<string, Record<string, LeagueHeroPositionStats>>;
+
+export type LeagueHeroDraftStats = {
+  picks: number;
+  bans: number;
+  wins: number;
+};
+
+export type LeagueHeroDraftMap = Record<string, LeagueHeroDraftStats>;
+
+export type LeagueMatchesApiResponse = {
+  matches: LeagueMatchResponse[];
+  picksByPosition: LeaguePicksByPosition;
+  heroDraftStats: LeagueHeroDraftMap;
+};
+
+async function getMatchesByLeague(leagueId: string): Promise<LeagueMatchesApiResponse> {
   const { data: matches, error: matchesError } = await supabase
     .from('match')
     .select('id, winning_team_id, radiant_team_id, dire_team_id')
@@ -26,7 +47,7 @@ async function getMatchesByLeague(leagueId: string): Promise<LeagueMatchResponse
     throw matchesError;
   }
 
-  if (!matches || matches.length === 0) return [];
+  if (!matches || matches.length === 0) return { matches: [], picksByPosition: {}, heroDraftStats: {} };
 
   const matchIds = (matches as MatchRow[]).map(m => m.id);
 
@@ -59,7 +80,35 @@ async function getMatchesByLeague(leagueId: string): Promise<LeagueMatchResponse
     if (match) match.players.push(player);
   });
 
-  return Array.from(matchesMap.values());
+  const picksByPosition: LeaguePicksByPosition = {};
+  const heroDraftStats: LeagueHeroDraftMap = {};
+
+  for (const match of matchesMap.values()) {
+    for (const draft of match.draft) {
+      if (draft.is_pick) continue;
+      const heroId = String(draft.hero_id);
+      if (!heroDraftStats[heroId]) heroDraftStats[heroId] = { picks: 0, bans: 0, wins: 0 };
+      heroDraftStats[heroId].bans++;
+    }
+
+    for (const player of match.players) {
+      const heroId = String(player.hero_id);
+      const teamWon = player.team_id === match.winning_team_id;
+
+      if (!heroDraftStats[heroId]) heroDraftStats[heroId] = { picks: 0, bans: 0, wins: 0 };
+      heroDraftStats[heroId].picks++;
+      if (teamWon) heroDraftStats[heroId].wins++;
+
+      if (!player.position) continue;
+      if (!picksByPosition[player.position]) picksByPosition[player.position] = {};
+      const posMap = picksByPosition[player.position];
+      if (!posMap[heroId]) posMap[heroId] = { picks: 0, wins: 0 };
+      posMap[heroId].picks++;
+      if (teamWon) posMap[heroId].wins++;
+    }
+  }
+
+  return { matches: Array.from(matchesMap.values()), picksByPosition, heroDraftStats };
 }
 
 export default async function handler(
