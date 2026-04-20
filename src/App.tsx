@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Show, SignInButton } from "@clerk/react";
 import { LeagueAndTeamHeader } from "./features/league-and-team-picker/league-and-team-header"
 import { Matches } from "./features/matches/matches";
 import { AggregateBansAgainst } from "./features/matches/aggregate-bans-against";
@@ -27,6 +28,18 @@ export const App = () => {
 
   return (
     <div className="App min-h-screen">
+      <Show when="signed-out">
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-48px)] gap-3">
+          <p className="text-slate-300 text-lg font-medium">Please sign in to continue</p>
+          <SignInButton>
+            <button className="px-5 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+              Sign in
+            </button>
+          </SignInButton>
+        </div>
+      </Show>
+
+      <Show when="signed-in">
       <LeagueAndTeamHeader
         leagueId={leagueId}
         setLeagueId={setLeagueId}
@@ -117,6 +130,7 @@ export const App = () => {
           <DraftCounters leagueId={leagueId} teamId={teamId} />
         )}
       </div>
+      </Show>
     </div>
   )
 }

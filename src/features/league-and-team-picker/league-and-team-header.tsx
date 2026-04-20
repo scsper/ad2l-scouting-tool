@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Show, SignInButton, UserButton } from "@clerk/react";
 import { useGetLeaguesQuery } from "./league-api";
 import { useLazyGetTeamsByLeagueQuery } from "./teams-api";
 
@@ -57,8 +58,8 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 shadow-lg sticky top-0 z-10">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <h1 className="text-2xl font-bold bg-linear-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full">
+          <h1 className="text-2xl font-bold bg-linear-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent shrink-0">
             AD2L Scouting Tool
           </h1>
           <div className="flex flex-col sm:flex-row gap-3 flex-1">
@@ -92,6 +93,18 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
                 </select>
               </div>
             )}
+          </div>
+          <div className="shrink-0 sm:ml-auto">
+            <Show when="signed-in">
+              <UserButton />
+            </Show>
+            <Show when="signed-out">
+              <SignInButton>
+                <button className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+                  Sign in
+                </button>
+              </SignInButton>
+            </Show>
           </div>
         </div>
       </div>

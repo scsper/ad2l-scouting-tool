@@ -1,6 +1,7 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { Provider } from "react-redux"
+import { ClerkProvider } from "@clerk/react"
 import { App } from "./App"
 import { store } from "./app/store"
 import "./index.css"
@@ -12,9 +13,11 @@ if (container) {
 
   root.render(
     <StrictMode>
-      <Provider store={store}>
-        <App />
-      </Provider>
+      <ClerkProvider afterSignOutUrl="/">
+        <Provider store={store}>
+          <App />
+        </Provider>
+      </ClerkProvider>
     </StrictMode>,
   )
 } else {
