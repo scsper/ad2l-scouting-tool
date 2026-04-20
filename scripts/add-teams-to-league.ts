@@ -7,23 +7,25 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-const LEAGUE = { id: 19422, name: "ESL One Birmingham" }
+const LEAGUE = { id: 19543, name: "PGL Wallachia 2026" }
 
 const TEAMS = [
-  { id: 9828897, name: "REKONIX" },
+  { id: 8255888, name: "BetBoom" },
+  { id: 9467224, name: "Aurora Gaming" },
+  { id: 9572001, name: "Parivision" },
+  { id: 9964962, name: "GamerLegion" },
+  { id: 9247354, name: "Team Falcons" },
+  { id: 9303484, name: "Heroic" },
+  { id: 2163, name: "Team Liquid" },
+  { id: 10108947, name: "SouthAmericaRejects" },
+  { id: 726228, name: "Vici Gaming" },
+  { id: 36, name: "Natus Vincere" },
+  { id: 8261500, name: "Xtreme Gaming" },
+  { id: 7119388, name: "Team Spirit" },
   { id: 8291895, name: "Tundra Esports" },
+  { id: 9895392, name: "Virtus.pro" },
   { id: 9823272, name: "Team Yandex" },
   { id: 9338413, name: "MOUZ" },
-  { id: 9572001, name: "Parivision" },
-  { id: 9351740, name: "Yakult Brothers" },
-  { id: 9964962, name: "GamerLegion" },
-  { id: 8255888, name: "BetBoom" },
-  { id: 9895392, name: "Virtus.pro" },
-  { id: 9467224, name: "Aurora Gaming" },
-  { id: 7554697, name: "Nigma Galaxy" },
-  { id: 67, name: "paiN Gaming" },
-  { id: 2586976, name: "OG" },
-  { id: 7119388, name: "Team Spirit" },
 ]
 
 async function addTeams() {

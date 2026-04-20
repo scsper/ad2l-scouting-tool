@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "parse-matches": "tsx scripts/parse-matches.ts",
     "backfill-lanes": "tsx scripts/backfill-lanes.ts",
+    "add-teams-to-league": "tsx scripts/add-teams-to-league.ts",
+    "replace-team-id": "tsx scripts/replace-team-id.ts",
     "preview": "vite preview",
     "test": "vitest --run",
     "type-check": "tsc -b --noEmit"

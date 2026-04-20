@@ -31,6 +31,13 @@ const preloadedLeagues: League[] = [
     updated_at: "2025-12-11T17:11:25.230376",
     name: "ESL One Birmingham",
     has_divisions: false
+  },
+  {
+    id: 19543,
+    created_at: "2026-04-20T17:11:25.230376+00:00",
+    updated_at: "2026-04-20T17:11:25.230376",
+    name: "PGL Wallachia 2026",
+    has_divisions: false
   }
 
 ]
@@ -67,6 +74,25 @@ const preloadedTeams: LeagueTeamsResponse = {
     67: "paiN Gaming",
     2586976: "OG",
     7119388: "Team Spirit"
+  },
+
+  19543: {
+    8255888: "BetBoom",
+    9467224: "Aurora Gaming",
+    9572001: "Parivision",
+    9964962: "GamerLegion",
+    9247354: "Team Falcons",
+    9303484: "Heroic",
+    2163: "Team Liquid",
+    10108947: "SouthAmericaRejects",
+    726228: "Vici Gaming",
+    36: "Natus Vincere",
+    8261500: "Xtreme Gaming",
+    7119388: "Team Spirit",
+    8291895: "Tundra Esports",
+    9895392: "Virtus.pro",
+    9823272: "Team Yandex",
+    9338413: "MOUZ",
   }
 
 }
