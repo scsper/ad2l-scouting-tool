@@ -42,7 +42,7 @@ async function fetchWithRateLimit(url: string): Promise<Response> {
 async function getAllHeroes(): Promise<OpenDotaHero[]> {
   const res = await fetchWithRateLimit("https://api.opendota.com/api/heroes")
   if (!res.ok) throw new Error(`Failed to fetch heroes: ${res.status}`)
-  return res.json()
+  return res.json() as Promise<OpenDotaHero[]>
 }
 
 async function getHeroMatchups(heroId: number): Promise<OpenDotaMatchup[]> {
@@ -50,7 +50,7 @@ async function getHeroMatchups(heroId: number): Promise<OpenDotaMatchup[]> {
     `https://api.opendota.com/api/heroes/${heroId}/matchups`
   )
   if (!res.ok) throw new Error(`Failed to fetch matchups for hero ${heroId}: ${res.status}`)
-  return res.json()
+  return res.json() as Promise<OpenDotaMatchup[]>
 }
 
 async function upsertMatchups(rows: HeroMatchupRow[]) {
