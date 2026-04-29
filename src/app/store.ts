@@ -38,6 +38,13 @@ const preloadedLeagues: League[] = [
     updated_at: "2026-04-20T17:11:25.230376",
     name: "PGL Wallachia 2026",
     has_divisions: false
+  },
+  {
+    id: 111,
+    created_at: "2026-04-29T18:25:00.000000+00:00",
+    updated_at: "2026-04-29T18:25:00.000000",
+    name: "Scrims",
+    has_divisions: false
   }
 
 ]
@@ -74,6 +81,10 @@ const preloadedTeams: LeagueTeamsResponse = {
     67: "paiN Gaming",
     2586976: "OG",
     7119388: "Team Spirit"
+  },
+
+  111: {
+    9175179: "Disinformation Campaign",
   },
 
   19543: {

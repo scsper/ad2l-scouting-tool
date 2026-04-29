@@ -29,7 +29,7 @@ export const App = () => {
   ];
 
   return (
-    <div className="App min-h-screen">
+    <div className="App flex flex-col h-screen overflow-hidden">
       <Show when="signed-out">
         <div className="flex flex-col items-center justify-center h-[calc(100vh-48px)] gap-3">
           <p className="text-slate-300 text-lg font-medium">Please sign in to continue</p>
@@ -105,37 +105,41 @@ export const App = () => {
         </div>
       )}
 
-      <div className="container mx-auto px-4 py-6">
-        {activeTab === "team" && (
-          <div className="grid grid-cols-1 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-6">
-            {leagueId && teamId && <Matches leagueId={leagueId} teamId={teamId} />}
-            {leagueId && teamId && (
-              <div className="flex flex-col gap-6">
-                <AggregateBansAgainst leagueId={leagueId} teamId={teamId} />
-                <AggregateBansFor leagueId={leagueId} teamId={teamId} />
-              </div>
-            )}
-            {leagueId && teamId && <AggregateHeroesPlayedByPosition leagueId={leagueId} teamId={teamId} />}
-            {leagueId && teamId && <AggregateContestRate leagueId={leagueId} teamId={teamId} />}
-          </div>
-        )}
-
-        {activeTab === "players" && leagueId && teamId && (
-          <Players leagueId={leagueId} teamId={teamId} />
-        )}
-
-        {activeTab === "lanes" && leagueId && teamId && (
-          <Lanes leagueId={leagueId} teamId={teamId} />
-        )}
-
-        {activeTab === "draft-counters" && leagueId && teamId && (
-          <DraftCounters leagueId={leagueId} teamId={teamId} />
-        )}
-
-        {activeTab === "hero-counters" && leagueId && teamId && (
+      {activeTab === "hero-counters" && leagueId && teamId ? (
+        <div className="flex-1 flex flex-col overflow-hidden container mx-auto px-4 py-4 w-full">
           <HeroCounters />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+        <div className="container mx-auto px-4 py-6">
+          {activeTab === "team" && (
+            <div className="grid grid-cols-1 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-6">
+              {leagueId && teamId && <Matches leagueId={leagueId} teamId={teamId} />}
+              {leagueId && teamId && (
+                <div className="flex flex-col gap-6">
+                  <AggregateBansAgainst leagueId={leagueId} teamId={teamId} />
+                  <AggregateBansFor leagueId={leagueId} teamId={teamId} />
+                </div>
+              )}
+              {leagueId && teamId && <AggregateHeroesPlayedByPosition leagueId={leagueId} teamId={teamId} />}
+              {leagueId && teamId && <AggregateContestRate leagueId={leagueId} teamId={teamId} />}
+            </div>
+          )}
+
+          {activeTab === "players" && leagueId && teamId && (
+            <Players leagueId={leagueId} teamId={teamId} />
+          )}
+
+          {activeTab === "lanes" && leagueId && teamId && (
+            <Lanes leagueId={leagueId} teamId={teamId} />
+          )}
+
+          {activeTab === "draft-counters" && leagueId && teamId && (
+            <DraftCounters leagueId={leagueId} teamId={teamId} />
+          )}
+        </div>
+        </div>
+      )}
       </Show>
     </div>
   )
