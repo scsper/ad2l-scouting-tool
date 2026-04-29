@@ -24,7 +24,7 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-const FROM_TEAM_ID = 8336097
+const FROM_TEAM_ID = 8469925
 const TO_TEAM_ID = 9186949
 
 const dryRun = process.argv.includes("--dry-run")

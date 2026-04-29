@@ -15,6 +15,7 @@
     "backfill-lanes": "tsx scripts/backfill-lanes.ts",
     "add-teams-to-league": "tsx scripts/add-teams-to-league.ts",
     "replace-team-id": "tsx scripts/replace-team-id.ts",
+    "compute-hero-counters": "tsx scripts/compute-hero-counters.ts",
     "preview": "vite preview",
     "test": "vitest --run",
     "type-check": "tsc -b --noEmit"

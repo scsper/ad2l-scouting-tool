@@ -68,6 +68,58 @@ type HeroCounterRow = {
   updated_at: string
 }
 
+type HeroStatsRow = {
+  hero_id: number
+  hero_name: string
+  all_pick: number
+  all_win: number
+  legend_plus_pick: number
+  legend_plus_win: number
+  legend_surrounding_pick: number
+  legend_surrounding_win: number
+  legend_pick: number
+  legend_win: number
+  updated_at: string
+}
+
+type HeroCounterAnalysisRow = {
+  hero_a: number
+  hero_b: number
+  // All ranks
+  overall_wr_a: number
+  overall_wr_b: number
+  observed_wr_a_vs_b: number
+  expected_wr_a_vs_b: number
+  shrunk_wr_a_vs_b: number
+  matchup_games: number
+  counter_score: number
+  z_score: number
+  p_value: number
+  significant: boolean
+  label: string
+  // Legend+ bracket
+  overall_wr_a_legend_plus: number | null
+  overall_wr_b_legend_plus: number | null
+  expected_wr_a_vs_b_legend_plus: number | null
+  shrunk_wr_a_vs_b_legend_plus: number | null
+  counter_score_legend_plus: number | null
+  z_score_legend_plus: number | null
+  p_value_legend_plus: number | null
+  significant_legend_plus: boolean | null
+  label_legend_plus: string | null
+  // Legend surrounding bracket
+  overall_wr_a_legend_surrounding: number | null
+  overall_wr_b_legend_surrounding: number | null
+  expected_wr_a_vs_b_legend_surrounding: number | null
+  shrunk_wr_a_vs_b_legend_surrounding: number | null
+  counter_score_legend_surrounding: number | null
+  z_score_legend_surrounding: number | null
+  p_value_legend_surrounding: number | null
+  significant_legend_surrounding: boolean | null
+  label_legend_surrounding: string | null
+  updated_at: string
+}
+
 export type {
   MatchRow,
   MatchPlayerRow,
@@ -75,4 +127,6 @@ export type {
   PlayerRow,
   PlayerPubMatchStatsRow,
   HeroCounterRow,
+  HeroStatsRow,
+  HeroCounterAnalysisRow,
 }
