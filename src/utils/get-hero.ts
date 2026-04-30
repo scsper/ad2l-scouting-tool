@@ -131,3 +131,13 @@ const heroIdMap: Record<string, string> = {
 export function getHero(id: string | number): string {
   return heroIdMap[id.toString()] ?? id.toString();
 }
+
+export function findHeroId(name: string): number | null {
+  const normalized = name.toLowerCase().trim()
+  const entry = Object.entries(heroIdMap).find(
+    ([, heroName]) =>
+      heroName.toLowerCase() === normalized ||
+      heroName.toLowerCase().replace(/[^a-z]/g, "").includes(normalized.replace(/[^a-z]/g, "")),
+  )
+  return entry ? Number(entry[0]) : null
+}
