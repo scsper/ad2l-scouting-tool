@@ -1,12 +1,20 @@
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
-const transport = new DefaultChatTransport({ api: "/api/chat" })
+interface HeroCountersProps {
+  leagueId: number
+  teamId: number
+  teamName?: string
+}
 
-export const HeroCounters = () => {
+export const HeroCounters = ({ leagueId, teamId, teamName }: HeroCountersProps) => {
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: "/api/chat", body: { leagueId, teamId, teamName } }),
+    [leagueId, teamId, teamName],
+  )
   const { messages, sendMessage, status, error } = useChat({ transport })
   const [input, setInput] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)

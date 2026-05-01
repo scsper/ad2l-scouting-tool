@@ -8,9 +8,10 @@ type LeagueAndTeamHeaderProps = {
   setLeagueId: (leagueId: number) => void;
   teamId: number | undefined;
   setTeamId: (teamId: number) => void;
+  setTeamName: (teamName: string | undefined) => void;
 }
 
-export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: LeagueAndTeamHeaderProps) => {
+export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, setTeamName}: LeagueAndTeamHeaderProps) => {
   const leaguesResult = useGetLeaguesQuery();
   const { data: leagues, isLoading: isLoadingLeagues, isError: isErrorLeagues } = leaguesResult;
   const [triggerTeams, { data: teams, isLoading: isLoadingTeams, isError: isErrorTeams }] = useLazyGetTeamsByLeagueQuery();
@@ -69,6 +70,7 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
                 onChange={(e) => {
                   const selectedLeagueId = parseInt(e.target.value, 10);
                   setLeagueId(selectedLeagueId);
+                  setTeamName(undefined);
                   void triggerTeams({ leagueId: selectedLeagueId });
                 }}
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
@@ -83,7 +85,11 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
               <div className="flex-1">
                 <select 
                   value={teamId} 
-                  onChange={(e) => {setTeamId(parseInt(e.target.value, 10))}}
+                  onChange={(e) => {
+                    const id = parseInt(e.target.value, 10);
+                    setTeamId(id);
+                    setTeamName(teams[leagueId][String(id)]);
+                  }}
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
                 >
                   <option value="">-- Select a team --</option>

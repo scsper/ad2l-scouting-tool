@@ -20,13 +20,14 @@ type LeagueRow = {
   player_id: number
   hero_id: number
   team_id: number
-  match: { winning_team_id: number | null } | { winning_team_id: number | null }[] | null
+  match_id: number
 }
 
 export const getRosterHeroStats = tool({
   description:
-    "Get the 10 most played heroes for each player in Sharkhorse's roster, both in league matches (AD2L) and in public games (pubs). Use this whenever discussing a player's hero pool, most played heroes, comfort picks, or tendencies.",
+    "Get the 10 most played heroes for each player on a team's roster at their designated position, both in league matches (AD2L) and in public games (pubs). Use this whenever discussing a player's hero pool, most played heroes, comfort picks, or tendencies.",
   inputSchema: z.object({
+    teamId: z.number().describe("The team ID whose roster stats should be fetched."),
     leagueId: z
       .number()
       .optional()
@@ -34,24 +35,18 @@ export const getRosterHeroStats = tool({
         "AD2L league ID to filter league stats by. Omit to aggregate all recorded league matches.",
       ),
   }),
-  execute: async ({ leagueId }) => {
+  execute: async ({ teamId, leagueId }) => {
     const supabase = getSupabase()
 
-    // Find Sharkhorse's team
-    const teamResult = await supabase
-      .from("team")
-      .select("id, name")
-      .ilike("name", "%sharkhorse%")
-      .single()
+    // Look up the team name
+    const teamResult = await supabase.from("team").select("id, name").eq("id", teamId).single()
 
     const teamData = teamResult.data as { id: number; name: string } | null
     if (!teamData) {
-      return { error: "Sharkhorse team not found in the database." }
+      return { error: `Team with ID ${String(teamId)} not found in the database.` }
     }
 
-    const teamId = teamData.id
-
-    // Get all players on Sharkhorse
+    // Get all players on the team
     const playersResult = await supabase
       .from("player")
       .select("id, name, role")
@@ -60,7 +55,7 @@ export const getRosterHeroStats = tool({
 
     const players = (playersResult.data ?? []) as PlayerRow[]
     if (players.length === 0) {
-      return { error: "No players found for Sharkhorse." }
+      return { error: `No players found for team ID ${String(teamId)}.` }
     }
 
     const playerIds = players.map(p => p.id)
@@ -70,7 +65,7 @@ export const getRosterHeroStats = tool({
       .from("player_pub_match_stats")
       .select("player_id, hero_id, wins, losses")
       .in("player_id", playerIds)
-      .eq("type", "TOP_10_HEROES_OVERALL")
+      .eq("type", "TOP_10_HEROES_BY_POSITION")
 
     const pubStats = (pubResult.data ?? []) as PubStatRow[]
 
@@ -85,10 +80,12 @@ export const getRosterHeroStats = tool({
       if (ids.length > 0) matchIdFilter = ids
     }
 
-    // Fetch league match_player rows, joining match for win resolution
+    console.log(teamId, playerIds)
+
+    // Fetch league match_player rows
     let leagueQuery = supabase
       .from("match_player")
-      .select("player_id, hero_id, team_id, match:match_id(winning_team_id)")
+      .select("player_id, hero_id, team_id, match_id")
       .eq("team_id", teamId)
       .in("player_id", playerIds)
 
@@ -97,14 +94,34 @@ export const getRosterHeroStats = tool({
     }
 
     const leagueResult = await leagueQuery
-    const leagueRows = (leagueResult.data ?? []) as LeagueRow[]
+    if (leagueResult.error) {
+      console.error("[get-roster-hero-stats] match_player query error:", leagueResult.error)
+      return { error: leagueResult.error.message }
+    }
+    const leagueRows = leagueResult.data as LeagueRow[]
+
+    // Fetch winning_team_id for each match separately to avoid relying on a FK embedding
+    const matchIds = [...new Set(leagueRows.map(r => r.match_id))]
+    const winnerMap: Record<number, number | null> = {}
+    if (matchIds.length > 0) {
+      const matchResult = await supabase
+        .from("match")
+        .select("id, winning_team_id")
+        .in("id", matchIds)
+      if (matchResult.error) {
+        console.error("[get-roster-hero-stats] match query error:", matchResult.error)
+        return { error: matchResult.error.message }
+      }
+      for (const m of matchResult.data as { id: number; winning_team_id: number | null }[]) {
+        winnerMap[m.id] = m.winning_team_id
+      }
+    }
 
     // Aggregate league heroes per player: playerId → heroId → { games, wins }
     const leagueMap = {} as Record<number, Record<number, HeroStats | undefined> | undefined>
 
     for (const row of leagueRows) {
-      const matchData = Array.isArray(row.match) ? row.match[0] : row.match
-      const won = matchData?.winning_team_id === row.team_id
+      const won = winnerMap[row.match_id] === row.team_id
 
       const heroMap = (leagueMap[row.player_id] ??= {})
       const existing = heroMap[row.hero_id]

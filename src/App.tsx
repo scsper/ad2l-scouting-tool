@@ -16,6 +16,7 @@ type Tab = "team" | "players" | "lanes" | "draft-counters" | "hero-counters";
 
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
+  const [teamName, setTeamName] = useState<string>();
   const [leagueId, setLeagueId] = useState<number>(19137); // AD2L Season 46
   const [activeTab, setActiveTab] = useState<Tab>("team");
   const [showLeagueAggregate, setShowLeagueAggregate] = useState(false);
@@ -47,6 +48,7 @@ export const App = () => {
         setLeagueId={setLeagueId}
         teamId={teamId}
         setTeamId={setTeamId}
+        setTeamName={setTeamName}
       />
 
       {leagueId && teamId && (
@@ -107,7 +109,7 @@ export const App = () => {
 
       {activeTab === "hero-counters" && leagueId && teamId ? (
         <div className="flex-1 flex flex-col overflow-hidden container mx-auto px-4 py-4 w-full">
-          <HeroCounters />
+          <HeroCounters leagueId={leagueId} teamId={teamId} teamName={teamName} />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
