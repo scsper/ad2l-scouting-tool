@@ -17,7 +17,7 @@ type Tab = "team" | "players" | "lanes" | "draft-counters" | "hero-counters";
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
   const [teamName, setTeamName] = useState<string>();
-  const [leagueId, setLeagueId] = useState<number>(19137); // AD2L Season 46
+  const [leagueId, setLeagueId] = useState<number>(19554); // AD2L Season 47
   const [activeTab, setActiveTab] = useState<Tab>("team");
   const [showLeagueAggregate, setShowLeagueAggregate] = useState(false);
 

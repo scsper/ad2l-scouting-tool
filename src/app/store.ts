@@ -19,6 +19,13 @@ export type RootState = ReturnType<typeof rootReducer>
 // Preloaded data
 const preloadedLeagues: League[] = [
   {
+    id: 19554,
+    created_at: "2026-05-12T20:02:32.45346+00:00",
+    updated_at: "2026-05-12T20:02:32.45346",
+    name: "AD2L Season 47",
+    has_divisions: false
+  },
+  {
     id: 19137,
     created_at: "2026-01-20T18:31:06.521396+00:00",
     updated_at: "2026-01-20T18:31:06.521396",
@@ -50,6 +57,17 @@ const preloadedLeagues: League[] = [
 ]
 
 const preloadedTeams: LeagueTeamsResponse = {
+  19554: {
+    9150871: "Derailed Gaming",
+    7957380: "Savage Sabres",
+    9403219: "Sharkhorse",
+    10014373: "GigaDads",
+    374700: "FOR GLORT!",
+    10137481: "Josh A. Pain",
+    10142791: "Random Gaming",
+    8746795: "9 to 5 Guys",
+  },
+
   19137: {
     7957380: "Savage Sabres",
     8290779: "Sandshrew and Associates",
@@ -160,11 +178,11 @@ const initialState = {
   },
   [teamsApiSlice.reducerPath]: {
     queries: {
-      'getTeamsByLeague({"leagueId":19137})': {
+      'getTeamsByLeague({"leagueId":19554})': {
         status: 'fulfilled',
         endpointName: 'getTeamsByLeague',
         requestId: 'preloaded',
-        originalArgs: { leagueId: 19137 },
+        originalArgs: { leagueId: 19554 },
         data: preloadedTeams,
         error: undefined,
         startedTimeStamp: Date.now(),
