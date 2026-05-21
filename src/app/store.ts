@@ -62,7 +62,7 @@ const preloadedTeams: LeagueTeamsResponse = {
     7957380: "Savage Sabres",
     9403219: "Sharkhorse",
     10014373: "GigaDads",
-    374700: "FOR GLORT!",
+    5079697: "FOR GLORT!",
     10137481: "Josh A. Pain",
     10142791: "Random Gaming",
     8746795: "9 to 5 Guys",
