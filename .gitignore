@@ -27,3 +27,4 @@ dist-ssr
 yalc.lock
 .vercel
 .env*.local
+.gstack/

@@ -169,7 +169,7 @@ function getLaneString(lane?: number, isRoaming?: boolean): string | null {
 // Helper to determine position based on lane_role and farm priority
 // OpenDota lane_role: 1=safelane, 2=mid, 3=offlane, 4=jungle
 // Positions: 1=carry, 2=mid, 3=offlane, 4=soft support, 5=hard support
-function getPositionString(
+export function getPositionString(
   player: OpenDotaPlayer,
   allPlayers: OpenDotaPlayer[],
 ): string | null {
@@ -186,32 +186,37 @@ function getPositionString(
     return "POSITION_4"
   }
 
-  // For safelane (1) and offlane (3), we need to distinguish core from support
-  // based on farm priority within the same team
+  // For safelane (1) and offlane (3), distinguish core from support by comparing
+  // only the players who actually shared that lane, using lane-phase farm.
+  //
+  // Comparing against the whole team on full-game farm (the previous approach) mislabels
+  // any lane whose core finishes below a high-GPM support — e.g. an offlane Axe ranked
+  // behind a farming Zeus, which flipped p3/p4 in 9 team-games across the DB.
   const isRadiant = player_slot < 128
-  const teammates = allPlayers.filter(p => p.player_slot < 128 === isRadiant)
+  const laneMates = allPlayers.filter(
+    p => p.player_slot < 128 === isRadiant && p.lane_role === lane_role,
+  )
 
-  // Sort teammates by farm priority (GPM * 0.5 + last_hits * 0.5 for weighted score)
-  const teamWithFarmScore = teammates
-    .map(p => ({
-      player: p,
-      farmScore: p.gold_per_min * 0.5 + p.last_hits * 0.5,
-    }))
-    .sort((a, b) => b.farmScore - a.farmScore)
-
-  console.log(teamWithFarmScore)
-
-  // Find this player's rank in farm priority (0-4, where 0 is highest farm)
-  const farmRank = teamWithFarmScore.findIndex(t => t.player === player)
-
-  // Safelane: highest farm = pos 1, lowest farm = pos 5
-  if (lane_role === 1) {
-    return farmRank <= 2 ? "POSITION_1" : "POSITION_5"
+  // Last hits at 10 minutes is the cleanest signal for who had lane farm priority.
+  // Fall back to full-game farm only when the timeline is unavailable (unparsed match).
+  const laneFarmScore = (p: OpenDotaPlayer): number => {
+    const lh10 = get10MinuteStats(p).lastHitsAt10
+    return lh10 ?? p.gold_per_min * 0.5 + p.last_hits * 0.5
   }
 
-  // Offlane: highest farm = pos 3, lower farm = pos 4
+  const rank = [...laneMates]
+    .sort((a, b) => laneFarmScore(b) - laneFarmScore(a))
+    .findIndex(p => p === player)
+
+  // Safelane: top farm = carry, next = hard support, any extra = soft support
+  if (lane_role === 1) {
+    if (rank === 0) return "POSITION_1"
+    return rank === 1 ? "POSITION_5" : "POSITION_4"
+  }
+
+  // Offlane: top farm = offlaner, everyone else = soft support
   if (lane_role === 3) {
-    return farmRank <= 2 ? "POSITION_3" : "POSITION_4"
+    return rank === 0 ? "POSITION_3" : "POSITION_4"
   }
 
   return null
