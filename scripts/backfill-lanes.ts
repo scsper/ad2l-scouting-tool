@@ -17,8 +17,7 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { createClient } from "@supabase/supabase-js"
-import { getMatch } from "./match-operations"
-import type { Match } from "./match-operations"
+import { getMatch } from "../api/lib/match-operations"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -60,10 +59,11 @@ async function getMatchIdsFromDb(): Promise<number[]> {
 }
 
 async function backfillMatch(matchId: number): Promise<{ updated: number; noData: number }> {
-  const response = await getMatch(matchId)
-  const match: Match | undefined = response?.data?.match
+  // `getMatch` now throws on a missing or unfetchable match; the caller already
+  // logs and continues per match, so let it propagate.
+  const { match } = await getMatch(matchId)
 
-  if (!match?.players?.length) {
+  if (match.players.length === 0) {
     return { updated: 0, noData: 0 }
   }
 

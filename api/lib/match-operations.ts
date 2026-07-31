@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import type { MatchRow, MatchPlayerRow, MatchDraftRow } from "../types/db"
+import type { MatchRow, MatchPlayerRow, MatchDraftRow } from "../../types/db.js"
 
 const API_URL = "https://api.opendota.com/api/matches"
 const OPENDOTA_API_KEY = process.env.OPENDOTA_API_TOKEN ?? ""
@@ -53,6 +53,11 @@ type OpenDotaMatch = {
   radiant_win: boolean
   start_time: number
   duration: number
+  // Parser version. `null` means OpenDota fetched the match summary but never
+  // parsed the replay, so there is no timeline — no `lane`, `lane_role`, or
+  // `times`/`gold_t`/`xp_t`. Every position, lane, and at-10 field would be null,
+  // which silently poisons the positional aggregates. `parseMatch` refuses these.
+  version?: number | null
   leagueid?: number
   radiant_team_id?: number
   dire_team_id?: number
@@ -117,9 +122,31 @@ export type Match = {
   players: Player[]
 }
 
-type MatchResponse = {
-  data: {
-    match: Match
+/**
+ * Both the transformed match and the raw OpenDota payload. Callers need the raw
+ * payload to inspect `version` before deciding whether the match is worth storing.
+ */
+export type FetchedMatch = {
+  raw: OpenDotaMatch
+  match: Match
+}
+
+/** Why a parse could not complete. The API route maps these to HTTP statuses. */
+export type ParseErrorCode =
+  | "INVALID_ID"
+  | "NOT_FOUND"
+  | "UPSTREAM"
+  | "ALREADY_PARSED"
+  | "UNPARSED"
+  | "UNKNOWN_TEAM"
+
+export class ParseError extends Error {
+  readonly code: ParseErrorCode
+
+  constructor(code: ParseErrorCode, message: string) {
+    super(message)
+    this.name = "ParseError"
+    this.code = code
   }
 }
 
@@ -306,10 +333,8 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
   }
 }
 
-export async function getMatch(
-  matchId: number,
-): Promise<MatchResponse | undefined> {
-  const url = `${API_URL}/${matchId}${OPENDOTA_API_KEY ? `?api_key=${OPENDOTA_API_KEY}` : ""}`
+export async function getMatch(matchId: number): Promise<FetchedMatch> {
+  const url = `${API_URL}/${String(matchId)}${OPENDOTA_API_KEY ? `?api_key=${OPENDOTA_API_KEY}` : ""}`
 
   const response = await fetch(url, {
     method: "GET",
@@ -318,25 +343,37 @@ export async function getMatch(
     },
   })
 
+  if (response.status === 404) {
+    throw new ParseError(
+      "NOT_FOUND",
+      `OpenDota has no record of match ${String(matchId)}.`,
+    )
+  }
+
   if (!response.ok) {
-    console.error(`API Error: ${response.status} ${response.statusText}`)
-    return
+    throw new ParseError(
+      "UPSTREAM",
+      `OpenDota returned ${String(response.status)} ${response.statusText}.`,
+    )
   }
 
-  const openDotaMatch = (await response.json()) as OpenDotaMatch
-
-  if ("error" in openDotaMatch) {
-    console.error("OpenDota API Error:", openDotaMatch.error)
-    return
+  const openDotaMatch = (await response.json()) as OpenDotaMatch & {
+    error?: string
   }
 
-  const match = transformOpenDotaMatch(openDotaMatch)
-
-  return {
-    data: {
-      match,
-    },
+  if (openDotaMatch.error) {
+    throw new ParseError("NOT_FOUND", `OpenDota: ${openDotaMatch.error}`)
   }
+
+  // A summary with no players is not something we can transform.
+  if (!Array.isArray(openDotaMatch.players) || openDotaMatch.players.length === 0) {
+    throw new ParseError(
+      "UPSTREAM",
+      `OpenDota returned no player data for match ${String(matchId)}.`,
+    )
+  }
+
+  return { raw: openDotaMatch, match: transformOpenDotaMatch(openDotaMatch) }
 }
 
 function getLaneOutcome(match: Match, player: Player): string | null {
@@ -448,6 +485,7 @@ export async function convertMatchDataToMatchDraftTable(
 
 export async function convertMatchDataToMatchTable(
   matchData: Match,
+  { upsert = false }: { upsert?: boolean } = {},
 ): Promise<MatchRow[]> {
   const matchRow: MatchRow = {
     id: matchData.id,
@@ -461,7 +499,9 @@ export async function convertMatchDataToMatchTable(
     end_date_time: matchData.endDateTime,
   }
 
-  const { data, error } = await supabase.from("match").insert(matchRow).select()
+  const { data, error } = upsert
+    ? await supabase.from("match").upsert(matchRow).select()
+    : await supabase.from("match").insert(matchRow).select()
 
   if (error) {
     console.error("Error inserting match:", error)
@@ -470,4 +510,176 @@ export async function convertMatchDataToMatchTable(
 
   console.log(`Successfully inserted match ${String(matchData.id)}`)
   return data as MatchRow[]
+}
+
+export type ParseMatchResult = {
+  matchId: number
+  status: "parsed" | "overwritten"
+  leagueId: number
+  radiantTeamId: number | null
+  direTeamId: number | null
+  /** Non-fatal problems: the rows landed, but the match may not be visible yet. */
+  warnings: string[]
+}
+
+/** Postgres error codes surfaced by PostgREST. */
+const FOREIGN_KEY_VIOLATION = "23503"
+const UNIQUE_VIOLATION = "23505"
+
+function isPostgrestError(error: unknown): error is { code?: string; message?: string } {
+  return typeof error === "object" && error !== null && "code" in error
+}
+
+async function matchExists(matchId: number): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("match")
+    .select("id")
+    .eq("id", matchId)
+    .maybeSingle()
+
+  if (error) {
+    console.error("Error checking for existing match:", error)
+    throw error
+  }
+
+  return data !== null
+}
+
+/**
+ * Remove the child rows for a match so it can be re-inserted from scratch.
+ *
+ * Supabase has no transactions, so this leaves a window where the match row
+ * exists with no players. `parseMatch` shrinks that window by fetching and
+ * validating the OpenDota payload *before* calling this.
+ */
+async function deleteMatchChildren(matchId: number): Promise<void> {
+  const [{ error: playersError }, { error: draftError }] = await Promise.all([
+    supabase.from("match_player").delete().eq("match_id", matchId),
+    supabase.from("match_draft").delete().eq("match_id", matchId),
+  ])
+
+  if (playersError) {
+    console.error("Error deleting existing match players:", playersError)
+    throw playersError
+  }
+  if (draftError) {
+    console.error("Error deleting existing match draft:", draftError)
+    throw draftError
+  }
+}
+
+/**
+ * Check that both teams are registered in this league.
+ *
+ * Parsing deliberately does not create `team` or `league_teams` rows. A match
+ * whose team is missing from `league_teams` is stored correctly but is invisible
+ * in the UI, because both the team dropdown and `api/matches` filter on league
+ * membership. Reporting it beats letting it look like a silent no-op.
+ */
+async function getLeagueMembershipWarnings(match: Match): Promise<string[]> {
+  const teamIds = [match.radiantTeam?.id, match.direTeam?.id].filter(
+    (id): id is number => typeof id === "number",
+  )
+
+  if (teamIds.length === 0) {
+    return [
+      "This match has no team IDs, so it will not appear under any team.",
+    ]
+  }
+
+  const { data, error } = await supabase
+    .from("league_teams")
+    .select("team_id")
+    .eq("league_id", match.leagueId)
+    .in("team_id", teamIds)
+
+  if (error) {
+    console.error("Error checking league membership:", error)
+    // A warning lookup must never fail the parse — the rows are already stored.
+    return []
+  }
+
+  const registered = new Set((data as { team_id: number }[]).map(row => row.team_id))
+
+  return teamIds
+    .filter(id => !registered.has(id))
+    .map(
+      id =>
+        `Team ${String(id)} is not registered in league ${String(match.leagueId)}, so this match will not show up under that team yet.`,
+    )
+}
+
+/**
+ * Fetch a match from OpenDota and store it.
+ *
+ * Refuses matches OpenDota has not parsed (no timeline means every position and
+ * lane field would be null) and refuses matches already in the database unless
+ * `overwrite` is set.
+ */
+export async function parseMatch({
+  matchId,
+  overwrite = false,
+}: {
+  matchId: number
+  overwrite?: boolean
+}): Promise<ParseMatchResult> {
+  if (!Number.isInteger(matchId) || matchId <= 0) {
+    throw new ParseError("INVALID_ID", `"${String(matchId)}" is not a valid match ID.`)
+  }
+
+  const exists = await matchExists(matchId)
+  if (exists && !overwrite) {
+    throw new ParseError(
+      "ALREADY_PARSED",
+      `Match ${String(matchId)} is already in the database.`,
+    )
+  }
+
+  // Fetch and validate before touching anything, so a bad payload can never
+  // leave an existing match stripped of its players.
+  const { raw, match } = await getMatch(matchId)
+
+  if (raw.version == null) {
+    throw new ParseError(
+      "UNPARSED",
+      `OpenDota has not parsed match ${String(matchId)} yet. Try again in a few minutes.`,
+    )
+  }
+
+  try {
+    if (exists) {
+      await deleteMatchChildren(matchId)
+      await convertMatchDataToMatchTable(match, { upsert: true })
+    } else {
+      await convertMatchDataToMatchTable(match)
+    }
+
+    await convertMatchDataToMatchPlayersTable(match)
+    await convertMatchDataToMatchDraftTable(match)
+  } catch (error) {
+    if (isPostgrestError(error) && error.code === FOREIGN_KEY_VIOLATION) {
+      throw new ParseError(
+        "UNKNOWN_TEAM",
+        `Match ${String(matchId)} references a team that is not in the database yet. Add the team first, then parse again.`,
+      )
+    }
+    // The existence check above is not atomic with the insert, so a concurrent
+    // request for the same match can get here instead of the early return.
+    if (isPostgrestError(error) && error.code === UNIQUE_VIOLATION) {
+      throw new ParseError(
+        "ALREADY_PARSED",
+        `Match ${String(matchId)} is already in the database.`,
+      )
+    }
+    throw error
+  }
+
+  return {
+    matchId,
+    status: exists ? "overwritten" : "parsed",
+    leagueId: match.leagueId,
+    radiantTeamId: match.radiantTeam?.id ?? null,
+    direTeamId: match.direTeam?.id ?? null,
+    warnings: await getLeagueMembershipWarnings(match),
+  }
 }
