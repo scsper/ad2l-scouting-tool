@@ -64,6 +64,22 @@ function match(opts: {
   }
 }
 
+function registered(opts: {
+  id: number
+  role?: string
+  name?: string
+}): PlayerRow {
+  return {
+    id: opts.id,
+    team_id: SCOUTED_TEAM,
+    created_at: "",
+    updated_at: "",
+    role: opts.role ?? "Carry",
+    name: opts.name ?? `Registered ${String(opts.id)}`,
+    rank: "Divine",
+  }
+}
+
 describe("getGameKda", () => {
   it("treats a deathless game as one death", () => {
     expect(getGameKda(10, 0, 10)).toBe(20)
@@ -76,7 +92,7 @@ describe("getGameKda", () => {
 
 describe("buildPlayerStats", () => {
   it("ignores players on the opposing team", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -95,7 +111,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("aggregates by player_id and displays the most recent name", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -118,17 +134,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("prefers a registered roster name over the in-game name", () => {
-    const registered: PlayerRow = {
-      id: 1,
-      team_id: SCOUTED_TEAM,
-      created_at: "",
-      updated_at: "",
-      role: "Carry",
-      name: "RosterName",
-      rank: "Divine",
-    }
-
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -137,14 +143,14 @@ describe("buildPlayerStats", () => {
         }),
       ],
       SCOUTED_TEAM,
-      [registered],
+      [registered({ id: 1, name: "RosterName" })],
     )
 
     expect(stats[0].name).toBe("RosterName")
   })
 
   it("averages KDA as a ratio of totals, not a mean of per-game ratios", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -180,7 +186,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("averages the remaining stats arithmetically", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -207,7 +213,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("records wins and losses from the winning team", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -231,7 +237,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("sorts games newest first", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -252,7 +258,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("resolves the opponent from either side of the match", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -270,7 +276,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("reports an unknown opponent when the other side was never resolved", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -290,7 +296,7 @@ describe("buildPlayerStats", () => {
   it("drops private profiles instead of merging them into one fake player", () => {
     // The ingest scripts write player_id 0 for every private Steam profile, so
     // two anonymous players in one match would otherwise collapse together.
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -316,7 +322,7 @@ describe("buildPlayerStats", () => {
       { playerId: 3, position: "POSITION_3" },
     ]
 
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -351,7 +357,7 @@ describe("buildPlayerStats", () => {
   })
 
   it("breaks position ties by games played so the starter is first", () => {
-    const stats = buildPlayerStats(
+    const { roster: stats } = buildPlayerStats(
       [
         match({
           id: 1,
@@ -381,5 +387,111 @@ describe("buildPlayerStats", () => {
 
     // Player 7 has two pos-2 games to player 2's one, so it sorts first.
     expect(stats.map(entry => entry.playerId)).toEqual([1, 7, 2])
+  })
+
+  it("slots an ambiguous position by the declared role without hiding the split", () => {
+    // Both players split 4 and 5 evenly, so the observed data alone ties them at
+    // pos 4 and the name decides — which would put Abe (the hard support) first.
+    const games = [
+      match({
+        id: 1,
+        startDateTime: 100,
+        players: [
+          matchPlayer({ playerId: 41, position: "POSITION_4" }),
+          matchPlayer({ playerId: 42, position: "POSITION_5" }),
+        ],
+      }),
+      match({
+        id: 2,
+        startDateTime: 200,
+        players: [
+          matchPlayer({ playerId: 41, position: "POSITION_5" }),
+          matchPlayer({ playerId: 42, position: "POSITION_4" }),
+        ],
+      }),
+    ]
+
+    const { roster } = buildPlayerStats(games, SCOUTED_TEAM, [
+      registered({ id: 41, role: "Soft Support", name: "Zed" }),
+      registered({ id: 42, role: "Hard Support", name: "Abe" }),
+    ])
+
+    expect(roster.map(entry => entry.playerId)).toEqual([41, 42])
+    // The label still reports the flexibility; only the ordering is decided.
+    expect(roster.map(entry => entry.positionLabel)).toEqual([
+      "Pos 4/5",
+      "Pos 4/5",
+    ])
+  })
+})
+
+describe("buildPlayerStats roster split", () => {
+  it("separates registered players from stand-ins", () => {
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+            matchPlayer({ playerId: 99, position: "POSITION_2" }),
+          ],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [registered({ id: 1 })],
+    )
+
+    expect(roster.map(entry => entry.playerId)).toEqual([1])
+    expect(standIns.map(entry => entry.playerId)).toEqual([99])
+  })
+
+  it("orders stand-ins by games played before position", () => {
+    const { standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+            matchPlayer({ playerId: 97, position: "POSITION_1" }),
+            matchPlayer({ playerId: 98, position: "POSITION_5" }),
+          ],
+        }),
+        match({
+          id: 2,
+          startDateTime: 200,
+          players: [matchPlayer({ playerId: 98, position: "POSITION_5" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [registered({ id: 1 })],
+    )
+
+    // The pos-5 stand-in played twice, so it leads despite the pos-1 ordering
+    // that governs the roster group.
+    expect(standIns.map(entry => entry.playerId)).toEqual([98, 97])
+  })
+
+  it("treats everyone as roster when no players are registered", () => {
+    // An unregistered team is "we don't know", not "all stand-ins" — the list
+    // stays position-ordered and nothing gets mislabelled.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 5, position: "POSITION_5" }),
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+          ],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [],
+    )
+
+    expect(roster.map(entry => entry.playerId)).toEqual([1, 5])
+    expect(standIns).toEqual([])
   })
 })

@@ -196,14 +196,19 @@ export const PlayerStats = ({
     isLoading: isLoadingTeams,
     isError: isErrorTeams,
   } = useGetTeamsByLeagueQuery({ leagueId })
-  // Only used to prefer a deliberately-chosen roster name over the in-game one.
-  const { data: registeredPlayers } = useGetPlayersByTeamQuery({ teamId })
+  // Decides the display name, the roster/stand-in split, and the tie-break for
+  // players whose observed position is ambiguous.
+  const {
+    data: registeredPlayers,
+    isLoading: isLoadingPlayers,
+    isError: isErrorPlayers,
+  } = useGetPlayersByTeamQuery({ teamId })
 
   const [expandedPlayers, setExpandedPlayers] = useState<Set<number>>(new Set())
 
   // Memoized so expanding a card doesn't re-walk every match and re-sort every
   // player's games. Must sit above the early returns to keep hook order stable.
-  const players = useMemo(
+  const { roster, standIns } = useMemo(
     () =>
       buildPlayerStats(
         matchesData?.matches ?? [],
@@ -225,7 +230,14 @@ export const PlayerStats = ({
     })
   }
 
-  if (isLoadingMatches || isFetchingMatches || isLoadingTeams) {
+  // The roster is part of the gate so the list doesn't render ungrouped and then
+  // visibly re-sort when it lands.
+  if (
+    isLoadingMatches ||
+    isFetchingMatches ||
+    isLoadingTeams ||
+    isLoadingPlayers
+  ) {
     return (
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
         <div className="flex items-center gap-3">
@@ -244,7 +256,7 @@ export const PlayerStats = ({
     )
   }
 
-  if (players.length === 0) {
+  if (roster.length === 0 && standIns.length === 0) {
     return (
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
         <div className="text-slate-400">No matches found for this team</div>
@@ -257,6 +269,22 @@ export const PlayerStats = ({
       ? teamsData?.[leagueId]?.[opponentTeamId]
       : undefined) ?? "Unknown Team"
 
+  const renderCards = (entries: PlayerStatsEntry[]) => (
+    <ul className="space-y-2">
+      {entries.map(entry => (
+        <PlayerCard
+          key={entry.playerId}
+          entry={entry}
+          isExpanded={expandedPlayers.has(entry.playerId)}
+          onToggle={() => {
+            togglePlayer(entry.playerId)
+          }}
+          getTeamName={getTeamName}
+        />
+      ))}
+    </ul>
+  )
+
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
       <h2 className="text-xl font-bold mb-1 bg-linear-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
@@ -265,6 +293,12 @@ export const PlayerStats = ({
       <p className="text-sm text-slate-500 mb-4">
         League averages per player. Click a player to see every game.
       </p>
+
+      {isErrorPlayers && (
+        <p className="text-sm text-amber-400/80 mb-4">
+          Roster unavailable — stand-ins not marked.
+        </p>
+      )}
 
       <div
         className={`${GRID} px-3 pb-2 mb-2 border-b border-slate-700 text-xs font-medium text-slate-500 uppercase tracking-wide`}
@@ -283,19 +317,16 @@ export const PlayerStats = ({
         <span />
       </div>
 
-      <ul className="space-y-2">
-        {players.map(entry => (
-          <PlayerCard
-            key={entry.playerId}
-            entry={entry}
-            isExpanded={expandedPlayers.has(entry.playerId)}
-            onToggle={() => {
-              togglePlayer(entry.playerId)
-            }}
-            getTeamName={getTeamName}
-          />
-        ))}
-      </ul>
+      {renderCards(roster)}
+
+      {standIns.length > 0 && (
+        <>
+          <h3 className="mt-6 mb-2 px-3 text-xs font-medium text-slate-500 uppercase tracking-wide">
+            Stand-ins
+          </h3>
+          {renderCards(standIns)}
+        </>
+      )}
     </div>
   )
 }

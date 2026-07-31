@@ -9,6 +9,7 @@ import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { PlayerPubMatchStats } from "./PlayerPubMatchStats"
 import { useGetMatchesQuery } from "../matches/matches-api"
 import type { PlayerRow } from "../../../types/db"
+import { roleToPositions } from "../../../shared/roles"
 
 type PlayersProps = {
   leagueId: number
@@ -95,23 +96,6 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
       setPlayerToDelete(null)
     } catch (err) {
       console.error("Failed to delete player:", err)
-    }
-  }
-
-  // Map player roles to Stratz position IDs
-  function roleToPositions(role: string): string[] {
-    switch (role) {
-      case "Carry":
-        return ["POSITION_1"]
-      case "Mid":
-        return ["POSITION_2"]
-      case "Offlane":
-        return ["POSITION_3"]
-      case "Soft Support":
-      case "Hard Support":
-        return ["POSITION_4", "POSITION_5"]
-      default:
-        return []
     }
   }
 

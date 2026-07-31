@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import type { PlayerRow } from "../types/db"
 import { fetchAndStorePlayerStats } from "./player-pub-matches.js"
+import { roleToPositions } from "../shared/roles.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? ""
@@ -15,22 +16,6 @@ type CreatePlayerRequest = {
   rank: string
   role: string
   team_id: number
-}
-
-function roleToPositions(role: string): string[] {
-  switch (role) {
-    case "Carry":
-      return ["POSITION_1"]
-    case "Mid":
-      return ["POSITION_2"]
-    case "Offlane":
-      return ["POSITION_3"]
-    case "Soft Support":
-    case "Hard Support":
-      return ["POSITION_4", "POSITION_5"]
-    default:
-      return []
-  }
 }
 
 async function createPlayer(
