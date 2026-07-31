@@ -1,0 +1,301 @@
+import { useMemo, useState } from "react"
+import { useGetMatchesQuery } from "../matches/matches-api"
+import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
+import { useGetPlayersByTeamQuery } from "../players/players-api"
+import { getHero } from "../../utils/get-hero"
+import {
+  buildPlayerStats,
+  formatDamage,
+  type PlayerStatsEntry,
+} from "./player-stats-utils"
+
+/**
+ * Shared across the header, every collapsed average row, and every game row so
+ * the averages line up column-for-column and can be scanned down the page.
+ */
+const GRID =
+  "grid grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(7,minmax(2.75rem,0.7fr))_1.75rem] gap-x-2 items-center"
+
+const NUMERIC = "text-right tabular-nums"
+
+const formatMatchDate = (startDateTime: number) =>
+  new Date(startDateTime * 1000).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
+
+const PlayerCard = ({
+  entry,
+  isExpanded,
+  onToggle,
+  getTeamName,
+}: {
+  entry: PlayerStatsEntry
+  isExpanded: boolean
+  onToggle: () => void
+  getTeamName: (teamId: number | null) => string
+}) => {
+  const { averages } = entry
+  const winRate = Math.round((entry.wins / entry.games.length) * 100)
+
+  return (
+    <li className="rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 transition-all overflow-hidden">
+      <button
+        onClick={onToggle}
+        className={`${GRID} w-full text-left px-3 py-2.5 cursor-pointer hover:bg-slate-700/30 transition-colors`}
+      >
+        <svg
+          className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 5l7 7-7 7"
+          />
+        </svg>
+        <span
+          className="font-semibold text-slate-100 truncate"
+          title={entry.name}
+        >
+          {entry.name}
+        </span>
+        <span className="text-sm text-slate-400">
+          {entry.positionLabel}
+          <span className="text-slate-500">
+            {" "}
+            · {entry.games.length}g
+          </span>
+        </span>
+        <span className="text-sm">
+          <span className="text-green-400">{entry.wins}</span>
+          <span className="text-slate-500">-</span>
+          <span className="text-red-400">{entry.losses}</span>
+          <span className="text-slate-500"> ({winRate}%)</span>
+        </span>
+        <span className={`${NUMERIC} text-sm font-medium text-slate-200`}>
+          {Math.round(averages.gpm)}
+        </span>
+        <span className={`${NUMERIC} text-sm font-medium text-slate-200`}>
+          {Math.round(averages.xpm)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200`}>
+          {averages.kills.toFixed(1)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200`}>
+          {averages.deaths.toFixed(1)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200`}>
+          {averages.assists.toFixed(1)}
+        </span>
+        <span className={`${NUMERIC} text-sm font-medium text-emerald-300`}>
+          {averages.kda.toFixed(1)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200`}>
+          {formatDamage(averages.heroDamage)}
+        </span>
+        <span />
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-slate-700/60 bg-slate-900/30">
+          {entry.games.map(game => (
+            <div
+              key={game.matchId}
+              className={`${GRID} px-3 py-1.5 border-b border-slate-800/60 last:border-b-0 hover:bg-slate-800/40 transition-colors`}
+            >
+              <span
+                className={`text-xs font-bold ${game.won ? "text-green-400" : "text-red-400"}`}
+                title={game.won ? "Win" : "Loss"}
+              >
+                {game.won ? "W" : "L"}
+              </span>
+              <span className="text-xs text-slate-500">
+                {formatMatchDate(game.startDateTime)}
+              </span>
+              <span
+                className="text-sm text-slate-300 truncate"
+                title={getHero(game.heroId)}
+              >
+                {getHero(game.heroId)}
+              </span>
+              <span
+                className="text-xs text-slate-400 truncate"
+                title={getTeamName(game.opponentTeamId)}
+              >
+                vs {getTeamName(game.opponentTeamId)}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {game.gpm}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {game.xpm}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {game.kills}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {game.deaths}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {game.assists}
+              </span>
+              <span className={`${NUMERIC} text-sm text-emerald-300/80`}>
+                {game.kda.toFixed(1)}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {formatDamage(game.heroDamage)}
+              </span>
+              <a
+                href={`https://www.dotabuff.com/matches/${String(game.matchId)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View on Dotabuff"
+                className="text-slate-500 hover:text-blue-400 transition-colors justify-self-end"
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </li>
+  )
+}
+
+export const PlayerStats = ({
+  leagueId,
+  teamId,
+}: {
+  leagueId: number
+  teamId: number
+}) => {
+  const {
+    data: matchesData,
+    isLoading: isLoadingMatches,
+    isFetching: isFetchingMatches,
+    isError: isErrorMatches,
+  } = useGetMatchesQuery({ leagueId, teamId })
+  const {
+    data: teamsData,
+    isLoading: isLoadingTeams,
+    isError: isErrorTeams,
+  } = useGetTeamsByLeagueQuery({ leagueId })
+  // Only used to prefer a deliberately-chosen roster name over the in-game one.
+  const { data: registeredPlayers } = useGetPlayersByTeamQuery({ teamId })
+
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<number>>(new Set())
+
+  // Memoized so expanding a card doesn't re-walk every match and re-sort every
+  // player's games. Must sit above the early returns to keep hook order stable.
+  const players = useMemo(
+    () =>
+      buildPlayerStats(
+        matchesData?.matches ?? [],
+        teamId,
+        registeredPlayers ?? [],
+      ),
+    [matchesData?.matches, teamId, registeredPlayers],
+  )
+
+  const togglePlayer = (playerId: number) => {
+    setExpandedPlayers(previous => {
+      const next = new Set(previous)
+      if (next.has(playerId)) {
+        next.delete(playerId)
+      } else {
+        next.add(playerId)
+      }
+      return next
+    })
+  }
+
+  if (isLoadingMatches || isFetchingMatches || isLoadingTeams) {
+    return (
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500"></div>
+          <span className="text-slate-400">Loading player stats...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (isErrorMatches || isErrorTeams) {
+    return (
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-red-500/30 shadow-lg p-6">
+        <div className="text-red-400">Error: Please try again</div>
+      </div>
+    )
+  }
+
+  if (players.length === 0) {
+    return (
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
+        <div className="text-slate-400">No matches found for this team</div>
+      </div>
+    )
+  }
+
+  const getTeamName = (opponentTeamId: number | null) =>
+    (opponentTeamId != null
+      ? teamsData?.[leagueId]?.[opponentTeamId]
+      : undefined) ?? "Unknown Team"
+
+  return (
+    <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
+      <h2 className="text-xl font-bold mb-1 bg-linear-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+        Player Stats
+      </h2>
+      <p className="text-sm text-slate-500 mb-4">
+        League averages per player. Click a player to see every game.
+      </p>
+
+      <div
+        className={`${GRID} px-3 pb-2 mb-2 border-b border-slate-700 text-xs font-medium text-slate-500 uppercase tracking-wide`}
+      >
+        <span />
+        <span>Player / Match</span>
+        <span>Pos / Hero</span>
+        <span>Record / Opponent</span>
+        <span className={NUMERIC}>GPM</span>
+        <span className={NUMERIC}>XPM</span>
+        <span className={NUMERIC}>K</span>
+        <span className={NUMERIC}>D</span>
+        <span className={NUMERIC}>A</span>
+        <span className={NUMERIC}>KDA</span>
+        <span className={NUMERIC}>HD</span>
+        <span />
+      </div>
+
+      <ul className="space-y-2">
+        {players.map(entry => (
+          <PlayerCard
+            key={entry.playerId}
+            entry={entry}
+            isExpanded={expandedPlayers.has(entry.playerId)}
+            onToggle={() => {
+              togglePlayer(entry.playerId)
+            }}
+            getTeamName={getTeamName}
+          />
+        ))}
+      </ul>
+    </div>
+  )
+}
