@@ -12,6 +12,7 @@ import { Lanes } from "./features/lanes/Lanes";
 import { DraftCounters } from "./features/draft-counters/DraftCounters";
 import { LeagueAggregate } from "./features/league-aggregate/LeagueAggregate";
 import { HeroCounters } from "./features/hero-counters/HeroCounters";
+import { ParseMatchesModal } from "./features/parse-matches/ParseMatchesModal";
 
 type Tab = "team" | "players" | "pub-stats" | "lanes" | "draft-counters" | "hero-counters";
 
@@ -21,6 +22,7 @@ export const App = () => {
   const [leagueId, setLeagueId] = useState<number>(19554); // AD2L Season 47
   const [activeTab, setActiveTab] = useState<Tab>("team");
   const [showLeagueAggregate, setShowLeagueAggregate] = useState(false);
+  const [isParseModalOpen, setIsParseModalOpen] = useState(false);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "team", label: "Team" },
@@ -98,12 +100,20 @@ export const App = () => {
           ) : (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <span className="text-slate-400 text-lg">Select a team to continue</span>
-              <button
-                onClick={() => { setShowLeagueAggregate(true); }}
-                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
-              >
-                Generate aggregate league data
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowLeagueAggregate(true); }}
+                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
+                >
+                  Generate aggregate league data
+                </button>
+                <button
+                  onClick={() => { setIsParseModalOpen(true); }}
+                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
+                >
+                  Parse matches
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -148,6 +158,11 @@ export const App = () => {
         </div>
         </div>
       )}
+
+      <ParseMatchesModal
+        isOpen={isParseModalOpen}
+        onClose={() => { setIsParseModalOpen(false); }}
+      />
       </Show>
     </div>
   )

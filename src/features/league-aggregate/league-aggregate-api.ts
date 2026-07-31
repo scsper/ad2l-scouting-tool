@@ -14,6 +14,7 @@ export const leagueAggregateApiSlice = createApi({
   endpoints: build => ({
     getLeagueAggregate: build.query<LeagueAggregateData, { leagueId: number }>({
       query: ({ leagueId }) => `api/league-matches?leagueId=${String(leagueId)}`,
+      providesTags: ["LeagueAggregate"],
       transformResponse: ({ heroDraftStats, picksByPosition }: LeagueMatchesApiResponse) => ({
         heroDraftStats,
         picksByPosition,

@@ -37,6 +37,22 @@ export type TransformedMatchesApiResponse = {
 }
 
 
+export type ParseMatchRequest = {
+  matchId: number;
+  overwrite: boolean;
+  /** Clerk session token. This is the only authenticated route in `api/`. */
+  token: string;
+}
+
+export type ParseMatchResponse = {
+  matchId: number;
+  status: "parsed" | "overwritten";
+  leagueId: number;
+  radiantTeamId: number | null;
+  direTeamId: number | null;
+  warnings: string[];
+}
+
 // Define a service using a base URL and expected endpoints
 export const matchesApiSlice = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: "/" }),
@@ -44,9 +60,21 @@ export const matchesApiSlice = createApi({
   // Tag types are used for caching and invalidation.
   tagTypes: ["Matches"],
   endpoints: build => ({
+    // `parseMatch` deliberately does not declare `invalidatesTags`. Callers parse
+    // a pasted list one match at a time, and per-match invalidation would refetch
+    // this query once per match; the modal invalidates once when the batch ends.
+    parseMatch: build.mutation<ParseMatchResponse, ParseMatchRequest>({
+      query: ({ matchId, overwrite, token }) => ({
+        url: "api/parse-match",
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: { matchId, overwrite },
+      }),
+    }),
     getMatches: build.query<TransformedMatchesApiResponse, { leagueId: number; teamId: number }>({
       query: ({ leagueId, teamId }) =>
         `api/matches?leagueId=${String(leagueId)}&teamId=${String(teamId)}`,
+      providesTags: ["Matches"],
       transformResponse: (response: MatchApiResponse[], _, arg: { leagueId: number; teamId: number }) => {
         const { teamId } = arg;
 
@@ -247,4 +275,4 @@ function getContestRate(matches: MatchApiResponse[], scoutedTeamId: number): Rec
   return contestRate;
 }
 
-export const { useLazyGetMatchesQuery, useGetMatchesQuery } = matchesApiSlice
+export const { useLazyGetMatchesQuery, useGetMatchesQuery, useParseMatchMutation } = matchesApiSlice

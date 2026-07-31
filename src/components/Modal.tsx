@@ -5,9 +5,11 @@ type ModalProps = {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Tailwind max-width class. Defaults to the narrow width existing forms use. */
+  widthClassName?: string;
 }
 
-export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
+export const Modal = ({ isOpen, onClose, title, children, widthClassName = "max-w-md" }: ModalProps) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -37,7 +39,7 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
       />
       
       {/* Modal */}
-      <div className="relative w-full max-w-md bg-slate-800 rounded-lg border border-slate-700 shadow-2xl">
+      <div className={`relative w-full ${widthClassName} bg-slate-800 rounded-lg border border-slate-700 shadow-2xl`}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-700">
           <h2 className="text-xl font-semibold text-slate-200">{title}</h2>
