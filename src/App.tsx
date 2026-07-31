@@ -7,12 +7,13 @@ import { AggregateBansFor } from "./features/matches/aggregate-bans-for";
 import { AggregateHeroesPlayedByPosition } from "./features/matches/aggregate-heroes-played-by-position";
 import { AggregateContestRate } from "./features/matches/aggregate-contest-rate";
 import { Players } from "./features/players/players";
+import { PlayerStats } from "./features/player-stats/PlayerStats";
 import { Lanes } from "./features/lanes/Lanes";
 import { DraftCounters } from "./features/draft-counters/DraftCounters";
 import { LeagueAggregate } from "./features/league-aggregate/LeagueAggregate";
 import { HeroCounters } from "./features/hero-counters/HeroCounters";
 
-type Tab = "team" | "players" | "lanes" | "draft-counters" | "hero-counters";
+type Tab = "team" | "players" | "pub-stats" | "lanes" | "draft-counters" | "hero-counters";
 
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
@@ -24,6 +25,7 @@ export const App = () => {
   const tabs: { id: Tab; label: string }[] = [
     { id: "team", label: "Team" },
     { id: "players", label: "Players" },
+    { id: "pub-stats", label: "Pub Stats" },
     { id: "lanes", label: "Lanes" },
     { id: "draft-counters", label: "Draft Counters" },
     { id: "hero-counters", label: "Hero Counters" },
@@ -129,6 +131,10 @@ export const App = () => {
           )}
 
           {activeTab === "players" && leagueId && teamId && (
+            <PlayerStats leagueId={leagueId} teamId={teamId} />
+          )}
+
+          {activeTab === "pub-stats" && leagueId && teamId && (
             <Players leagueId={leagueId} teamId={teamId} />
           )}
 
