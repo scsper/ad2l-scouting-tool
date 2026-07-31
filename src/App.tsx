@@ -9,16 +9,13 @@ import { AggregateContestRate } from "./features/matches/aggregate-contest-rate"
 import { Players } from "./features/players/players";
 import { PlayerStats } from "./features/player-stats/PlayerStats";
 import { Lanes } from "./features/lanes/Lanes";
-import { DraftCounters } from "./features/draft-counters/DraftCounters";
 import { LeagueAggregate } from "./features/league-aggregate/LeagueAggregate";
-import { HeroCounters } from "./features/hero-counters/HeroCounters";
 import { ParseMatchesModal } from "./features/parse-matches/ParseMatchesModal";
 
-type Tab = "team" | "players" | "pub-stats" | "lanes" | "draft-counters" | "hero-counters";
+type Tab = "team" | "players" | "pub-stats" | "lanes";
 
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
-  const [teamName, setTeamName] = useState<string>();
   const [leagueId, setLeagueId] = useState<number>(19554); // AD2L Season 47
   const [activeTab, setActiveTab] = useState<Tab>("team");
   const [showLeagueAggregate, setShowLeagueAggregate] = useState(false);
@@ -29,8 +26,6 @@ export const App = () => {
     { id: "players", label: "Players" },
     { id: "pub-stats", label: "Pub Stats" },
     { id: "lanes", label: "Lanes" },
-    { id: "draft-counters", label: "Draft Counters" },
-    { id: "hero-counters", label: "Hero Counters" },
   ];
 
   return (
@@ -52,7 +47,6 @@ export const App = () => {
         setLeagueId={setLeagueId}
         teamId={teamId}
         setTeamId={setTeamId}
-        setTeamName={setTeamName}
       />
 
       {leagueId && teamId && (
@@ -119,12 +113,7 @@ export const App = () => {
         </div>
       )}
 
-      {activeTab === "hero-counters" && leagueId && teamId ? (
-        <div className="flex-1 flex flex-col overflow-hidden container mx-auto px-4 py-4 w-full">
-          <HeroCounters leagueId={leagueId} teamId={teamId} teamName={teamName} />
-        </div>
-      ) : (
-        <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto">
         <div className="container mx-auto px-4 py-6">
           {activeTab === "team" && (
             <div className="grid grid-cols-1 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-6">
@@ -151,13 +140,8 @@ export const App = () => {
           {activeTab === "lanes" && leagueId && teamId && (
             <Lanes leagueId={leagueId} teamId={teamId} />
           )}
-
-          {activeTab === "draft-counters" && leagueId && teamId && (
-            <DraftCounters leagueId={leagueId} teamId={teamId} />
-          )}
         </div>
-        </div>
-      )}
+      </div>
 
       <ParseMatchesModal
         isOpen={isParseModalOpen}
