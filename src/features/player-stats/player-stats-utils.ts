@@ -1,5 +1,6 @@
 import type { MatchApiResponse } from "../../../types/api"
 import type { PlayerRow } from "../../../types/db"
+import { roleToPosition } from "../../../shared/roles"
 
 const POSITIONS: string[] = [
   "POSITION_1",
@@ -52,6 +53,13 @@ export type PlayerStatsEntry = {
   games: PlayerGame[]
 }
 
+export type PlayerStatsSplit = {
+  /** Players registered on the team's roster. */
+  roster: PlayerStatsEntry[]
+  /** Players who appeared for the team but aren't on its roster. */
+  standIns: PlayerStatsEntry[]
+}
+
 /**
  * Per-game KDA. A deathless game counts as one death, so 10/0/10 reads 20.0
  * rather than dividing by zero.
@@ -66,9 +74,15 @@ export function getGameKda(
 
 /**
  * Most-common position across a player's games. Ties render as a combined
- * label ("Pos 4/5") and sort at the lowest of the tied positions.
+ * label ("Pos 4/5") and sort at the lowest of the tied positions — unless the
+ * roster declares one of the tied positions, which slots them there instead.
+ * The label still shows both, so a genuinely flexible player stays visible as
+ * one; only their place in the list becomes deterministic.
  */
-function getPositionLabel(games: PlayerGame[]): {
+function getPositionLabel(
+  games: PlayerGame[],
+  declaredPosition: string | null,
+): {
   label: string
   sortKey: number
 } {
@@ -86,10 +100,14 @@ function getPositionLabel(games: PlayerGame[]): {
   // Non-empty: `counts` only ever holds keys drawn from POSITIONS.
   const highest = Math.max(...counts.values())
   const tied = POSITIONS.filter(position => counts.get(position) === highest)
+  const declared =
+    declaredPosition && tied.includes(declaredPosition)
+      ? declaredPosition
+      : tied[0]
 
   return {
     label: `Pos ${tied.map(position => position.replace("POSITION_", "")).join("/")}`,
-    sortKey: POSITIONS.indexOf(tied[0]),
+    sortKey: POSITIONS.indexOf(declared),
   }
 }
 
@@ -130,18 +148,39 @@ function getAverages(games: PlayerGame[]): PlayerAverages {
   }
 }
 
+/** Roster order: pos 1 through 5, then the starter ahead of the backup. */
+function compareRoster(a: PlayerStatsEntry, b: PlayerStatsEntry): number {
+  return (
+    a.positionSortKey - b.positionSortKey ||
+    b.games.length - a.games.length ||
+    a.name.localeCompare(b.name)
+  )
+}
+
+/**
+ * Stand-in order: most games first. Position is noisy here — a stand-in often
+ * played a single game out of role — so "who actually shows up" leads.
+ */
+function compareStandIn(a: PlayerStatsEntry, b: PlayerStatsEntry): number {
+  return (
+    b.games.length - a.games.length ||
+    a.positionSortKey - b.positionSortKey ||
+    a.name.localeCompare(b.name)
+  )
+}
+
 /**
  * Builds one entry per player who appeared for the scouted team, aggregating by
- * `player_id` because `player_name` changes between matches. Entries are ordered
- * pos 1 through 5, then by games played, so the list reads like a roster.
+ * `player_id` because `player_name` changes between matches, then splits them
+ * into the registered roster and everyone else.
  */
 export function buildPlayerStats(
   matches: MatchApiResponse[],
   teamId: number,
   registeredPlayers: PlayerRow[],
-): PlayerStatsEntry[] {
-  const registeredNames = new Map(
-    registeredPlayers.map(player => [player.id, player.name]),
+): PlayerStatsSplit {
+  const registered = new Map(
+    registeredPlayers.map(player => [player.id, player]),
   )
   const gamesByPlayer = new Map<number, PlayerGame[]>()
   const latestNames = new Map<number, { name: string; at: number }>()
@@ -188,13 +227,17 @@ export function buildPlayerStats(
   const entries: PlayerStatsEntry[] = []
   for (const [playerId, games] of gamesByPlayer) {
     games.sort((a, b) => b.startDateTime - a.startDateTime)
-    const { label, sortKey } = getPositionLabel(games)
+    const registeredPlayer = registered.get(playerId)
+    const { label, sortKey } = getPositionLabel(
+      games,
+      registeredPlayer ? roleToPosition(registeredPlayer.role) : null,
+    )
     const wins = games.filter(game => game.won).length
 
     entries.push({
       playerId,
       name:
-        registeredNames.get(playerId) ??
+        registeredPlayer?.name ??
         latestNames.get(playerId)?.name ??
         String(playerId),
       positionLabel: label,
@@ -206,12 +249,19 @@ export function buildPlayerStats(
     })
   }
 
-  return entries.sort(
-    (a, b) =>
-      a.positionSortKey - b.positionSortKey ||
-      b.games.length - a.games.length ||
-      a.name.localeCompare(b.name),
-  )
+  // An empty roster means "we don't know who plays for this team", not "nobody
+  // does". Calling all ten players stand-ins would be worse than saying nothing,
+  // so fall back to a single position-ordered list.
+  if (registered.size === 0) {
+    return { roster: entries.sort(compareRoster), standIns: [] }
+  }
+
+  return {
+    roster: entries.filter(e => registered.has(e.playerId)).sort(compareRoster),
+    standIns: entries
+      .filter(e => !registered.has(e.playerId))
+      .sort(compareStandIn),
+  }
 }
 
 /** Hero damage is five digits often enough that 18.5k reads better than 18,532. */

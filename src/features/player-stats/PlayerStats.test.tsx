@@ -97,7 +97,7 @@ class TestRequest {
   }
 }
 
-function stubFetch() {
+function stubFetch(roster: unknown[]) {
   vi.stubGlobal("Request", TestRequest)
   vi.stubGlobal(
     "fetch",
@@ -113,14 +113,14 @@ function stubFetch() {
 
       if (url.includes("api/matches")) return json(MATCHES)
       if (url.includes("api/team")) return json({})
-      if (url.includes("api/player")) return json([])
+      if (url.includes("api/player")) return json(roster)
       throw new Error(`Unexpected fetch: ${url}`)
     }),
   )
 }
 
-function renderPlayerStats() {
-  stubFetch()
+function renderPlayerStats(roster: unknown[] = []) {
+  stubFetch(roster)
   return render(
     <Provider store={makeStore()}>
       <PlayerStats leagueId={LEAGUE_ID} teamId={SCOUTED_TEAM} />
@@ -178,5 +178,32 @@ describe("PlayerStats", () => {
     expect(screen.getByTitle("Loss")).toBeInTheDocument()
     // The deathless game reads 20.0 rather than dividing by zero.
     expect(screen.getByText("20.0")).toBeInTheDocument()
+  })
+
+  it("omits the stand-in heading when the roster is unknown", async () => {
+    renderPlayerStats()
+
+    await screen.findByText("Scott")
+    expect(screen.queryByText("Stand-ins")).not.toBeInTheDocument()
+  })
+
+  it("lists a player who isn't on the roster under Stand-ins", async () => {
+    // Roster holds someone who never played, so Scott is the only card and the
+    // registered player stays hidden rather than rendering an empty stat row.
+    renderPlayerStats([
+      {
+        id: 2,
+        team_id: SCOUTED_TEAM,
+        created_at: "",
+        updated_at: "",
+        role: "Carry",
+        name: "Benched",
+        rank: "Divine",
+      },
+    ])
+
+    expect(await screen.findByText("Stand-ins")).toBeInTheDocument()
+    expect(screen.getByText("Scott")).toBeInTheDocument()
+    expect(screen.queryByText("Benched")).not.toBeInTheDocument()
   })
 })
