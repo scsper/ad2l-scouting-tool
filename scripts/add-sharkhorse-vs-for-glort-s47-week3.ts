@@ -509,6 +509,12 @@ function buildMatchPlayerRows(game: GameInput): MatchPlayerRow[] {
     xpm: player.xpm,
     hero_damage: player.heroDamage,
     tower_damage: player.towerDamage,
+    // Post-game screenshots don't show ward counts, so these are null — meaning
+    // "unknown", not "placed none". Ward averages skip nulls, so leaving them
+    // null keeps these two games out of the ward numbers instead of zeroing
+    // them. Written explicitly so it reads as a decision, not an omission.
+    obs_placed: null,
+    sen_placed: null,
     gold_at_10: null,
     xp_at_10: null,
     lh_at_10: null,

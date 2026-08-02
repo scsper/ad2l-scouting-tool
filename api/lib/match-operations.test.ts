@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
-import { getPositionString } from "./match-operations"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { getMatch, getPositionString } from "./match-operations"
 
 // Minimal OpenDota player shape. `lhAt10` drives the lane-farm comparison;
 // `gpm` / `lastHits` are full-game totals and act only as the fallback.
@@ -116,5 +116,50 @@ describe("getPositionString", () => {
     const jungler = player({ slot: 1, laneRole: 4, lhAt10: 10 })
     expect(getPositionString(mid, [mid, jungler])).toBe("POSITION_2")
     expect(getPositionString(jungler, [mid, jungler])).toBe("POSITION_4")
+  })
+})
+
+
+describe("getMatch ward mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubOpenDota(players: Record<string, unknown>[]) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              match_id: 1,
+              radiant_win: true,
+              start_time: 0,
+              duration: 2000,
+              players,
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    )
+  }
+
+  it("maps an absent ward field to null rather than zero", async () => {
+    stubOpenDota([
+      { ...player({ slot: 0 }), obs_placed: 4, sen_placed: 0 },
+      // Unparsed replay: OpenDota omits the fields entirely.
+      player({ slot: 1 }),
+    ])
+
+    const { match } = await getMatch(1)
+
+    // A real 0 survives as 0 — that player warded nothing. A missing field
+    // becomes null — we have no idea what they did. Collapsing the second into
+    // the first is what silently zeroes out ward averages downstream.
+    expect(match.players[0].obsPlaced).toBe(4)
+    expect(match.players[0].senPlaced).toBe(0)
+    expect(match.players[1].obsPlaced).toBeNull()
+    expect(match.players[1].senPlaced).toBeNull()
   })
 })

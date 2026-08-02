@@ -6,6 +6,7 @@ import { getHero } from "../../utils/get-hero"
 import {
   buildPlayerStats,
   formatDamage,
+  formatWards,
   type PlayerStatsEntry,
 } from "./player-stats-utils"
 
@@ -14,7 +15,7 @@ import {
  * the averages line up column-for-column and can be scanned down the page.
  */
 const GRID =
-  "grid grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(7,minmax(2.75rem,0.7fr))_1.75rem] gap-x-2 items-center"
+  "grid grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(10,minmax(2.75rem,0.7fr))_1.75rem] gap-x-2 items-center"
 
 const NUMERIC = "text-right tabular-nums"
 
@@ -97,6 +98,15 @@ const PlayerCard = ({
         <span className={`${NUMERIC} text-sm text-slate-200`}>
           {formatDamage(averages.heroDamage)}
         </span>
+        <span className={`${NUMERIC} text-sm text-slate-200`}>
+          {formatDamage(averages.towerDamage)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200`}>
+          {formatWards(averages.obsPlaced, 1)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200`}>
+          {formatWards(averages.senPlaced, 1)}
+        </span>
         <span />
       </button>
 
@@ -148,6 +158,15 @@ const PlayerCard = ({
               </span>
               <span className={`${NUMERIC} text-sm text-slate-300`}>
                 {formatDamage(game.heroDamage)}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {formatDamage(game.towerDamage)}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {formatWards(game.obsPlaced)}
+              </span>
+              <span className={`${NUMERIC} text-sm text-slate-300`}>
+                {formatWards(game.senPlaced)}
               </span>
               <a
                 href={`https://www.dotabuff.com/matches/${String(game.matchId)}`}
@@ -314,6 +333,15 @@ export const PlayerStats = ({
         <span className={NUMERIC}>A</span>
         <span className={NUMERIC}>KDA</span>
         <span className={NUMERIC}>HD</span>
+        <span className={NUMERIC} title="Building damage">
+          BLD
+        </span>
+        <span className={NUMERIC} title="Observer wards placed">
+          OBS
+        </span>
+        <span className={NUMERIC} title="Sentry wards placed">
+          SEN
+        </span>
         <span />
       </div>
 
