@@ -1,0 +1,22 @@
+-- Add divisions to a season.
+--
+-- AD2L runs several divisions (Voyager, Challenger, Warrior, Conqueror) under a
+-- single Dota league ticket: OpenDota lists exactly one "AD2L Season 47" (19554)
+-- covering all of them. So division exists nowhere in OpenDota or Stratz — it is
+-- AD2L site metadata we supply ourselves, and (league, team) is the only place
+-- it can hang. `roster_member` is the precedent: the same team fields different
+-- data per league, so the league join row is what carries the per-season fact.
+--
+-- Nullable with no default and no backfill. NULL means "no division recorded",
+-- which is the permanent state of every existing row: Seasons 45-47 are over and
+-- will not be re-labelled, and PGL/ESL/DreamLeague/Scrims have no divisions at
+-- all. Whether a league has divisions is derived from these rows, so leaving
+-- them NULL means those leagues keep exactly today's behaviour — no division
+-- dropdown, and the aggregate view stays "League Aggregate". Divisions go live
+-- on Season 48, whose teams get one from the first row.
+--
+-- This is the ADDITIVE half of an expand/contract migration, the pattern
+-- create_roster_member.sql used. drop_league_has_divisions.sql removes the flag
+-- this replaces, once the app has been verified against the new column.
+ALTER TABLE league_teams
+ADD COLUMN IF NOT EXISTS division TEXT;

@@ -60,8 +60,33 @@ function HeroList({
   );
 }
 
-export const LeagueAggregate = ({ leagueId }: { leagueId: number }) => {
-  const { data, isLoading, isError } = useGetLeagueAggregateQuery({ leagueId });
+export const LeagueAggregate = ({
+  leagueId,
+  division,
+  hasDivisions,
+}: {
+  leagueId: number;
+  division: string | undefined;
+  hasDivisions: boolean;
+}) => {
+  // Division is required here rather than being a filter over the league: a
+  // contest rate is a statement about one metagame, and averaging brackets of
+  // different skill produces a number that describes none of them. Skipping the
+  // query until one is picked also avoids fetching a whole league's drafts to
+  // throw them away.
+  const needsDivision = hasDivisions && !division;
+  const { data, isLoading, isError } = useGetLeagueAggregateQuery(
+    { leagueId, division },
+    { skip: needsDivision },
+  );
+
+  if (needsDivision) {
+    return (
+      <div className="flex items-center justify-center h-48 text-slate-400">
+        Select a division to see its aggregate data.
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

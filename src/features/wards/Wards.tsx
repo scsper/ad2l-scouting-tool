@@ -226,7 +226,7 @@ export const Wards = ({
     )
   }
 
-  const teamName = teamsData?.[leagueId]?.[teamId] ?? "This team"
+  const teamName = teamsData?.[leagueId]?.[teamId]?.name ?? "This team"
   const size = 640
   const minimap = getMinimapForMatches(
     visibleMatches.filter(m => m.hasWardData).map(m => m.start_date_time),
@@ -377,7 +377,7 @@ export const Wards = ({
                   placed={hovered}
                   opponentName={
                     (hovered.opponentTeamId !== null
-                      ? teamsData?.[leagueId]?.[hovered.opponentTeamId]
+                      ? teamsData?.[leagueId]?.[hovered.opponentTeamId]?.name
                       : null) ?? "Unknown team"
                   }
                 />

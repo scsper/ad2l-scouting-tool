@@ -2,15 +2,51 @@ import { useEffect } from "react";
 import { Show, SignInButton, UserButton } from "@clerk/react";
 import { useGetLeaguesQuery } from "./league-api";
 import { useLazyGetTeamsByLeagueQuery } from "./teams-api";
+import type { LeagueTeamEntry } from "./teams-api";
+import { UNASSIGNED_DIVISION, divisionsIn } from "../../../shared/divisions";
 
 type LeagueAndTeamHeaderProps = {
   leagueId: number | undefined;
   setLeagueId: (leagueId: number) => void;
   teamId: number | undefined;
   setTeamId: (teamId: number | undefined) => void;
+  division: string | undefined;
+  setDivision: (division: string | undefined) => void;
 }
 
-export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: LeagueAndTeamHeaderProps) => {
+/**
+ * Teams bucketed for the picker: each division in vocabulary order, then
+ * anything with no division under "Unassigned".
+ *
+ * The team list is grouped rather than filtered by the selected division. You
+ * routinely want your own team's tabs open while reading another division's
+ * aggregate, and filtering would also hide a team you just added and forgot to
+ * assign — which, with no other UI to fix it, is a team you can't get back to.
+ */
+function groupTeamsByDivision(teams: Record<number, LeagueTeamEntry>) {
+  const entries = Object.entries(teams);
+  const divisions = divisionsIn(entries.map(([, team]) => team.division));
+
+  const groups: { label: string; teams: [string, LeagueTeamEntry][] }[] = divisions.map(
+    division => ({
+      label: division,
+      teams: entries.filter(([, team]) => team.division === division),
+    }),
+  );
+
+  // Anything the vocabulary doesn't recognise lands here too, not just NULLs —
+  // a typo shouldn't invent a bracket, but the team still has to be reachable.
+  const unassigned = entries.filter(
+    ([, team]) => !divisions.some(division => division === team.division),
+  );
+  if (unassigned.length > 0) {
+    groups.push({ label: UNASSIGNED_DIVISION, teams: unassigned });
+  }
+
+  return { divisions, groups };
+}
+
+export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, division, setDivision}: LeagueAndTeamHeaderProps) => {
   const leaguesResult = useGetLeaguesQuery();
   const { data: leagues, isLoading: isLoadingLeagues, isError: isErrorLeagues } = leaguesResult;
   const [triggerTeams, { data: teams, isLoading: isLoadingTeams, isError: isErrorTeams }] = useLazyGetTeamsByLeagueQuery();
@@ -55,6 +91,10 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
     );
   }
 
+  const { divisions, groups } = groupTeamsByDivision(
+    (leagueId ? teams?.[leagueId] : undefined) ?? {},
+  );
+
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 shadow-lg sticky top-0 z-10">
       <div className="container mx-auto px-4 py-4">
@@ -69,6 +109,9 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
                 onChange={(e) => {
                   const selectedLeagueId = parseInt(e.target.value, 10);
                   setLeagueId(selectedLeagueId);
+                  // Divisions are per-season, so the old league's pick means
+                  // nothing here even when the name carries over.
+                  setDivision(undefined);
                   // Keep the team if it also plays in the new league — comparing
                   // one team across seasons is the main reason to switch. Clear
                   // it otherwise: the selected pair is now a write target for the
@@ -78,7 +121,7 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
                     .unwrap()
                     .then((teamsByLeague) => {
                       const teamsInLeague = teamsByLeague[selectedLeagueId] as
-                        | Record<number, string>
+                        | Record<number, LeagueTeamEntry>
                         | undefined;
                       if (teamId != null && !teamsInLeague?.[teamId]) {
                         setTeamId(undefined);
@@ -96,6 +139,20 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
             </div>
             {isLoadingTeams && <div className="text-slate-400 py-2">Loading teams...</div>}
             {isErrorTeams && <div className="text-red-400 py-2">Error: Please try again</div>}
+            {divisions.length > 0 && (
+              <div className="flex-1">
+                <select
+                  value={division ?? ""}
+                  onChange={(e) => {
+                    setDivision(e.target.value || undefined);
+                  }}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
+                >
+                  <option value="">-- Select a division --</option>
+                  {divisions.map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+            )}
             {leagueId && teams?.[leagueId] && (
               <div className="flex-1">
                 <select
@@ -107,9 +164,19 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
                 >
                   <option value="">-- Select a team --</option>
-                  {Object.entries(teams[leagueId]).map(([teamId, teamName]) =>
-                    <option key={teamId} value={teamId}>{teamName}</option>
-                  )}
+                  {/* Flat until a league has divisions, so every pre-S48 season
+                      and every single-bracket tournament looks exactly as before. */}
+                  {divisions.length === 0
+                    ? Object.entries(teams[leagueId]).map(([id, team]) =>
+                        <option key={id} value={id}>{team.name}</option>
+                      )
+                    : groups.map(group =>
+                        <optgroup key={group.label} label={group.label}>
+                          {group.teams.map(([id, team]) =>
+                            <option key={id} value={id}>{team.name}</option>
+                          )}
+                        </optgroup>
+                      )}
                 </select>
               </div>
             )}

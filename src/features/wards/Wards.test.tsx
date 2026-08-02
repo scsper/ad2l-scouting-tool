@@ -79,8 +79,8 @@ function renderWards() {
       if (url.includes("api/team"))
         return json({
           [LEAGUE_ID]: {
-            [SCOUTED_TEAM]: "Derailed Gaming",
-            [OPPONENT_TEAM]: "Sharkhorse",
+            [SCOUTED_TEAM]: { name: "Derailed Gaming", division: "Voyager" },
+            [OPPONENT_TEAM]: { name: "Sharkhorse", division: "Voyager" },
           },
         })
       throw new Error(`Unexpected fetch: ${url}`)

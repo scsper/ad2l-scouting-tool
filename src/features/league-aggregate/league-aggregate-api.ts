@@ -12,8 +12,11 @@ export const leagueAggregateApiSlice = createApi({
   reducerPath: "leagueAggregate",
   tagTypes: ["LeagueAggregate"],
   endpoints: build => ({
-    getLeagueAggregate: build.query<LeagueAggregateData, { leagueId: number }>({
-      query: ({ leagueId }) => `api/league-matches?leagueId=${String(leagueId)}`,
+    // Omitting `division` means the whole league, which is what a single-bracket
+    // tournament (PGL, ESL, Scrims) wants and what every season before 48 gets.
+    getLeagueAggregate: build.query<LeagueAggregateData, { leagueId: number; division?: string }>({
+      query: ({ leagueId, division }) =>
+        `api/league-matches?leagueId=${String(leagueId)}${division ? `&division=${encodeURIComponent(division)}` : ""}`,
       providesTags: ["LeagueAggregate"],
       transformResponse: ({ heroDraftStats, picksByPosition }: LeagueMatchesApiResponse) => ({
         heroDraftStats,

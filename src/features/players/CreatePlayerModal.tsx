@@ -40,7 +40,7 @@ export const CreatePlayerModal = ({
   const { data: teamsData } = useGetTeamsByLeagueQuery({ leagueId })
   const { data: leagues } = useGetLeaguesQuery()
 
-  const teamName = teamsData?.[leagueId]?.[teamId] ?? ""
+  const teamName = teamsData?.[leagueId]?.[teamId]?.name ?? ""
   const leagueName = leagues?.find(league => league.id === leagueId)?.name ?? ""
 
   const resetForm = () => {

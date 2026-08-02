@@ -12,15 +12,25 @@ import { Lanes } from "./features/lanes/Lanes";
 import { Wards } from "./features/wards/Wards";
 import { LeagueAggregate } from "./features/league-aggregate/LeagueAggregate";
 import { ParseMatchesModal } from "./features/parse-matches/ParseMatchesModal";
+import { AddTeamModal } from "./features/league-and-team-picker/AddTeamModal";
+import { useLeagueDivisions } from "./features/league-and-team-picker/teams-api";
 
 type Tab = "team" | "players" | "pub-stats" | "lanes" | "wards";
 
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
   const [leagueId, setLeagueId] = useState<number>(19554); // AD2L Season 47
+  const [division, setDivision] = useState<string>();
   const [activeTab, setActiveTab] = useState<Tab>("team");
   const [showLeagueAggregate, setShowLeagueAggregate] = useState(false);
   const [isParseModalOpen, setIsParseModalOpen] = useState(false);
+  const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
+
+  // Divisions scope the aggregate view and nothing else. A team's own tabs stay
+  // whole-league on purpose: when you scout a team you want every game they
+  // played, and no read path below is division-filtered.
+  const divisions = useLeagueDivisions(leagueId);
+  const aggregateLabel = divisions.length > 0 ? "Division" : "League";
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "team", label: "Team" },
@@ -49,6 +59,8 @@ export const App = () => {
         setLeagueId={setLeagueId}
         teamId={teamId}
         setTeamId={setTeamId}
+        division={division}
+        setDivision={setDivision}
       />
 
       {leagueId && teamId && (
@@ -89,9 +101,15 @@ export const App = () => {
                 >
                   ← Back
                 </button>
-                <h2 className="text-lg font-semibold text-slate-200">League Aggregate Data</h2>
+                <h2 className="text-lg font-semibold text-slate-200">
+                  {aggregateLabel} Aggregate Data
+                </h2>
               </div>
-              <LeagueAggregate leagueId={leagueId} />
+              <LeagueAggregate
+                leagueId={leagueId}
+                division={division}
+                hasDivisions={divisions.length > 0}
+              />
             </>
           ) : (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -101,13 +119,19 @@ export const App = () => {
                   onClick={() => { setShowLeagueAggregate(true); }}
                   className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
                 >
-                  Generate aggregate league data
+                  Generate aggregate {aggregateLabel.toLowerCase()} data
                 </button>
                 <button
                   onClick={() => { setIsParseModalOpen(true); }}
                   className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
                 >
                   Parse matches
+                </button>
+                <button
+                  onClick={() => { setIsAddTeamModalOpen(true); }}
+                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
+                >
+                  Add team
                 </button>
               </div>
             </div>
@@ -152,6 +176,12 @@ export const App = () => {
       <ParseMatchesModal
         isOpen={isParseModalOpen}
         onClose={() => { setIsParseModalOpen(false); }}
+      />
+
+      <AddTeamModal
+        isOpen={isAddTeamModalOpen}
+        onClose={() => { setIsAddTeamModalOpen(false); }}
+        leagueId={leagueId}
       />
       </Show>
     </div>

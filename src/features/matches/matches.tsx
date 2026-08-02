@@ -55,10 +55,10 @@ export const Matches = ({
             const otherTeamId = otherTeam[0]?.team_id
 
             const scoutedTeamName = scoutedTeamId
-              ? teamsData[leagueId][scoutedTeamId]
+              ? teamsData[leagueId][scoutedTeamId]?.name ?? "Unknown Team"
               : "Unknown Team"
             const otherTeamName = otherTeamId
-              ? teamsData[leagueId][otherTeamId]
+              ? teamsData[leagueId][otherTeamId]?.name ?? "Unknown Team"
               : "Unknown Team"
 
             const otherTeamBans = match.draft.filter(
