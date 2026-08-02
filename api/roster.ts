@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import type { RosterEntry } from "../types/db"
+import type { RosterEntry } from "../types/db.js"
 import { fetchAndStorePlayerStats } from "./player-pub-matches.js"
 import { roleToPositions } from "../shared/roles.js"
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { getMatch, getPositionString } from "./match-operations"
+import { getMatch, getPositionString } from "./match-operations.js"
 
 // Minimal OpenDota player shape. `lhAt10` drives the lane-farm comparison;
 // `gpm` / `lastHits` are full-game totals and act only as the fallback.
