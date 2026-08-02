@@ -25,12 +25,23 @@ vi.mock("@clerk/react", () => ({
 
 /** Surfaces where the router settled, including any redirect it followed. */
 const PathProbe = () => {
-  const { pathname } = useLocation()
-  return <span data-testid="path">{pathname}</span>
+  const { pathname, search } = useLocation()
+  return (
+    <>
+      <span data-testid="path">{pathname}</span>
+      <span data-testid="search">{search}</span>
+    </>
+  )
 }
 
 function renderAt(path: string) {
   stubFetch({
+    // Ahead of "api/league", which is a prefix of it and would answer first.
+    "api/league-matches": {
+      picksByPosition: {},
+      heroDraftStats: {},
+      playerStats: [],
+    },
     "api/league": [{ id: LEAGUE_ID, name: "AD2L Season 47" }],
     "api/team": {
       [LEAGUE_ID]: {
@@ -62,6 +73,9 @@ afterEach(() => {
 
 /** Where the router settled, read off the probe the shell renders. */
 const currentPath = () => screen.getByTestId("path").textContent
+
+/** The query string a redirect kept or dropped. */
+const currentSearch = () => screen.getByTestId("search").textContent
 
 describe("routes", () => {
   it("sends the root at the default season", async () => {
@@ -99,6 +113,54 @@ describe("routes", () => {
 
     await screen.findByRole("link", { name: "Team" })
     expect(activeTab()).toBe("Team")
+  })
+
+  // `/leagues/:id/aggregate` was the whole screen before it grew a second
+  // board, so it is a URL already out in the world.
+  it("sends the bare aggregate URL to the hero board", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate`)
+
+    await screen.findByRole("link", { name: "Heroes" })
+    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/aggregate/heroes`)
+  })
+
+  it("sends an aggregate board we don't have to the hero board", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate/wards`)
+
+    await screen.findByRole("link", { name: "Heroes" })
+    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/aggregate/heroes`)
+  })
+
+  it("opens the player board a deep link names", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate/players`)
+
+    expect(await screen.findByRole("link", { name: "Players" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    )
+  })
+
+  // Without it the board it lands on would refuse to query, which is the one
+  // redirect that could lose you the screen you were sent.
+  it("keeps the division when redirecting a bare aggregate URL", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate?division=Voyager`)
+
+    await screen.findByRole("link", { name: "Heroes" })
+    expect(currentSearch()).toBe("?division=Voyager")
+  })
+
+  // The division outlives the screen that set it; a position and sort describe
+  // one board and must not lie in wait on the other.
+  it("carries the division between aggregate boards but not the sort", async () => {
+    renderAt(
+      `/leagues/${String(LEAGUE_ID)}/aggregate/players?division=Voyager&pos=4&sort=xpAt10`,
+    )
+
+    const heroes = await screen.findByRole("link", { name: "Heroes" })
+    expect(heroes).toHaveAttribute(
+      "href",
+      `/leagues/${String(LEAGUE_ID)}/aggregate/heroes?division=Voyager`,
+    )
   })
 
   it("carries the division across a move from the aggregate into a team", async () => {

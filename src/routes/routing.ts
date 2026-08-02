@@ -13,11 +13,24 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "wards", label: "Wards" },
 ]
 
+export type AggregateTab = "heroes" | "players"
+
+/**
+ * The two questions a division can be asked: what it drafts, and who plays in
+ * it. Routes rather than a query param, on the same reasoning that made the
+ * team tabs routes — they are different datasets, not two views of one screen.
+ */
+export const AGGREGATE_TABS: { id: AggregateTab; label: string }[] = [
+  { id: "heroes", label: "Heroes" },
+  { id: "players", label: "Players" },
+]
+
 /**
  * `?division=` is threaded through links by hand rather than by copying the
  * whole query string, because it is the only param that outlives the screen
  * that set it. The ward filters are scoped to the wards tab and must not
- * follow you onto another team's lanes.
+ * follow you onto another team's lanes, and the player board's position and
+ * sort must not follow you onto the hero board.
  */
 export function divisionSearch(division: string | undefined) {
   return division ? `?division=${encodeURIComponent(division)}` : ""
@@ -31,4 +44,19 @@ export type TeamScope = { leagueId: number; teamId: number }
  */
 export function useTeamScope() {
   return useOutletContext<TeamScope>()
+}
+
+export type AggregateScope = {
+  leagueId: number
+  division: string | undefined
+  hasDivisions: boolean
+}
+
+/**
+ * Handed down by `AggregateRoute`. `hasDivisions` rides along because both
+ * boards refuse to query without a division once a league has them, and asking
+ * again below would mean a second copy of the same derivation.
+ */
+export function useAggregateScope() {
+  return useOutletContext<AggregateScope>()
 }
