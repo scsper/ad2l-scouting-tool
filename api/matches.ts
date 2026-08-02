@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import type { MatchApiResponse } from "../types/api";
-import type { MatchRow, MatchDraftRow, MatchPlayerRow } from "../types/db";
+import type { MatchApiResponse } from "../types/api.js";
+import type { MatchRow, MatchDraftRow, MatchPlayerRow } from "../types/db.js";
 import { selectAll } from "./lib/select-all.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";

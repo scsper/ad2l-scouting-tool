@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import type { PlayerRow } from "../types/db"
+import type { PlayerRow } from "../types/db.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? ""

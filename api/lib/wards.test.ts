@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
-import { extractWards } from "./wards"
+import { extractWards } from "./wards.js"
 
 describe("extractWards", () => {
   it("pairs a placement to its removal by ehandle", () => {
