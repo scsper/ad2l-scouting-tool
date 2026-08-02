@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import type { Division } from "../shared/divisions"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? ""
@@ -8,6 +9,12 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
 })
 
 const LEAGUE = { id: 19543, name: "PGL Wallachia 2026" }
+
+// The division these teams play in, or null for a league that has none. A
+// league's divisions are derived from the rows this writes, so a value here is
+// what makes the division picker appear at all — and a name outside
+// shared/divisions.ts would become a bracket of its own in it.
+const DIVISION: Division | null = null
 
 const TEAMS = [
   { id: 8255888, name: "BetBoom" },
@@ -48,7 +55,7 @@ async function addLeague() {
   console.log("Adding league...")
   const { error } = await supabase
     .from("league")
-    .insert({ id: LEAGUE.id, name: LEAGUE.name, has_divisions: false })
+    .insert({ id: LEAGUE.id, name: LEAGUE.name })
   if (error) {
     if (error.code === "23505") {
       console.log(`  League already exists, skipping: ${LEAGUE.name} (${LEAGUE.id})`)
@@ -66,7 +73,7 @@ async function addTeamsToLeague() {
   for (const team of TEAMS) {
     const { error } = await supabase
       .from("league_teams")
-      .insert({ league_id: LEAGUE.id, team_id: team.id })
+      .insert({ league_id: LEAGUE.id, team_id: team.id, division: DIVISION })
     if (error) {
       if (error.code === "23505") {
         console.log(`  Team already in league, skipping: ${team.name}`)

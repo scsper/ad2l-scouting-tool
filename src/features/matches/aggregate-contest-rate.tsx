@@ -47,7 +47,7 @@ export const AggregateContestRate = ({leagueId, teamId}: {leagueId: number; team
     );
   }
 
-  const teamName = teamsData[leagueId][teamId] ?? "Unknown Team";
+  const teamName = teamsData[leagueId][teamId]?.name ?? "Unknown Team";
 
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6 hover:border-slate-600 transition-all h-fit">

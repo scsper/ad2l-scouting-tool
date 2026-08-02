@@ -305,7 +305,7 @@ export const PlayerStats = ({
 
   const getTeamName = (opponentTeamId: number | null) =>
     (opponentTeamId != null
-      ? teamsData?.[leagueId]?.[opponentTeamId]
+      ? teamsData?.[leagueId]?.[opponentTeamId]?.name
       : undefined) ?? "Unknown Team"
 
   const renderCards = (entries: PlayerStatsEntry[]) => (

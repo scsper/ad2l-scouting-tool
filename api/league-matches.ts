@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { MatchDraftRow, MatchPlayerRow, MatchRow } from "../types/db.js";
 import { selectAll } from "../server/select-all.js";
+import { matchesWithinDivision } from "../server/division-scope.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -39,15 +40,42 @@ export type LeagueMatchesApiResponse = {
   heroDraftStats: LeagueHeroDraftMap;
 };
 
-async function getMatchesByLeague(leagueId: string): Promise<LeagueMatchesApiResponse> {
+/**
+ * The teams a division fields, or null when no division was asked for.
+ *
+ * Paged like everything else here: a league's membership is small today, but it
+ * gates which matches count, so silently reading the first 1000 rows would be
+ * the same class of bug as truncating the drafts.
+ */
+async function getDivisionTeamIds(leagueId: number, division: string): Promise<Set<number>> {
+  const rows = await selectAll<{ team_id: number }>((from, to) => supabase
+    .from('league_teams')
+    .select('team_id')
+    .eq('league_id', leagueId)
+    .eq('division', division)
+    .range(from, to));
+
+  return new Set(rows.map(row => row.team_id));
+}
+
+async function getMatchesByLeague(
+  leagueId: string,
+  division: string | undefined,
+): Promise<LeagueMatchesApiResponse> {
+  const leagueIdNum = parseInt(leagueId, 10);
+
   // Every read here is paged. A whole league's drafts run to 2782 rows, well
   // past PostgREST's silent 1000-row ceiling, and they feed pick/ban counts that
   // are meaningless if they cover an arbitrary subset of the league.
-  const matches = await selectAll<LeagueMatch>((from, to) => supabase
+  const allMatches = await selectAll<LeagueMatch>((from, to) => supabase
     .from('match')
     .select('id, winning_team_id, radiant_team_id, dire_team_id')
-    .eq('league_id', parseInt(leagueId, 10))
+    .eq('league_id', leagueIdNum)
     .range(from, to));
+
+  const matches = division === undefined
+    ? allMatches
+    : matchesWithinDivision(allMatches, await getDivisionTeamIds(leagueIdNum, division));
 
   if (matches.length === 0) return { matches: [], picksByPosition: {}, heroDraftStats: {} };
 
@@ -107,12 +135,12 @@ async function getMatchesByLeague(leagueId: string): Promise<LeagueMatchesApiRes
 }
 
 export default async function handler(
-  req: { query: { leagueId: string } },
+  req: { query: { leagueId: string; division?: string } },
   res: { status: (code: number) => { json: (data: unknown) => void } },
 ) {
-  const { leagueId } = req.query;
+  const { leagueId, division } = req.query;
   try {
-    const data = await getMatchesByLeague(leagueId);
+    const data = await getMatchesByLeague(leagueId, division === "" ? undefined : division);
     res.status(200).json(data);
   } catch (error) {
     console.error("Error in handler:", error);

@@ -55,7 +55,7 @@ export const Lanes = ({
 
   const teamName = (tid: number | null) =>
     tid && teamsData?.[leagueId]?.[tid] != null
-      ? teamsData[leagueId][tid]
+      ? teamsData[leagueId][tid].name
       : "Unknown Team"
 
   type LaneRecord = { wins: number; draws: number; losses: number }

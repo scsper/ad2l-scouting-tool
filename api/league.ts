@@ -12,7 +12,6 @@ export type League = {
   created_at: string;
   updated_at: string;
   name: string;
-  has_divisions: boolean;
 }
 
 async function getLeagues(): Promise<League[]> {
