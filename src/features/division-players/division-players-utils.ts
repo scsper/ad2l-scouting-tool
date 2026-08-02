@@ -56,18 +56,15 @@ function formatOrDash(
 const round = (value: number) => String(Math.round(value))
 
 /**
- * Ward rates arrive per minute and are shown per ten.
+ * Wards are shown per game, at the one decimal the Players tab uses.
  *
- * Per minute is the right quantity — it is what makes a 28-minute game and a
- * 70-minute one comparable — but it is the wrong scale to read. A division's
- * cores place 0.05 to 0.42 wards a game, which is 0.001 to 0.010 a minute, so
- * at two decimals every core in the league renders as "0.00" and the column
- * says nothing about any of them. Ten minutes puts supports around 2-4 and
- * cores just above zero without flattening them together. Sorting is unaffected:
- * the underlying per-minute value is what's compared, and scaling every row by
- * the same constant cannot reorder them.
+ * A support placing 11.4 observers a game is a number a scout has seen before,
+ * on Dotabuff and on the per-team board; the same player as "0.24 per minute"
+ * or a rescaled "2.4 per ten" is one they have to translate. The cost is that a
+ * long game inflates the count — which is real, and is why the `@10` columns
+ * are next to this one.
  */
-const formatWardRate = (perMinute: number) => (perMinute * 10).toFixed(2)
+const formatWardsPerGame = (perGame: number) => perGame.toFixed(1)
 
 export const COLUMNS: Column[] = [
   {
@@ -139,18 +136,18 @@ export const COLUMNS: Column[] = [
     format: row => formatOrDash(row.heroDamagePerMin, round),
   },
   {
-    key: "obsPerMin",
-    label: "OBS/10",
-    title: "Observer wards placed per 10 minutes",
-    value: row => row.obsPerMin,
-    format: row => formatOrDash(row.obsPerMin, formatWardRate),
+    key: "obsPerGame",
+    label: "OBS",
+    title: "Observer wards placed per game",
+    value: row => row.obsPerGame,
+    format: row => formatOrDash(row.obsPerGame, formatWardsPerGame),
   },
   {
-    key: "senPerMin",
-    label: "SEN/10",
-    title: "Sentry wards placed per 10 minutes",
-    value: row => row.senPerMin,
-    format: row => formatOrDash(row.senPerMin, formatWardRate),
+    key: "senPerGame",
+    label: "SEN",
+    title: "Sentry wards placed per game",
+    value: row => row.senPerGame,
+    format: row => formatOrDash(row.senPerGame, formatWardsPerGame),
   },
 ]
 
@@ -182,7 +179,7 @@ export function positionParam(position: string): string {
  *
  * Missing data sorts last in *both* directions rather than being treated as the
  * smallest value. A support with no ward data hasn't warded least; sorting them
- * to the top of an ascending OBS/m column would say they had.
+ * to the top of an ascending OBS column would say they had.
  */
 export function sortRows(
   rows: DivisionPlayerRow[],

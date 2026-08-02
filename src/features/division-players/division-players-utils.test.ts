@@ -26,8 +26,8 @@ function row(overrides: Partial<DivisionPlayerRow> = {}): DivisionPlayerRow {
     xpm: 600,
     kda: 3,
     heroDamagePerMin: 400,
-    obsPerMin: 0.1,
-    senPerMin: 0.05,
+    obsPerGame: 4,
+    senPerGame: 2,
     ...overrides,
   }
 }
@@ -60,18 +60,18 @@ describe("sortRows", () => {
   })
 
   // A support with no ward data hasn't warded least. Sorting them to the top of
-  // an ascending OBS/m column would say exactly that.
+  // an ascending OBS column would say exactly that.
   it("sorts missing data last in both directions", () => {
     const rows = [
-      row({ name: "unknown", obsPerMin: null }),
-      row({ name: "known", obsPerMin: 0.3 }),
+      row({ name: "unknown", obsPerGame: null }),
+      row({ name: "known", obsPerGame: 12 }),
     ]
 
-    expect(sortRows(rows, "obsPerMin", "desc").map(e => e.name)).toEqual([
+    expect(sortRows(rows, "obsPerGame", "desc").map(e => e.name)).toEqual([
       "known",
       "unknown",
     ])
-    expect(sortRows(rows, "obsPerMin", "asc").map(e => e.name)).toEqual([
+    expect(sortRows(rows, "obsPerGame", "asc").map(e => e.name)).toEqual([
       "known",
       "unknown",
     ])
@@ -137,27 +137,27 @@ describe("splitBySample", () => {
 describe("column formatting", () => {
   it("renders a missing stat as an em dash rather than a zero", () => {
     expect(column("goldAt10").format(row({ goldAt10: null }))).toBe("—")
-    expect(column("obsPerMin").format(row({ obsPerMin: null }))).toBe("—")
+    expect(column("obsPerGame").format(row({ obsPerGame: null }))).toBe("—")
   })
 
   it("keeps a genuine zero visible as a zero", () => {
-    expect(column("obsPerMin").format(row({ obsPerMin: 0 }))).toBe("0.00")
+    expect(column("obsPerGame").format(row({ obsPerGame: 0 }))).toBe("0.0")
   })
 
-  // Per minute is the comparable quantity; per ten is the readable one. At the
-  // former, every core in a division renders "0.00" and the column is dead.
-  it("shows ward rates per ten minutes", () => {
-    expect(column("obsPerMin").format(row({ obsPerMin: 0.214 }))).toBe("2.14")
-    expect(column("senPerMin").format(row({ senPerMin: 0.01 }))).toBe("0.10")
+  // Wards placed per game, at the decimal the per-team Players tab uses, so the
+  // two boards can be read against each other without translating units.
+  it("shows wards placed per game", () => {
+    expect(column("obsPerGame").format(row({ obsPerGame: 11.44 }))).toBe("11.4")
+    expect(column("senPerGame").format(row({ senPerGame: 0.25 }))).toBe("0.3")
   })
 
-  it("sorts wards on the underlying rate, which the scaling can't reorder", () => {
+  it("sorts wards on the unrounded average", () => {
     const sorted = sortRows(
       [
-        row({ name: "core", obsPerMin: 0.01 }),
-        row({ name: "support", obsPerMin: 0.214 }),
+        row({ name: "core", obsPerGame: 0.42 }),
+        row({ name: "support", obsPerGame: 0.48 }),
       ],
-      "obsPerMin",
+      "obsPerGame",
       "desc",
     )
 
