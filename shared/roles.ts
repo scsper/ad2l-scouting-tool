@@ -1,5 +1,5 @@
 /**
- * The roster's `player.role` values (the dropdown in `CreatePlayerModal`) mapped
+ * The `roster_member.role` values (the dropdown in `CreatePlayerModal`) mapped
  * to Stratz position ids. Shared because three callers need it: the pub-stats
  * fetch on both the client and the API, and the Players tab's position sort.
  */

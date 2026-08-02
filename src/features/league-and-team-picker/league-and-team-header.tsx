@@ -7,7 +7,7 @@ type LeagueAndTeamHeaderProps = {
   leagueId: number | undefined;
   setLeagueId: (leagueId: number) => void;
   teamId: number | undefined;
-  setTeamId: (teamId: number) => void;
+  setTeamId: (teamId: number | undefined) => void;
 }
 
 export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: LeagueAndTeamHeaderProps) => {
@@ -69,7 +69,24 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
                 onChange={(e) => {
                   const selectedLeagueId = parseInt(e.target.value, 10);
                   setLeagueId(selectedLeagueId);
-                  void triggerTeams({ leagueId: selectedLeagueId });
+                  // Keep the team if it also plays in the new league — comparing
+                  // one team across seasons is the main reason to switch. Clear
+                  // it otherwise: the selected pair is now a write target for the
+                  // roster editor, so a team that isn't in this league would file
+                  // players onto a roster that shouldn't exist.
+                  void triggerTeams({ leagueId: selectedLeagueId })
+                    .unwrap()
+                    .then((teamsByLeague) => {
+                      const teamsInLeague = teamsByLeague[selectedLeagueId] as
+                        | Record<number, string>
+                        | undefined;
+                      if (teamId != null && !teamsInLeague?.[teamId]) {
+                        setTeamId(undefined);
+                      }
+                    })
+                    .catch(() => {
+                      // The teams query already surfaces its own error state.
+                    });
                 }}
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
               >
@@ -79,10 +96,10 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId}: 
             </div>
             {isLoadingTeams && <div className="text-slate-400 py-2">Loading teams...</div>}
             {isErrorTeams && <div className="text-red-400 py-2">Error: Please try again</div>}
-            {teams && leagueId && (
+            {leagueId && teams?.[leagueId] && (
               <div className="flex-1">
-                <select 
-                  value={teamId} 
+                <select
+                  value={teamId ?? ""}
                   onChange={(e) => {
                     const id = parseInt(e.target.value, 10);
                     setTeamId(id);

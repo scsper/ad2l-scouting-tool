@@ -1,5 +1,5 @@
 import type { MatchApiResponse } from "../../../types/api"
-import type { PlayerRow } from "../../../types/db"
+import type { RosterEntry } from "../../../types/db"
 import { roleToPosition } from "../../../shared/roles"
 
 const POSITIONS: string[] = [
@@ -54,7 +54,10 @@ export type PlayerStatsEntry = {
 }
 
 export type PlayerStatsSplit = {
-  /** Players registered on the team's roster. */
+  /**
+   * Players on the team's roster for this league, including any who haven't
+   * played a game in it — an empty `games` array is the signal.
+   */
   roster: PlayerStatsEntry[]
   /** Players who appeared for the team but aren't on its roster. */
   standIns: PlayerStatsEntry[]
@@ -169,18 +172,36 @@ function compareStandIn(a: PlayerStatsEntry, b: PlayerStatsEntry): number {
   )
 }
 
+/** Position a roster member declares, for someone with no games to infer from. */
+function getDeclaredPositionLabel(role: string): {
+  label: string
+  sortKey: number
+} {
+  const position = roleToPosition(role)
+  if (!position) return { label: "—", sortKey: UNKNOWN_POSITION_SORT_KEY }
+
+  return {
+    label: `Pos ${position.replace("POSITION_", "")}`,
+    sortKey: POSITIONS.indexOf(position),
+  }
+}
+
 /**
  * Builds one entry per player who appeared for the scouted team, aggregating by
  * `player_id` because `player_name` changes between matches, then splits them
- * into the registered roster and everyone else.
+ * into the league's registered roster and everyone else.
+ *
+ * `rosterMembers` is scoped to one league, so a player registered for S47 is not
+ * treated as roster when you're looking at S46 — which is what made a 7-game S46
+ * starter render under "Stand-ins".
  */
 export function buildPlayerStats(
   matches: MatchApiResponse[],
   teamId: number,
-  registeredPlayers: PlayerRow[],
+  rosterMembers: RosterEntry[],
 ): PlayerStatsSplit {
   const registered = new Map(
-    registeredPlayers.map(player => [player.id, player]),
+    rosterMembers.map(member => [member.player_id, member]),
   )
   const gamesByPlayer = new Map<number, PlayerGame[]>()
   const latestNames = new Map<number, { name: string; at: number }>()
@@ -215,7 +236,10 @@ export function buildPlayerStats(
       gamesByPlayer.set(player.player_id, games)
 
       const latest = latestNames.get(player.player_id)
-      if (player.player_name && (!latest || match.start_date_time > latest.at)) {
+      if (
+        player.player_name &&
+        (!latest || match.start_date_time > latest.at)
+      ) {
         latestNames.set(player.player_id, {
           name: player.player_name,
           at: match.start_date_time,
@@ -254,6 +278,27 @@ export function buildPlayerStats(
   // so fall back to a single position-ordered list.
   if (registered.size === 0) {
     return { roster: entries.sort(compareRoster), standIns: [] }
+  }
+
+  // Roster members with no games in this league would otherwise vanish, hiding
+  // half of every roster mistake: you'd see the stand-in who played but not the
+  // registered player who didn't. Both halves need to be visible to notice the
+  // roster is wrong for the season you're looking at.
+  const played = new Set(entries.map(entry => entry.playerId))
+  for (const member of rosterMembers) {
+    if (played.has(member.player_id)) continue
+
+    const { label, sortKey } = getDeclaredPositionLabel(member.role)
+    entries.push({
+      playerId: member.player_id,
+      name: member.name,
+      positionLabel: label,
+      positionSortKey: sortKey,
+      wins: 0,
+      losses: 0,
+      averages: getAverages([]),
+      games: [],
+    })
   }
 
   return {

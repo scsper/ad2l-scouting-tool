@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { buildPlayerStats, getGameKda } from "./player-stats-utils"
 import type { MatchApiResponse } from "../../../types/api"
-import type { MatchPlayerRow, PlayerRow } from "../../../types/db"
+import type { MatchPlayerRow, RosterEntry } from "../../../types/db"
 
 const SCOUTED_TEAM = 100
 const OPPONENT_TEAM = 200
+const LEAGUE = 19554
 
 function matchPlayer(opts: {
   playerId: number
@@ -68,15 +69,17 @@ function registered(opts: {
   id: number
   role?: string
   name?: string
-}): PlayerRow {
+}): RosterEntry {
   return {
-    id: opts.id,
+    league_id: LEAGUE,
     team_id: SCOUTED_TEAM,
+    player_id: opts.id,
     created_at: "",
     updated_at: "",
     role: opts.role ?? "Carry",
     name: opts.name ?? `Registered ${String(opts.id)}`,
     rank: "Divine",
+    original_rank: null,
   }
 }
 
@@ -345,9 +348,7 @@ describe("buildPlayerStats", () => {
       [],
     )
 
-    expect(
-      stats.map(entry => [entry.playerId, entry.positionLabel]),
-    ).toEqual([
+    expect(stats.map(entry => [entry.playerId, entry.positionLabel])).toEqual([
       [1, "Pos 1"],
       [3, "Pos 3"],
       [45, "Pos 4/5"],
@@ -493,5 +494,72 @@ describe("buildPlayerStats roster split", () => {
 
     expect(roster.map(entry => entry.playerId)).toEqual([1, 5])
     expect(standIns).toEqual([])
+  })
+
+  it("keeps roster members who played no games in this league", () => {
+    // Alca is on Sharkhorse's roster but only played the previous season. Hiding
+    // him hides half the evidence that the roster is wrong for this league; the
+    // other half is the stand-in below who started every game.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [matchPlayer({ playerId: 99, position: "POSITION_3" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [
+        registered({ id: 1, role: "Hard Support", name: "Alca" }),
+        registered({ id: 2, role: "Carry", name: "scsper" }),
+      ],
+    )
+
+    expect(roster.map(entry => entry.name)).toEqual(["scsper", "Alca"])
+    expect(roster.every(entry => entry.games.length === 0)).toBe(true)
+    // Position comes from the declared role, since there are no games to infer it.
+    expect(roster.map(entry => entry.positionLabel)).toEqual(["Pos 1", "Pos 5"])
+    expect(standIns.map(entry => entry.playerId)).toEqual([99])
+  })
+
+  it("sorts a roster member with games ahead of one without at the same position", () => {
+    const { roster } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [matchPlayer({ playerId: 1, position: "POSITION_1" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [
+        registered({ id: 2, role: "Carry", name: "Benched" }),
+        registered({ id: 1, role: "Carry", name: "Starter" }),
+      ],
+    )
+
+    expect(roster.map(entry => entry.name)).toEqual(["Starter", "Benched"])
+  })
+
+  it("does not count a player registered for another league as roster", () => {
+    // The whole point of scoping: buildPlayerStats only ever sees the selected
+    // league's members, so a player registered elsewhere is a stand-in here.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+            matchPlayer({ playerId: 2, position: "POSITION_2" }),
+          ],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [registered({ id: 1 })],
+    )
+
+    expect(roster.map(entry => entry.playerId)).toEqual([1])
+    expect(standIns.map(entry => entry.playerId)).toEqual([2])
   })
 })

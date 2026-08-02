@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useGetMatchesQuery } from "../matches/matches-api"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
-import { useGetPlayersByTeamQuery } from "../players/players-api"
+import { useGetRosterQuery } from "../players/players-api"
 import { getHero } from "../../utils/get-hero"
 import {
   buildPlayerStats,
@@ -23,6 +23,29 @@ const formatMatchDate = (startDateTime: number) =>
     month: "short",
     day: "numeric",
   })
+
+/**
+ * A roster member who hasn't played in this league. Rendered rather than omitted
+ * because it's half of how a wrong roster shows up: the other half — someone
+ * playing who isn't registered — already appears under "Stand-ins". Seeing "Alca
+ * · no games this league" next to a stand-in with 7 games is the prompt to fix
+ * the season's roster.
+ */
+const NoGamesRow = ({ entry }: { entry: PlayerStatsEntry }) => (
+  <li className="rounded-lg bg-slate-800/30 border border-slate-800">
+    <div className={`${GRID} w-full px-3 py-2.5`}>
+      <span />
+      <span className="font-medium text-slate-500 truncate" title={entry.name}>
+        {entry.name}
+      </span>
+      <span className="text-sm text-slate-600">{entry.positionLabel}</span>
+      <span className="text-sm text-slate-600 col-span-8">
+        no games this league
+      </span>
+      <span />
+    </div>
+  </li>
+)
 
 const PlayerCard = ({
   entry,
@@ -65,10 +88,7 @@ const PlayerCard = ({
         </span>
         <span className="text-sm text-slate-400">
           {entry.positionLabel}
-          <span className="text-slate-500">
-            {" "}
-            · {entry.games.length}g
-          </span>
+          <span className="text-slate-500"> · {entry.games.length}g</span>
         </span>
         <span className="text-sm">
           <span className="text-green-400">{entry.wins}</span>
@@ -197,12 +217,13 @@ export const PlayerStats = ({
     isError: isErrorTeams,
   } = useGetTeamsByLeagueQuery({ leagueId })
   // Decides the display name, the roster/stand-in split, and the tie-break for
-  // players whose observed position is ambiguous.
+  // players whose observed position is ambiguous. Scoped to the league: a team
+  // fields a different lineup each season.
   const {
-    data: registeredPlayers,
+    data: rosterMembers,
     isLoading: isLoadingPlayers,
     isError: isErrorPlayers,
-  } = useGetPlayersByTeamQuery({ teamId })
+  } = useGetRosterQuery({ leagueId, teamId })
 
   const [expandedPlayers, setExpandedPlayers] = useState<Set<number>>(new Set())
 
@@ -210,12 +231,8 @@ export const PlayerStats = ({
   // player's games. Must sit above the early returns to keep hook order stable.
   const { roster, standIns } = useMemo(
     () =>
-      buildPlayerStats(
-        matchesData?.matches ?? [],
-        teamId,
-        registeredPlayers ?? [],
-      ),
-    [matchesData?.matches, teamId, registeredPlayers],
+      buildPlayerStats(matchesData?.matches ?? [], teamId, rosterMembers ?? []),
+    [matchesData?.matches, teamId, rosterMembers],
   )
 
   const togglePlayer = (playerId: number) => {
@@ -256,7 +273,10 @@ export const PlayerStats = ({
     )
   }
 
-  if (roster.length === 0 && standIns.length === 0) {
+  // Keyed on matches, not entries: a team with a registered roster but no
+  // ingested games would otherwise render a list of "no games" rows, which reads
+  // as a roster problem when it's really a missing-matches one.
+  if ((matchesData?.matches.length ?? 0) === 0) {
     return (
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
         <div className="text-slate-400">No matches found for this team</div>
@@ -271,17 +291,21 @@ export const PlayerStats = ({
 
   const renderCards = (entries: PlayerStatsEntry[]) => (
     <ul className="space-y-2">
-      {entries.map(entry => (
-        <PlayerCard
-          key={entry.playerId}
-          entry={entry}
-          isExpanded={expandedPlayers.has(entry.playerId)}
-          onToggle={() => {
-            togglePlayer(entry.playerId)
-          }}
-          getTeamName={getTeamName}
-        />
-      ))}
+      {entries.map(entry =>
+        entry.games.length === 0 ? (
+          <NoGamesRow key={entry.playerId} entry={entry} />
+        ) : (
+          <PlayerCard
+            key={entry.playerId}
+            entry={entry}
+            isExpanded={expandedPlayers.has(entry.playerId)}
+            onToggle={() => {
+              togglePlayer(entry.playerId)
+            }}
+            getTeamName={getTeamName}
+          />
+        ),
+      )}
     </ul>
   )
 
