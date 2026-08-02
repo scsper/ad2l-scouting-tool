@@ -3,6 +3,11 @@ import type { MatchDraftRow, MatchPlayerRow, MatchRow } from "../types/db.js";
 import { selectAll } from "../server/select-all.js";
 import { matchesWithinDivision } from "../server/division-scope.js";
 import { buildDivisionPlayerRows, type DivisionPlayerRow } from "../server/division-players.js";
+import {
+  buildLeagueHeroStats,
+  type LeagueHeroDraftMap,
+  type LeaguePicksByPosition,
+} from "../server/league-heroes.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -51,37 +56,42 @@ export type LeagueMatch = Pick<
   'id' | 'winning_team_id' | 'radiant_team_id' | 'dire_team_id' | 'start_date_time' | 'end_date_time'
 >;
 
-type JoinedMatch = LeagueMatch & {
-  draft: MatchDraftRow[];
-  players: LeagueMatchPlayer[];
-};
-
-export type LeagueHeroPositionStats = {
-  picks: number;
-  wins: number;
-};
-
-export type LeaguePicksByPosition = Record<string, Record<string, LeagueHeroPositionStats>>;
-
-export type LeagueHeroDraftStats = {
-  picks: number;
-  bans: number;
-  wins: number;
-};
-
-export type LeagueHeroDraftMap = Record<string, LeagueHeroDraftStats>;
+export type {
+  LeagueHeroBanRecord,
+  LeagueHeroDraftMap,
+  LeagueHeroDraftStats,
+  LeagueHeroPickRecord,
+  LeagueHeroPositionStats,
+  LeaguePicksByPosition,
+} from "../server/league-heroes.js";
 
 /**
- * Three aggregates and no raw rows.
+ * Aggregates and no raw rows.
  *
  * The joined matches used to ship too — 456 KB of them on S46 — and the single
  * caller discarded every one in `transformResponse`. Everything a screen reads
  * is computed here, so sending the inputs as well was pure weight.
+ *
+ * The breakdown records inside `heroDraftStats` are the expensive part: they
+ * take S46's hero aggregates from 11 KB to 101 KB. That buys the only answer to
+ * "24 picks by whom" — whether a hero is a metagame or one player's pocket — and
+ * it is still a fifth of what the joined matches cost to answer nothing.
+ *
+ * The two name maps are the one exception to "no lookups on the client", and
+ * they exist to keep that cost down: a season's 60-odd players and 20-odd teams
+ * are named once here instead of inside every one of the ~1500 records.
  */
 export type LeagueMatchesApiResponse = {
   picksByPosition: LeaguePicksByPosition;
   heroDraftStats: LeagueHeroDraftMap;
   playerStats: DivisionPlayerRow[];
+  /** Latest name observed per player id — handles change mid-season. */
+  playerNames: Record<string, string>;
+  /**
+   * Only ids with a `team` row. Ten of the 57 teams that appear in matches have
+   * never been registered anywhere, so callers need a fallback either way.
+   */
+  teamNames: Record<string, string>;
 };
 
 /**
@@ -100,6 +110,52 @@ async function getDivisionTeamIds(leagueId: number, division: string): Promise<S
     .range(from, to));
 
   return new Set(rows.map(row => row.team_id));
+}
+
+/**
+ * Display names for the team ids a division's matches actually reference.
+ *
+ * Keyed on the ids in the match rows rather than on league membership, because
+ * the two disagree: teams are registered lazily, one scrim opponent at a time,
+ * so plenty of sides that show up in a draft have no `league_teams` row. Ten of
+ * them have no `team` row either, which is why callers still need a fallback.
+ */
+async function getTeamNames(teamIds: Set<number>): Promise<Record<string, string>> {
+  if (teamIds.size === 0) return {};
+
+  const ids = Array.from(teamIds);
+  const rows = await selectAll<{ id: number; name: string }>((from, to) => supabase
+    .from('team')
+    .select('id, name')
+    .in('id', ids)
+    .range(from, to));
+
+  return Object.fromEntries(rows.map(row => [String(row.id), row.name]));
+}
+
+/**
+ * Each player's most recent handle.
+ *
+ * Six S46 players used more than one name across a season, so a first-seen name
+ * would label a hero's record with a handle nobody would recognise today. Same
+ * rule as the division player board, which is the other place this matters.
+ */
+function getPlayerNames(matches: LeagueMatch[], players: LeagueMatchPlayer[]): Record<string, string> {
+  const startedAt = new Map(matches.map(match => [match.id, match.start_date_time]));
+  const latest = new Map<number, { name: string; at: number }>();
+
+  for (const player of players) {
+    if (!player.player_name) continue;
+    const at = startedAt.get(player.match_id);
+    if (at === undefined) continue;
+
+    const current = latest.get(player.player_id);
+    if (!current || at > current.at) latest.set(player.player_id, { name: player.player_name, at });
+  }
+
+  return Object.fromEntries(
+    Array.from(latest.entries()).map(([playerId, { name }]) => [String(playerId), name]),
+  );
 }
 
 async function getMatchesByLeague(
@@ -121,7 +177,9 @@ async function getMatchesByLeague(
     ? allMatches
     : matchesWithinDivision(allMatches, await getDivisionTeamIds(leagueIdNum, division));
 
-  if (matches.length === 0) return { picksByPosition: {}, heroDraftStats: {}, playerStats: [] };
+  if (matches.length === 0) {
+    return { picksByPosition: {}, heroDraftStats: {}, playerStats: [], playerNames: {}, teamNames: {} };
+  }
 
   const matchIds = matches.map(m => m.id);
 
@@ -132,55 +190,22 @@ async function getMatchesByLeague(
       .from('match_player').select(PLAYER_COLUMNS).in('match_id', matchIds).range(from, to)),
   ]);
 
-  const matchesMap = new Map<number, JoinedMatch>();
-  matches.forEach(match => {
-    matchesMap.set(match.id, { ...match, draft: [], players: [] });
-  });
-
-  drafts.forEach(draft => {
-    const match = matchesMap.get(draft.match_id);
-    if (match) match.draft.push(draft);
-  });
-
-  players.forEach(player => {
-    const match = matchesMap.get(player.match_id);
-    if (match) match.players.push(player);
-  });
-
-  const picksByPosition: LeaguePicksByPosition = {};
-  const heroDraftStats: LeagueHeroDraftMap = {};
-
-  for (const match of matchesMap.values()) {
-    for (const draft of match.draft) {
-      if (draft.is_pick) continue;
-      const heroId = String(draft.hero_id);
-      if (!heroDraftStats[heroId]) heroDraftStats[heroId] = { picks: 0, bans: 0, wins: 0 };
-      heroDraftStats[heroId].bans++;
-    }
-
-    for (const player of match.players) {
-      const heroId = String(player.hero_id);
-      const teamWon = player.team_id === match.winning_team_id;
-
-      if (!heroDraftStats[heroId]) heroDraftStats[heroId] = { picks: 0, bans: 0, wins: 0 };
-      heroDraftStats[heroId].picks++;
-      if (teamWon) heroDraftStats[heroId].wins++;
-
-      if (!player.position) continue;
-      if (!picksByPosition[player.position]) picksByPosition[player.position] = {};
-      const posMap = picksByPosition[player.position];
-      if (!posMap[heroId]) posMap[heroId] = { picks: 0, wins: 0 };
-      posMap[heroId].picks++;
-      if (teamWon) posMap[heroId].wins++;
-    }
-  }
-
-  // Handed the division-scoped matches and the unfiltered player rows: the
-  // builder joins on match id, so anything outside the division is dropped
-  // there rather than being filtered twice.
+  // Both builders join on match id, so the division-scoped matches are what
+  // decides which drafts and players count — nothing is filtered twice.
+  const { picksByPosition, heroDraftStats } = buildLeagueHeroStats(matches, drafts, players);
   const playerStats = buildDivisionPlayerRows(matches, players);
 
-  return { picksByPosition, heroDraftStats, playerStats };
+  const referencedTeamIds = new Set<number>();
+  for (const player of players) if (player.team_id !== null) referencedTeamIds.add(player.team_id);
+  for (const draft of drafts) if (draft.team_id !== null) referencedTeamIds.add(draft.team_id);
+
+  return {
+    picksByPosition,
+    heroDraftStats,
+    playerStats,
+    playerNames: getPlayerNames(matches, players),
+    teamNames: await getTeamNames(referencedTeamIds),
+  };
 }
 
 export default async function handler(

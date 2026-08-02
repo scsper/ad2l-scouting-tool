@@ -67,6 +67,8 @@ function renderBoard(initialEntry = "/") {
       picksByPosition: {},
       heroDraftStats: {},
       playerStats: PLAYER_STATS,
+      playerNames: {},
+      teamNames: {},
     },
     "api/team": {
       [LEAGUE_ID]: {

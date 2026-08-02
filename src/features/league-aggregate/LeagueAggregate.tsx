@@ -1,5 +1,12 @@
 import { useGetLeagueAggregateQuery } from "./league-aggregate-api";
 import { getHero } from "../../utils/get-hero";
+import {
+  bannedByTitle,
+  contestedByTitle,
+  pickedByPositionTitle,
+  pickedByTitle,
+  type HeroNameLookup,
+} from "./hero-breakdown";
 
 const TOP_N = 20;
 const TOP_PER_POSITION = 15;
@@ -18,6 +25,14 @@ function winPctColor(pct: number) {
   return "text-slate-300";
 }
 
+/** A board row: the hero, its number, its win rate, and the names behind them. */
+type HeroEntry = {
+  heroId: string;
+  count: number;
+  winPct: number | null;
+  title: string;
+};
+
 function HeroList({
   entries,
   countLabel,
@@ -25,7 +40,7 @@ function HeroList({
   accentClass,
   badgeBg,
 }: {
-  entries: [string, number, number | null][];
+  entries: HeroEntry[];
   countLabel: string;
   winPctLabel: string;
   accentClass: string;
@@ -40,9 +55,10 @@ function HeroList({
           <span className="w-8 text-right">{countLabel}</span>
         </div>
       </li>
-      {entries.map(([heroId, count, pct]) => (
+      {entries.map(({ heroId, count, winPct: pct, title }) => (
         <li
           key={heroId}
+          title={title}
           className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-all"
         >
           <span className="font-medium text-slate-200 text-sm">{getHero(heroId)}</span>
@@ -105,26 +121,53 @@ export const LeagueAggregate = ({
     );
   }
 
+  const names: HeroNameLookup = { playerNames: data.playerNames, teamNames: data.teamNames };
+  /** Null rather than zero when a hero was only ever banned — there is no rate. */
+  const winRate = (wins: number, picks: number) => (picks > 0 ? (wins / picks) * 100 : null);
+
   const topPicks = Object.entries(data.heroDraftStats)
     .sort((a, b) => b[1].picks - a[1].picks)
     .slice(0, TOP_N)
-    .map(([id, s]) => [id, s.picks, s.picks > 0 ? (s.wins / s.picks) * 100 : null] as [string, number, number | null]);
+    .map(([heroId, s]) => ({
+      heroId,
+      count: s.picks,
+      winPct: winRate(s.wins, s.picks),
+      title: pickedByTitle(getHero(heroId), s, names),
+    }));
 
   const topBans = Object.entries(data.heroDraftStats)
     .sort((a, b) => b[1].bans - a[1].bans)
     .slice(0, TOP_N)
-    .map(([id, s]) => [id, s.bans, null] as [string, number, null]);
+    .map(([heroId, s]) => ({
+      heroId,
+      count: s.bans,
+      winPct: null,
+      title: bannedByTitle(getHero(heroId), s, names),
+    }));
 
   const topContested = Object.entries(data.heroDraftStats)
     .sort((a, b) => (b[1].picks + b[1].bans) - (a[1].picks + a[1].bans))
     .slice(0, TOP_N)
-    .map(([id, s]) => [id, s.picks + s.bans, s.picks > 0 ? s.wins / s.picks * 100 : null] as [string, number, number | null]);
+    .map(([heroId, s]) => ({
+      heroId,
+      count: s.picks + s.bans,
+      winPct: winRate(s.wins, s.picks),
+      title: contestedByTitle(getHero(heroId), s, names),
+    }));
 
   const positionCards = POSITIONS.map(({ key, label }) => {
     const posMap = data.picksByPosition[key] ?? {};
     const entries = Object.entries(posMap)
       .sort((a, b) => b[1].picks - a[1].picks)
-      .slice(0, TOP_PER_POSITION);
+      .slice(0, TOP_PER_POSITION)
+      .map(([heroId, stats]) => ({
+        heroId,
+        picks: stats.picks,
+        winPct: winRate(stats.wins, stats.picks),
+        // Every hero on a position card was counted from a player row, which is
+        // also what created its league-wide draft stats.
+        title: pickedByPositionTitle(getHero(heroId), data.heroDraftStats[heroId], names, key),
+      }));
     return { key, label, entries };
   });
 
@@ -140,20 +183,17 @@ export const LeagueAggregate = ({
             {entries.length === 0 && (
               <li className="text-slate-500 text-xs text-center py-4">No data</li>
             )}
-            {entries.map(([heroId, stats]) => {
-              const winPct = stats.picks > 0 ? (stats.wins / stats.picks) * 100 : null;
-              return (
-                <li key={heroId} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-700/30 hover:bg-slate-700/50 transition-all">
-                  <span className="text-xs text-slate-200 truncate mr-2">{getHero(heroId)}</span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {winPct !== null && (
-                      <span className={`text-xs font-semibold ${winPctColor(winPct)}`}>{winPct.toFixed(0)}%</span>
-                    )}
-                    <span className="text-xs px-1.5 py-0.5 bg-slate-600/50 text-slate-300 rounded font-semibold">{stats.picks}</span>
-                  </div>
-                </li>
-              );
-            })}
+            {entries.map(({ heroId, picks, winPct, title }) => (
+              <li key={heroId} title={title} className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-700/30 hover:bg-slate-700/50 transition-all">
+                <span className="text-xs text-slate-200 truncate mr-2">{getHero(heroId)}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {winPct !== null && (
+                    <span className={`text-xs font-semibold ${winPctColor(winPct)}`}>{winPct.toFixed(0)}%</span>
+                  )}
+                  <span className="text-xs px-1.5 py-0.5 bg-slate-600/50 text-slate-300 rounded font-semibold">{picks}</span>
+                </div>
+              </li>
+            ))}
           </ul>
         </div>
       ))}
