@@ -18,6 +18,9 @@ function matchPlayer(opts: {
   gpm?: number
   xpm?: number
   heroDamage?: number
+  towerDamage?: number
+  obsPlaced?: number | null
+  senPlaced?: number | null
 }): MatchPlayerRow {
   return {
     player_id: opts.playerId,
@@ -37,7 +40,11 @@ function matchPlayer(opts: {
     gpm: opts.gpm ?? 0,
     xpm: opts.xpm ?? 0,
     hero_damage: opts.heroDamage ?? 0,
-    tower_damage: 0,
+    tower_damage: opts.towerDamage ?? 0,
+    // Wards default to null ("no data for this match"), so a test has to opt in
+    // to ward numbers. An explicit 0 means the player placed none.
+    obs_placed: opts.obsPlaced ?? null,
+    sen_placed: opts.senPlaced ?? null,
   }
 }
 
@@ -192,14 +199,26 @@ describe("buildPlayerStats", () => {
           id: 1,
           startDateTime: 100,
           players: [
-            matchPlayer({ playerId: 1, gpm: 600, xpm: 700, heroDamage: 30000 }),
+            matchPlayer({
+              playerId: 1,
+              gpm: 600,
+              xpm: 700,
+              heroDamage: 30000,
+              towerDamage: 5000,
+            }),
           ],
         }),
         match({
           id: 2,
           startDateTime: 200,
           players: [
-            matchPlayer({ playerId: 1, gpm: 400, xpm: 500, heroDamage: 10000 }),
+            matchPlayer({
+              playerId: 1,
+              gpm: 400,
+              xpm: 500,
+              heroDamage: 10000,
+              towerDamage: 1000,
+            }),
           ],
         }),
       ],
@@ -210,6 +229,7 @@ describe("buildPlayerStats", () => {
     expect(stats[0].averages.gpm).toBe(500)
     expect(stats[0].averages.xpm).toBe(600)
     expect(stats[0].averages.heroDamage).toBe(20000)
+    expect(stats[0].averages.towerDamage).toBe(3000)
   })
 
   it("records wins and losses from the winning team", () => {
@@ -422,6 +442,81 @@ describe("buildPlayerStats", () => {
       "Pos 4/5",
       "Pos 4/5",
     ])
+  })
+})
+
+describe("buildPlayerStats ward averages", () => {
+  /** Two games, only the first with ward data. */
+  function wardMatches(first: number | null, second: number | null) {
+    return [
+      match({
+        id: 1,
+        startDateTime: 100,
+        players: [
+          matchPlayer({ playerId: 1, obsPlaced: first, senPlaced: first }),
+        ],
+      }),
+      match({
+        id: 2,
+        startDateTime: 200,
+        players: [
+          matchPlayer({ playerId: 1, obsPlaced: second, senPlaced: second }),
+        ],
+      }),
+    ]
+  }
+
+  it("averages over only the games that carry ward data", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(10, null),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    // Divided by 1, not 2: the match with no ward data is skipped entirely
+    // rather than counted as a zero, which would halve the average.
+    expect(stats[0].games).toHaveLength(2)
+    expect(stats[0].averages.obsPlaced).toBe(10)
+    expect(stats[0].averages.senPlaced).toBe(10)
+  })
+
+  it("counts a real zero instead of skipping it", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(10, 0),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    // Guards the opposite mistake from the test above: skipping a null must not
+    // become skipping anything falsy. A core who genuinely placed no wards has
+    // to pull the average down, so this is (10 + 0) / 2, not 10 / 1. Rewriting
+    // the null check as `if (!placed) continue` fails here and nowhere else.
+    expect(stats[0].averages.obsPlaced).toBe(5)
+    expect(stats[0].averages.senPlaced).toBe(5)
+  })
+
+  it("reports null when no game carries ward data", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(null, null),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    // Null rather than NaN or 0 — the UI renders it as an em dash.
+    expect(stats[0].averages.obsPlaced).toBeNull()
+    expect(stats[0].averages.senPlaced).toBeNull()
+  })
+
+  it("keeps per-game ward values null rather than zeroing them", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(10, null),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    const [newest, oldest] = stats[0].games
+    expect(newest.obsPlaced).toBeNull()
+    expect(oldest.obsPlaced).toBe(10)
   })
 })
 

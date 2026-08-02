@@ -26,6 +26,17 @@ type MatchPlayerRow = {
   xpm: number
   hero_damage: number
   tower_damage: number
+  /**
+   * Wards placed. Nullable on purpose and required on purpose: `null` means we
+   * have no ward data for the row (OpenDota never parsed the match, or it was
+   * hand-entered from post-game screenshots, which don't show ward counts),
+   * while `0` means the player placed none. Ward averages skip `null` but
+   * include real zeroes, so the two must never be collapsed. Unlike the
+   * `*_at_10` fields below, these are not optional — every construction site
+   * should have to say which one it means.
+   */
+  obs_placed: number | null
+  sen_placed: number | null
   gold_at_10?: number | null
   xp_at_10?: number | null
   lh_at_10?: number | null

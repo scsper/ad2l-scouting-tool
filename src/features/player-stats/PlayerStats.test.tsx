@@ -30,6 +30,8 @@ function player(overrides: Partial<MatchPlayerRow>): MatchPlayerRow {
     xpm: 0,
     hero_damage: 0,
     tower_damage: 0,
+    obs_placed: null,
+    sen_placed: null,
     ...overrides,
   }
 }
@@ -52,6 +54,11 @@ const MATCHES: MatchApiResponse[] = [
         deaths: 0,
         assists: 10,
         hero_damage: 30000,
+        // Only this match has ward data; match 222 leaves it null so the em-dash
+        // path and the ward-specific denominator are both exercised. Values are
+        // chosen not to collide with any other number rendered on the row.
+        obs_placed: 9,
+        sen_placed: 14,
       }),
     ],
   },
@@ -154,6 +161,10 @@ describe("PlayerStats", () => {
     // KDA is the ratio of totals: (12 + 14) / 10
     expect(cells.getByText("2.6")).toBeInTheDocument()
     expect(cells.getByText("20.0k")).toBeInTheDocument()
+    // Wards average over the one game that has data, not both, so 9 obs in a
+    // single match reads 9.0 rather than being halved to 4.5.
+    expect(cells.getByText("9.0")).toBeInTheDocument()
+    expect(cells.getByText("14.0")).toBeInTheDocument()
 
     // Per-game rows stay hidden until the card is expanded.
     expect(screen.queryByTitle("View on Dotabuff")).not.toBeInTheDocument()
@@ -178,6 +189,20 @@ describe("PlayerStats", () => {
     expect(screen.getByTitle("Loss")).toBeInTheDocument()
     // The deathless game reads 20.0 rather than dividing by zero.
     expect(screen.getByText("20.0")).toBeInTheDocument()
+  })
+
+  it("renders an em dash for a game with no ward data", async () => {
+    renderPlayerStats()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByText("Scott"))
+
+    // Match 111 has real counts; match 222 has none. The second game must read
+    // "—" and not "0", which would claim the player warded nothing rather than
+    // admitting the data is missing.
+    expect(screen.getByText("9")).toBeInTheDocument()
+    expect(screen.getByText("14")).toBeInTheDocument()
+    expect(screen.getAllByText("—")).toHaveLength(2)
   })
 
   it("omits the stand-in heading when the roster is unknown", async () => {
