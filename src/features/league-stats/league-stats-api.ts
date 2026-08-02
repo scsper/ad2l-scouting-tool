@@ -8,24 +8,24 @@ export type { DivisionPlayerRow } from "../../../server/division-players";
  * transform. It used to also ship the joined matches — 456 KB of them on S46 —
  * which this slice threw away on arrival; they are no longer sent.
  */
-export type LeagueAggregateData = LeagueMatchesApiResponse;
+export type LeagueStatsData = LeagueMatchesApiResponse;
 
-export const leagueAggregateApiSlice = createApi({
+export const leagueStatsApiSlice = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: "/" }),
-  reducerPath: "leagueAggregate",
-  tagTypes: ["LeagueAggregate"],
+  reducerPath: "leagueStats",
+  tagTypes: ["LeagueStats"],
   endpoints: build => ({
     // Omitting `division` means the whole league, which is what a single-bracket
     // tournament (PGL, ESL, Scrims) wants and what every season before 48 gets.
     //
-    // One entry serves both aggregate boards. They share a screen, a division
+    // One entry serves both stats boards. They share a screen, a division
     // and a query, so splitting them would fetch the same rows twice.
-    getLeagueAggregate: build.query<LeagueAggregateData, { leagueId: number; division?: string }>({
+    getLeagueStats: build.query<LeagueStatsData, { leagueId: number; division?: string }>({
       query: ({ leagueId, division }) =>
         `api/league-matches?leagueId=${String(leagueId)}${division ? `&division=${encodeURIComponent(division)}` : ""}`,
-      providesTags: ["LeagueAggregate"],
+      providesTags: ["LeagueStats"],
     }),
   }),
 });
 
-export const { useGetLeagueAggregateQuery } = leagueAggregateApiSlice;
+export const { useGetLeagueStatsQuery } = leagueStatsApiSlice;

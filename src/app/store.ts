@@ -5,7 +5,7 @@ import { matchesApiSlice } from "../features/matches/matches-api"
 import { leagueApiSlice } from "../features/league-and-team-picker/league-api"
 import { teamsApiSlice } from "../features/league-and-team-picker/teams-api"
 import { playersApiSlice } from "../features/players/players-api"
-import { leagueAggregateApiSlice } from "../features/league-aggregate/league-aggregate-api"
+import { leagueStatsApiSlice } from "../features/league-stats/league-stats-api"
 import { wardsApiSlice } from "../features/wards/wards-api"
 
 // `combineSlices` automatically combines the reducers using
@@ -15,7 +15,7 @@ const rootReducer = combineSlices(
   leagueApiSlice,
   teamsApiSlice,
   playersApiSlice,
-  leagueAggregateApiSlice,
+  leagueStatsApiSlice,
   wardsApiSlice,
 )
 // Infer the `RootState` type from the root reducer
@@ -42,7 +42,7 @@ export const makeStore = (preloadedState?: Partial<RootState>) => {
         leagueApiSlice.middleware,
         teamsApiSlice.middleware,
         playersApiSlice.middleware,
-        leagueAggregateApiSlice.middleware,
+        leagueStatsApiSlice.middleware,
         wardsApiSlice.middleware,
       )
     },

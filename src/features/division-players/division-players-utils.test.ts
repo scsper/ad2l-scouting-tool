@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { DivisionPlayerRow } from "../league-aggregate/league-aggregate-api"
+import type { DivisionPlayerRow } from "../league-stats/league-stats-api"
 import {
   COLUMNS,
   MIN_GAMES,

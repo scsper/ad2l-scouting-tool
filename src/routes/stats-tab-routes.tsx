@@ -1,11 +1,11 @@
 import { DivisionPlayers } from "../features/division-players/DivisionPlayers"
-import { LeagueAggregate } from "../features/league-aggregate/LeagueAggregate"
-import { useAggregateScope } from "./routing"
+import { LeagueStats } from "../features/league-stats/LeagueStats"
+import { useStatsScope } from "./routing"
 
 export const HeroesTab = () => {
-  const { leagueId, division, hasDivisions } = useAggregateScope()
+  const { leagueId, division, hasDivisions } = useStatsScope()
   return (
-    <LeagueAggregate
+    <LeagueStats
       leagueId={leagueId}
       division={division}
       hasDivisions={hasDivisions}
@@ -14,7 +14,7 @@ export const HeroesTab = () => {
 }
 
 export const DivisionPlayersTab = () => {
-  const { leagueId, division, hasDivisions } = useAggregateScope()
+  const { leagueId, division, hasDivisions } = useStatsScope()
   return (
     <DivisionPlayers
       leagueId={leagueId}

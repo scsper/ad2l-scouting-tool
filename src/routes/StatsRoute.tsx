@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useParams, useSearchParams } from "react-router"
 import { ContentArea } from "../components/ContentArea"
 import { useLeagueDivisions } from "../features/league-and-team-picker/teams-api"
-import { AGGREGATE_TABS, divisionSearch, type AggregateScope } from "./routing"
+import { STATS_TABS, divisionSearch, type StatsScope } from "./routing"
 
 /**
  * Everything a division can be asked about, and the boards that answer it.
@@ -10,7 +10,7 @@ import { AGGREGATE_TABS, divisionSearch, type AggregateScope } from "./routing"
  * the team one: this screen is reached from the picker and returned from, so
  * its "← Back" belongs above the tabs it governs.
  */
-export const AggregateRoute = () => {
+export const StatsRoute = () => {
   const { leagueId: leagueIdParam } = useParams()
   const [searchParams] = useSearchParams()
 
@@ -22,7 +22,7 @@ export const AggregateRoute = () => {
   const division = searchParams.get("division") ?? undefined
   const hasDivisions = divisions.length > 0
   const search = divisionSearch(division)
-  const scope: AggregateScope = { leagueId, division, hasDivisions }
+  const scope: StatsScope = { leagueId, division, hasDivisions }
 
   return (
     <ContentArea>
@@ -37,7 +37,7 @@ export const AggregateRoute = () => {
           ← Back
         </Link>
         <h2 className="text-lg font-semibold text-slate-200">
-          {hasDivisions ? "Division" : "League"} Aggregate Data
+          {hasDivisions ? "Division" : "League"} Stats
         </h2>
       </div>
 
@@ -45,7 +45,7 @@ export const AggregateRoute = () => {
         {/* Only the division rides along. A position and sort chosen on the
             player board describe that board, and carrying them onto the heroes
             one would leave them lying in wait in the URL. */}
-        {AGGREGATE_TABS.map(tab => (
+        {STATS_TABS.map(tab => (
           <NavLink
             key={tab.id}
             to={`${tab.id}${search}`}

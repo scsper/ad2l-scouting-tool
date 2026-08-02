@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { useSearchParams } from "react-router"
-import { useGetLeagueAggregateQuery } from "../league-aggregate/league-aggregate-api"
-import type { DivisionPlayerRow } from "../league-aggregate/league-aggregate-api"
+import { useGetLeagueStatsQuery } from "../league-stats/league-stats-api"
+import type { DivisionPlayerRow } from "../league-stats/league-stats-api"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import {
   COLUMNS,
@@ -89,7 +89,7 @@ export const DivisionPlayers = ({
   // describes neither of them, so it refuses to query rather than answering
   // with a number nobody can use.
   const needsDivision = hasDivisions && !division
-  const { data, isLoading, isError } = useGetLeagueAggregateQuery(
+  const { data, isLoading, isError } = useGetLeagueStatsQuery(
     { leagueId, division },
     { skip: needsDivision },
   )

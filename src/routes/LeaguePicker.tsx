@@ -21,7 +21,7 @@ export const LeaguePicker = () => {
 
   const leagueId = Number(leagueIdParam)
   const divisions = useLeagueDivisions(leagueId)
-  const aggregateLabel = divisions.length > 0 ? "Division" : "League"
+  const statsLabel = divisions.length > 0 ? "Division" : "League"
   const search = divisionSearch(searchParams.get("division") ?? undefined)
 
   return (
@@ -30,10 +30,10 @@ export const LeaguePicker = () => {
         <span className="text-slate-400 text-lg">Select a team to continue</span>
         <div className="flex gap-3">
           <Link
-            to={`/leagues/${String(leagueId)}/aggregate${search}`}
+            to={`/leagues/${String(leagueId)}/stats${search}`}
             className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
           >
-            Generate aggregate {aggregateLabel.toLowerCase()} data
+            {statsLabel} stats
           </Link>
           <button
             onClick={() => {

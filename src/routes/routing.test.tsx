@@ -117,24 +117,41 @@ describe("routes", () => {
     expect(activeTab()).toBe("Team")
   })
 
-  // `/leagues/:id/aggregate` was the whole screen before it grew a second
+  // `/leagues/:id/stats` was the whole screen before it grew a second
   // board, so it is a URL already out in the world.
-  it("sends the bare aggregate URL to the hero board", async () => {
+  it("sends the bare stats URL to the hero board", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/stats`)
+
+    await screen.findByRole("link", { name: "Heroes" })
+    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+  })
+
+  it("sends a stats board we don't have to the hero board", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/stats/wards`)
+
+    await screen.findByRole("link", { name: "Heroes" })
+    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+  })
+
+  // The screen was `/aggregate` until it was renamed, and those links are
+  // already pasted into scrims threads nobody will go back and edit.
+  it("sends the old aggregate path to the same board on the new one", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate/players?division=Voyager`)
+
+    await screen.findByRole("link", { name: "Players" })
+    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/players`)
+    expect(currentSearch()).toBe("?division=Voyager")
+  })
+
+  it("sends the bare old aggregate path to the hero board", async () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate`)
 
     await screen.findByRole("link", { name: "Heroes" })
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/aggregate/heroes`)
-  })
-
-  it("sends an aggregate board we don't have to the hero board", async () => {
-    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate/wards`)
-
-    await screen.findByRole("link", { name: "Heroes" })
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/aggregate/heroes`)
+    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
   })
 
   it("opens the player board a deep link names", async () => {
-    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate/players`)
+    renderAt(`/leagues/${String(LEAGUE_ID)}/stats/players`)
 
     expect(await screen.findByRole("link", { name: "Players" })).toHaveAttribute(
       "aria-current",
@@ -144,8 +161,8 @@ describe("routes", () => {
 
   // Without it the board it lands on would refuse to query, which is the one
   // redirect that could lose you the screen you were sent.
-  it("keeps the division when redirecting a bare aggregate URL", async () => {
-    renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate?division=Voyager`)
+  it("keeps the division when redirecting a bare stats URL", async () => {
+    renderAt(`/leagues/${String(LEAGUE_ID)}/stats?division=Voyager`)
 
     await screen.findByRole("link", { name: "Heroes" })
     expect(currentSearch()).toBe("?division=Voyager")
@@ -153,19 +170,19 @@ describe("routes", () => {
 
   // The division outlives the screen that set it; a position and sort describe
   // one board and must not lie in wait on the other.
-  it("carries the division between aggregate boards but not the sort", async () => {
+  it("carries the division between stats boards but not the sort", async () => {
     renderAt(
-      `/leagues/${String(LEAGUE_ID)}/aggregate/players?division=Voyager&pos=4&sort=xpAt10`,
+      `/leagues/${String(LEAGUE_ID)}/stats/players?division=Voyager&pos=4&sort=xpAt10`,
     )
 
     const heroes = await screen.findByRole("link", { name: "Heroes" })
     expect(heroes).toHaveAttribute(
       "href",
-      `/leagues/${String(LEAGUE_ID)}/aggregate/heroes?division=Voyager`,
+      `/leagues/${String(LEAGUE_ID)}/stats/heroes?division=Voyager`,
     )
   })
 
-  it("carries the division across a move from the aggregate into a team", async () => {
+  it("carries the division across a move from the stats screen into a team", async () => {
     renderAt(
       `/leagues/${String(LEAGUE_ID)}/teams/${String(TEAM_ID)}/wards?division=Voyager`,
     )

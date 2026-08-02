@@ -1,17 +1,18 @@
-import type { DivisionPlayerRow } from "../league-aggregate/league-aggregate-api"
+import type { DivisionPlayerRow } from "../league-stats/league-stats-api"
 
 /**
  * Games at a position before a row is ranked against the others.
  *
  * Fixed rather than a control. The right floor genuinely differs by league — at
- * three, PGL Wallachia keeps 16 of its 17 carries and S45 keeps 6 of 17 — but a
+ * three it kept 16 of PGL Wallachia's 17 carries but only 6 of S45's 17 — but a
  * knob means every number you read has an invisible parameter attached, and
- * nobody remembers where they left it. Rows below the floor are not dropped;
- * they are listed unranked underneath, because a leaderboard that quietly
- * deletes fifteen of a division's twenty-two carries is claiming a field it
- * doesn't have.
+ * nobody remembers where they left it. Four rather than three: a third game is
+ * still close enough to a single bad lane to move an average. Rows below the
+ * floor are not dropped; they are listed unranked underneath, because a
+ * leaderboard that quietly deletes most of a division's carries is claiming a
+ * field it doesn't have.
  */
-export const MIN_GAMES = 3
+export const MIN_GAMES = 4
 
 export const POSITIONS = [
   { key: "POSITION_1", label: "Pos 1" },

@@ -3,7 +3,7 @@ import { useAuth } from "@clerk/react";
 import { Modal } from "../../components/Modal";
 import { useAppDispatch } from "../../app/hooks";
 import { matchesApiSlice, useParseMatchMutation } from "../matches/matches-api";
-import { leagueAggregateApiSlice } from "../league-aggregate/league-aggregate-api";
+import { leagueStatsApiSlice } from "../league-stats/league-stats-api";
 import { parseMatchIds } from "./parse-match-ids";
 
 type ParseMatchesModalProps = {
@@ -128,7 +128,7 @@ export const ParseMatchesModal = ({ isOpen, onClose }: ParseMatchesModalProps) =
     // backfill does not trigger one refetch of every match query per ID.
     if (anySucceeded) {
       dispatch(matchesApiSlice.util.invalidateTags(["Matches"]));
-      dispatch(leagueAggregateApiSlice.util.invalidateTags(["LeagueAggregate"]));
+      dispatch(leagueStatsApiSlice.util.invalidateTags(["LeagueStats"]));
     }
   };
 

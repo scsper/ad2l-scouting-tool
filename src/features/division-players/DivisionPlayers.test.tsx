@@ -4,7 +4,7 @@ import { useLocation } from "react-router"
 import { renderWithProviders } from "../../utils/test-utils"
 import { stubFetch } from "../../utils/test-fetch"
 import { DivisionPlayers } from "./DivisionPlayers"
-import type { DivisionPlayerRow } from "../league-aggregate/league-aggregate-api"
+import type { DivisionPlayerRow } from "../league-stats/league-stats-api"
 
 const LEAGUE_ID = 19554
 const SHARKHORSE = 9403219
@@ -34,7 +34,7 @@ function row(overrides: Partial<DivisionPlayerRow>): DivisionPlayerRow {
 const PLAYER_STATS: DivisionPlayerRow[] = [
   row({ playerId: 1, name: "Winkx", games: 19, wins: 12, gpm: 692 }),
   row({ playerId: 2, name: "neo_sporin", games: 22, wins: 12, gpm: 637 }),
-  // Below the three-game floor: listed, but never ranked.
+  // Below the games floor: listed, but never ranked.
   row({ playerId: 3, name: "Jishba", games: 2, wins: 0, gpm: 900 }),
   // A stand-in who covered pos 5 for two teams, with no ward data anywhere.
   row({
@@ -129,7 +129,7 @@ describe("DivisionPlayers", () => {
     renderBoard()
 
     await screen.findByText("Jishba")
-    expect(screen.getByText("Fewer than 3 games")).toBeInTheDocument()
+    expect(screen.getByText("Fewer than 4 games")).toBeInTheDocument()
     expect(within(rowFor("Jishba")).queryByText("3")).not.toBeInTheDocument()
   })
 

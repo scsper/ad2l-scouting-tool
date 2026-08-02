@@ -26,7 +26,7 @@ export function isDivision(value: unknown): value is Division {
  * Divisions present in a league, in vocabulary order.
  *
  * An empty result is what "this league has no divisions" means — the dropdown
- * and the "Division Aggregate" label are both gated on it. Unrecognised values
+ * and the "Division Stats" label are both gated on it. Unrecognised values
  * are dropped rather than appended: a typo shouldn't invent a bracket, and the
  * team it belongs to still reaches the picker under "Unassigned".
  */
