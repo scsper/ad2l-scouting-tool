@@ -27,6 +27,29 @@ import {
   type PlacedWard,
   type SideFilter,
 } from "../../utils/ward-aggregation"
+import {
+  collectRoshanKills,
+  collectTormentorKills,
+  collectTowerFalls,
+  neutralTicks,
+  towerTicks,
+  withObjectiveData,
+  type ObjectiveMoment,
+} from "../../utils/objective-aggregation"
+import type { PitSide } from "../../utils/dota-map"
+import { useGetMatchObjectivesQuery } from "../objectives/objectives-api"
+import { ObjectiveTicks } from "./ObjectiveTicks"
+import {
+  ENEMY_TOWER_COLOR,
+  NeutralMark,
+  OWN_TOWER_COLOR,
+  ROSHAN_COLOR,
+  ROSHAN_PITS,
+  TORMENTOR_COLOR,
+  TORMENTOR_SPOTS,
+  TowerLayer,
+  type HoveredObjective,
+} from "./TowerLayer"
 import { useGetMatchWardsQuery } from "./wards-api"
 
 const ALL_GAMES = "all"
@@ -166,14 +189,24 @@ export const Wards = ({
   })
   const { data: teamsData, isLoading: isLoadingTeams } =
     useGetTeamsByLeagueQuery({ leagueId })
+  // Objectives ride alongside rather than blocking: the ward map is useful
+  // without tower marks, so a slow or failed objective fetch must not hold up
+  // the thing the tab is named after.
+  const { data: objectivesData } = useGetMatchObjectivesQuery({
+    leagueId,
+    teamId,
+  })
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [hovered, setHovered] = useState<PlacedWard | null>(null)
+  const [hoveredObjective, setHoveredObjective] =
+    useState<HoveredObjective | null>(null)
 
   const side = parseSide(searchParams.get("side"))
   const selectedMatch = searchParams.get("match") ?? ALL_GAMES
   const showObs = searchParams.get("obs") !== "0"
   const showSen = searchParams.get("sen") === "1"
+  const showTowers = searchParams.get("towers") !== "0"
   const urlTime = parseTime(searchParams.get("t"))
 
   /**
@@ -262,6 +295,86 @@ export const Wards = ({
 
   const obsTotal = wards.filter(w => w.ward.type === "obs").length
   const senTotal = wards.filter(w => w.ward.type === "sen").length
+
+  const isSingleGame = selectedMatch !== ALL_GAMES
+
+  // Objective matches are filtered by the same two stages as the wards, so the
+  // tower marks always describe the games on screen.
+  const visibleObjectiveMatches = useMemo(() => {
+    const all = objectivesData?.matches ?? []
+    const bySide = all.filter(m =>
+      side === "all" ? true : side === "radiant" ? m.isRadiant : !m.isRadiant,
+    )
+    return isSingleGame
+      ? bySide.filter(m => String(m.id) === selectedMatch)
+      : bySide
+  }, [objectivesData, side, selectedMatch, isSingleGame])
+
+  const objectiveTicks = useMemo(() => {
+    if (!showTowers) return []
+    const towers = towerTicks(visibleObjectiveMatches, isSingleGame)
+    // Roshan and Tormentor have no shared slot to average onto, so they only
+    // appear when a single game is selected.
+    return isSingleGame
+      ? [...towers, ...neutralTicks(visibleObjectiveMatches)].sort(
+          (a, b) => a.time - b.time,
+        )
+      : towers
+  }, [visibleObjectiveMatches, isSingleGame, showTowers])
+
+  // The map layer is single-game only: a tower cannot be drawn both standing and
+  // destroyed, which is what an aggregate would ask of it.
+  const singleObjectiveMatch =
+    isSingleGame && visibleObjectiveMatches.length === 1
+      ? withObjectiveData(visibleObjectiveMatches)[0]
+      : undefined
+
+  const towerFalls = useMemo(
+    () =>
+      singleObjectiveMatch ? collectTowerFalls([singleObjectiveMatch]) : [],
+    [singleObjectiveMatch],
+  )
+
+  const objectiveCount = objectiveTicks.filter(t => t.kind === "tower").length
+
+  /**
+   * The most recent Roshan and Tormentor kill at or before the current time.
+   *
+   * Marked where it was taken rather than where the creature currently stands:
+   * the question this tab answers is what their vision looked like around an
+   * objective, so the pit that matters is the one that was just fought over.
+   * `pit` is null on pre-7.41 games, and those are skipped rather than guessed.
+   */
+  const lastNeutral = useMemo(() => {
+    const pick = (moments: ObjectiveMoment[]) => {
+      const past = moments
+        .filter(
+          (m): m is ObjectiveMoment & { pit: PitSide } =>
+            m.time <= clampedTime && m.pit !== null,
+        )
+        .sort((a, b) => b.time - a.time)
+      if (past.length === 0) return null
+      const latest = past[0]
+      return {
+        pit: latest.pit,
+        detail: `Taken by ${latest.takenByTeam ? "them" : "the opponent"} at ${formatGameTime(latest.time)}`,
+      }
+    }
+
+    if (!singleObjectiveMatch) return { roshan: null, tormentor: null }
+    return {
+      roshan: pick(collectRoshanKills([singleObjectiveMatch])),
+      tormentor: pick(collectTormentorKills([singleObjectiveMatch])),
+    }
+  }, [singleObjectiveMatch, clampedTime])
+
+  /** Seeking from a tick writes the URL immediately — it is a deliberate jump to
+   *  a named moment, not a drag, so there is no history flood to debounce. */
+  const seekTo = (next: number) => {
+    clearTimeout(pendingTimeWrite.current)
+    setDraftTime(next)
+    updateFilters({ t: String(next) })
+  }
 
   if (isLoading || isLoadingTeams) {
     return (
@@ -406,8 +519,50 @@ export const Wards = ({
               <span className="inline-block w-2 h-2 rounded-full bg-sky-400/60 border border-sky-300" />
               Sentries ({senTotal})
             </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showTowers}
+                onChange={e => {
+                  updateFilters({ towers: e.target.checked ? null : "0" })
+                }}
+                className="accent-rose-400"
+              />
+              <span
+                className="inline-block w-2.5 h-2.5 border"
+                style={{
+                  borderColor: OWN_TOWER_COLOR,
+                  backgroundColor: `${OWN_TOWER_COLOR}66`,
+                }}
+              />
+              Towers ({objectiveCount})
+            </label>
 
             <div className="flex flex-wrap items-center gap-3 ml-auto text-xs text-slate-400">
+              {showTowers && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-2.5 h-2.5 border"
+                      style={{
+                        borderColor: OWN_TOWER_COLOR,
+                        backgroundColor: `${OWN_TOWER_COLOR}66`,
+                      }}
+                    />
+                    Their towers
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-2.5 h-2.5 border"
+                      style={{
+                        borderColor: ENEMY_TOWER_COLOR,
+                        backgroundColor: `${ENEMY_TOWER_COLOR}66`,
+                      }}
+                    />
+                    Enemy towers
+                  </span>
+                </>
+              )}
               {POSITION_LEGEND.map(({ label, color }) => (
                 <span key={label} className="flex items-center gap-1.5">
                   <span
@@ -444,7 +599,61 @@ export const Wards = ({
                     setHovered={setHovered}
                   />
                 ))}
+                {showTowers && singleObjectiveMatch && (
+                  <>
+                    <TowerLayer
+                      falls={towerFalls}
+                      time={clampedTime}
+                      size={size}
+                      teamSide={
+                        singleObjectiveMatch.isRadiant ? "radiant" : "dire"
+                      }
+                      onHover={setHoveredObjective}
+                    />
+                    {lastNeutral.roshan && (
+                      <NeutralMark
+                        pit={lastNeutral.roshan.pit}
+                        spots={ROSHAN_PITS}
+                        size={size}
+                        color={ROSHAN_COLOR}
+                        label="Roshan"
+                        detail={lastNeutral.roshan.detail}
+                        onHover={setHoveredObjective}
+                      />
+                    )}
+                    {lastNeutral.tormentor && (
+                      <NeutralMark
+                        pit={lastNeutral.tormentor.pit}
+                        spots={TORMENTOR_SPOTS}
+                        size={size}
+                        color={TORMENTOR_COLOR}
+                        label="Tormentor"
+                        detail={lastNeutral.tormentor.detail}
+                        onHover={setHoveredObjective}
+                      />
+                    )}
+                  </>
+                )}
               </svg>
+              {hoveredObjective && (
+                <div
+                  className="absolute z-20 pointer-events-none w-max max-w-[15rem] rounded border border-slate-600 bg-slate-900/95 px-2.5 py-1.5 text-xs text-slate-300 shadow-lg"
+                  style={{
+                    left: `${String(hoveredObjective.x * 100)}%`,
+                    top: `${String(hoveredObjective.y * 100)}%`,
+                    transform: `translate(${
+                      hoveredObjective.x > 0.6 ? "calc(-100% - 10px)" : "10px"
+                    }, ${
+                      hoveredObjective.y < 0.25 ? "10px" : "calc(-100% - 10px)"
+                    })`,
+                  }}
+                >
+                  <div className="font-medium text-slate-100">
+                    {hoveredObjective.label}
+                  </div>
+                  <div>{hoveredObjective.detail}</div>
+                </div>
+              )}
               {hovered && (
                 <WardTooltip
                   placed={hovered}
@@ -471,6 +680,14 @@ export const Wards = ({
                 {visibleWards.length === 1 ? "" : "s"} up
               </span>
             </div>
+            {showTowers && (
+              <ObjectiveTicks
+                ticks={objectiveTicks}
+                bounds={bounds}
+                aggregate={!isSingleGame}
+                onSeek={seekTo}
+              />
+            )}
             <input
               type="range"
               min={bounds.min}
@@ -493,6 +710,13 @@ export const Wards = ({
               <span>{formatGameTime(bounds.max)}</span>
             </div>
           </div>
+
+          {showTowers && !isSingleGame && objectiveTicks.length > 0 && (
+            <div className="mt-2 text-xs text-slate-500 text-center">
+              Tower marks show median fall times across these games. Select a
+              single game to see them on the map.
+            </div>
+          )}
 
           <div className="mt-3 text-xs text-slate-500 text-center">
             Map: patch {minimap.patch}

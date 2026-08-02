@@ -6,6 +6,59 @@ type MatchRow = {
   dire_team_id: number | null
   start_date_time: number
   end_date_time: number
+  /**
+   * OpenDota's patch index (57=7.38, 58=7.39, 59=7.40, 60=7.41). Stored rather
+   * than derived from `start_date_time`, because 7.38 and 7.39 share a minimap
+   * image and cannot be told apart by date bucket — and the Roshan pit rule is
+   * gated on the exact patch. `null` on rows predating the objectives backfill.
+   */
+  patch?: number | null
+  /**
+   * Whether OpenDota's `objectives[]` was ever read for this match. The
+   * relational twin of the NULL-vs-`[]` contract on `match_player.wards`:
+   * without it, "no match_objective rows" cannot be told apart from "parsed,
+   * nothing was destroyed", and unparsed games would read as games where every
+   * building survived — deflating every fall rate.
+   */
+  objectives_parsed?: boolean
+}
+
+/** OpenDota objective types we store. Kept as the upstream strings verbatim. */
+type ObjectiveType =
+  | "building_kill"
+  | "CHAT_MESSAGE_ROSHAN_KILL"
+  /** Tormentor. */
+  | "CHAT_MESSAGE_MINIBOSS_KILL"
+  | "CHAT_MESSAGE_AEGIS"
+  | "CHAT_MESSAGE_FIRSTBLOOD"
+  | "CHAT_MESSAGE_COURIER_LOST"
+
+/**
+ * One row of OpenDota's `objectives[]`.
+ *
+ * Deliberately heterogeneous, because the upstream array is: only
+ * `building_kill` carries `key` (the building's entity name), Roshan carries
+ * only `team`, and aegis carries only `player_slot`. Narrowing on `type` is the
+ * only safe way to read the optional fields.
+ */
+type MatchObjectiveRow = {
+  match_id: number
+  /** Seconds relative to the horn. Can be negative — first blood often is. */
+  time: number
+  /**
+   * Stored as free text, not the `ObjectiveType` union: the union names the
+   * types we know about today, and OpenDota adding a new event must widen the
+   * data rather than fail to parse it.
+   */
+  type: string
+  /** e.g. "npc_dota_goodguys_tower1_bot". Only on `building_kill`. */
+  key: string | null
+  /** The killing unit, when it was not a hero (e.g. a flagbearer creep). */
+  unit: string | null
+  /** 2 = Radiant, 3 = Dire. On Roshan/Tormentor rows this is the KILLER. */
+  team: number | null
+  player_slot: number | null
+  slot: number | null
 }
 
 // A single ward placement, extracted from OpenDota's replay-parsed logs.
@@ -118,6 +171,8 @@ type PlayerPubMatchStatsRow = {
 export type {
   MatchRow,
   WardRecord,
+  ObjectiveType,
+  MatchObjectiveRow,
   MatchPlayerRow,
   MatchDraftRow,
   PlayerRow,
