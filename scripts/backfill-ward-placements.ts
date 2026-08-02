@@ -2,10 +2,14 @@
  * Backfill ward placements (match_player.wards) for existing rows by re-fetching
  * each match from OpenDota.
  *
+ * Distinct from `backfill-wards`, which fills the obs_placed/sen_placed counts
+ * on the same table. This one fills the JSONB blob of individual placements
+ * that the Wards tab plots.
+ *
  * Usage:
- *   npm run backfill-wards -- --db --dry-run   # report what would change
- *   npm run backfill-wards -- --db             # write to the database
- *   npm run backfill-wards -- path/to/ids.txt  # restrict to IDs in a file
+ *   npm run backfill-ward-placements -- --db --dry-run   # report what would change
+ *   npm run backfill-ward-placements -- --db             # write to the database
+ *   npm run backfill-ward-placements -- path/to/ids.txt  # restrict to IDs in a file
  *
  * File format: one match ID per line; blank and non-numeric lines are skipped.
  *
@@ -174,7 +178,7 @@ async function main() {
     if (!fs.existsSync(filePath)) {
       console.error(`File not found: ${filePath}`)
       console.error(
-        "Usage: npx tsx scripts/backfill-wards.ts [file.txt] | --db [--dry-run]",
+        "Usage: npx tsx scripts/backfill-ward-placements.ts [file.txt] | --db [--dry-run]",
       )
       process.exit(1)
     }

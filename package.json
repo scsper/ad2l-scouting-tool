@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "parse-matches": "tsx scripts/parse-matches.ts",
     "backfill-lanes": "tsx scripts/backfill-lanes.ts",
-    "backfill-wards": "tsx scripts/backfill-wards.ts",
+    "backfill-ward-placements": "tsx scripts/backfill-ward-placements.ts",
     "add-teams-to-league": "tsx scripts/add-teams-to-league.ts",
     "replace-team-id": "tsx scripts/replace-team-id.ts",
     "preview": "vite preview",
