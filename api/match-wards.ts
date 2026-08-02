@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import { selectAll } from "./lib/select-all.js"
+import { selectAll } from "../server/select-all.js"
 import type { MatchPlayerRow, MatchRow, WardRecord } from "../types/db.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""

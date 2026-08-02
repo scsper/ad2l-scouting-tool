@@ -1,7 +1,7 @@
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
-import { ParseError, parseMatch } from "../api/lib/match-operations"
+import { ParseError, parseMatch } from "../server/match-operations"
 
 // Get the directory of the current script
 const __filename = fileURLToPath(import.meta.url)

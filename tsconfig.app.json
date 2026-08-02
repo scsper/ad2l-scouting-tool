@@ -25,5 +25,5 @@
     "noUncheckedSideEffectImports": true,
     "types": ["vitest/globals"]
   },
-  "include": ["src", "api", "types", "shared"]
+  "include": ["src", "api", "server", "types", "shared"]
 }

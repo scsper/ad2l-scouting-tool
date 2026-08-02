@@ -4,7 +4,7 @@ import type {
   MatchPlayerRow,
   MatchDraftRow,
   WardRecord,
-} from "../../types/db.js"
+} from "../types/db.js"
 import { extractWards, type OpenDotaWardLogs } from "./wards.js"
 
 const API_URL = "https://api.opendota.com/api/matches"
