@@ -3,9 +3,11 @@ import type {
   MatchRow,
   MatchPlayerRow,
   MatchDraftRow,
+  MatchObjectiveRow,
   WardRecord,
 } from "../types/db.js"
 import { extractWards, type OpenDotaWardLogs } from "./wards.js"
+import { extractObjectives, type OpenDotaObjectiveLog } from "./objectives.js"
 
 const API_URL = "https://api.opendota.com/api/matches"
 const OPENDOTA_API_KEY = process.env.OPENDOTA_API_TOKEN ?? ""
@@ -67,6 +69,12 @@ type OpenDotaMatch = {
   // `times`/`gold_t`/`xp_t`. Every position, lane, and at-10 field would be null,
   // which silently poisons the positional aggregates. `parseMatch` refuses these.
   version?: number | null
+  /**
+   * OpenDota's patch index, not a version string (57=7.38 … 60=7.41). The Roshan
+   * pit rule is patch-specific, and deriving the patch from `start_time` cannot
+   * separate 7.38 from 7.39 — they ship the same minimap.
+   */
+  patch?: number | null
   leagueid?: number
   radiant_team_id?: number
   dire_team_id?: number
@@ -74,7 +82,7 @@ type OpenDotaMatch = {
   dire_team?: OpenDotaTeam
   picks_bans?: OpenDotaPickBan[]
   players: OpenDotaPlayer[]
-}
+} & OpenDotaObjectiveLog
 
 // Internal types (matching Stratz structure for compatibility)
 type Team = {
@@ -134,6 +142,10 @@ export type Match = {
   bottomLaneOutcome: string | null
   pickBans: PickBan[]
   players: Player[]
+  /** OpenDota's patch index; null when the payload omitted it. */
+  patch: number | null
+  /** null when the replay was never parsed; [] when it carried no objectives. */
+  objectives: MatchObjectiveRow[] | null
 }
 
 /**
@@ -349,6 +361,8 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
     bottomLaneOutcome: null,
     pickBans,
     players,
+    patch: openDotaMatch.patch ?? null,
+    objectives: extractObjectives(openDotaMatch, openDotaMatch.match_id),
   }
 }
 
@@ -505,6 +519,36 @@ export async function convertMatchDataToMatchDraftTable(
   return data as MatchDraftRow[]
 }
 
+/**
+ * Store a match's objectives.
+ *
+ * A no-op when `objectives` is null — the replay was never parsed, and inserting
+ * nothing while `match.objectives_parsed` stays FALSE is exactly right. Writing
+ * zero rows against a TRUE flag would claim every building survived.
+ */
+export async function convertMatchDataToMatchObjectiveTable(
+  matchData: Match,
+): Promise<MatchObjectiveRow[]> {
+  if (matchData.objectives === null || matchData.objectives.length === 0) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from("match_objective")
+    .insert(matchData.objectives)
+    .select()
+
+  if (error) {
+    console.error("Error inserting match objectives:", error)
+    throw error
+  }
+
+  console.log(
+    `Successfully inserted ${String(matchData.objectives.length)} objectives for match ${String(matchData.id)}`,
+  )
+  return data as MatchObjectiveRow[]
+}
+
 export async function convertMatchDataToMatchTable(
   matchData: Match,
   { upsert = false }: { upsert?: boolean } = {},
@@ -519,6 +563,12 @@ export async function convertMatchDataToMatchTable(
     dire_team_id: matchData.direTeam?.id ?? null,
     start_date_time: matchData.startDateTime,
     end_date_time: matchData.endDateTime,
+    patch: matchData.patch,
+    // Asserted here rather than after the child insert because the match row is
+    // written first and upserts overwrite it: leaving it FALSE and flipping it
+    // later would mark every match unparsed for the window in between, and
+    // Supabase has no transaction to close that window.
+    objectives_parsed: matchData.objectives !== null,
   }
 
   const { data, error } = upsert
@@ -575,9 +625,14 @@ async function matchExists(matchId: number): Promise<boolean> {
  * validating the OpenDota payload *before* calling this.
  */
 async function deleteMatchChildren(matchId: number): Promise<void> {
-  const [{ error: playersError }, { error: draftError }] = await Promise.all([
+  const [
+    { error: playersError },
+    { error: draftError },
+    { error: objectivesError },
+  ] = await Promise.all([
     supabase.from("match_player").delete().eq("match_id", matchId),
     supabase.from("match_draft").delete().eq("match_id", matchId),
+    supabase.from("match_objective").delete().eq("match_id", matchId),
   ])
 
   if (playersError) {
@@ -587,6 +642,10 @@ async function deleteMatchChildren(matchId: number): Promise<void> {
   if (draftError) {
     console.error("Error deleting existing match draft:", draftError)
     throw draftError
+  }
+  if (objectivesError) {
+    console.error("Error deleting existing match objectives:", objectivesError)
+    throw objectivesError
   }
 }
 
@@ -678,6 +737,7 @@ export async function parseMatch({
 
     await convertMatchDataToMatchPlayersTable(match)
     await convertMatchDataToMatchDraftTable(match)
+    await convertMatchDataToMatchObjectiveTable(match)
   } catch (error) {
     if (isPostgrestError(error) && error.code === FOREIGN_KEY_VIOLATION) {
       throw new ParseError(

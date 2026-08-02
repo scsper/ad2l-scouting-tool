@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router"
 /** AD2L Season 47 — where `/` lands until a newer season becomes the default. */
 export const DEFAULT_LEAGUE_ID = 19554
 
-export type Tab = "team" | "players" | "pub-stats" | "lanes" | "wards"
+export type Tab = "team" | "players" | "pub-stats" | "lanes" | "wards" | "tempo"
 
 export const TABS: { id: Tab; label: string }[] = [
   { id: "team", label: "Team" },
@@ -11,6 +11,7 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "pub-stats", label: "Pub Stats" },
   { id: "lanes", label: "Lanes" },
   { id: "wards", label: "Wards" },
+  { id: "tempo", label: "Tempo" },
 ]
 
 export type StatsTab = "heroes" | "players"

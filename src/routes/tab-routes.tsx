@@ -6,6 +6,7 @@ import { Lanes } from "../features/lanes/Lanes"
 import { Matches } from "../features/matches/matches"
 import { Players } from "../features/players/players"
 import { PlayerStats } from "../features/player-stats/PlayerStats"
+import { Tempo } from "../features/tempo/Tempo"
 import { Wards } from "../features/wards/Wards"
 import { useTeamScope } from "./routing"
 
@@ -43,4 +44,9 @@ export const LanesTab = () => {
 export const WardsTab = () => {
   const { leagueId, teamId } = useTeamScope()
   return <Wards leagueId={leagueId} teamId={teamId} />
+}
+
+export const TempoTab = () => {
+  const { leagueId, teamId } = useTeamScope()
+  return <Tempo leagueId={leagueId} teamId={teamId} />
 }

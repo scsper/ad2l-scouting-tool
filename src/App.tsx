@@ -10,6 +10,7 @@ import {
   PlayersTab,
   PubStatsTab,
   TeamTab,
+  TempoTab,
   WardsTab,
 } from "./routes/tab-routes"
 import { DEFAULT_LEAGUE_ID } from "./routes/routing"
@@ -81,7 +82,9 @@ export const App = () => (
     <Route element={<RootLayout />}>
       <Route
         index
-        element={<Navigate to={`/leagues/${String(DEFAULT_LEAGUE_ID)}`} replace />}
+        element={
+          <Navigate to={`/leagues/${String(DEFAULT_LEAGUE_ID)}`} replace />
+        }
       />
 
       <Route path="leagues/:leagueId" element={<LeagueLayout />}>
@@ -103,6 +106,7 @@ export const App = () => (
           <Route path="pub-stats" element={<PubStatsTab />} />
           <Route path="lanes" element={<LanesTab />} />
           <Route path="wards" element={<WardsTab />} />
+          <Route path="tempo" element={<TempoTab />} />
           <Route path="*" element={<RedirectToDefaultTab />} />
         </Route>
       </Route>

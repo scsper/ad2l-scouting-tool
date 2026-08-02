@@ -1,0 +1,220 @@
+/**
+ * Fixed map geography: buildings, Roshan pits and the Tormentor.
+ *
+ * Positions are fractions of the minimap image (x right, y down), the same 0..1
+ * space `wardToFraction` produces, so buildings and wards land on one coordinate
+ * system without a second transform.
+ */
+
+export type Lane = "top" | "mid" | "bot"
+export type MapSide = "radiant" | "dire"
+export type Point = { x: number; y: number }
+
+/**
+ * Tower positions, lifted verbatim from OpenDota's own `buildingData733.ts`.
+ *
+ * Adopted rather than measured for the same reason `wardToFraction` adopts their
+ * `gameCoordToUV`: they author the minimap images we ship, so their coordinates
+ * and their artwork are a matched pair. Eyeballing positions against the terrain
+ * put every candidate several percent off the lane; these sit on it exactly.
+ *
+ * 7.33-era data, which covers every patch we hold (7.38 and later). Their
+ * pre-7.33 table exists but no match in this database predates it.
+ */
+const RADIANT_TOWERS: Record<Lane, Record<1 | 2 | 3, Point>> = {
+  top: {
+    1: { x: 0.095, y: 0.36 },
+    2: { x: 0.09, y: 0.53 },
+    3: { x: 0.08, y: 0.68 },
+  },
+  mid: {
+    1: { x: 0.38, y: 0.54 },
+    2: { x: 0.275, y: 0.63 },
+    3: { x: 0.185, y: 0.715 },
+  },
+  bot: {
+    1: { x: 0.75, y: 0.82 },
+    2: { x: 0.46, y: 0.85 },
+    3: { x: 0.23, y: 0.835 },
+  },
+}
+
+const DIRE_TOWERS: Record<Lane, Record<1 | 2 | 3, Point>> = {
+  top: {
+    1: { x: 0.18, y: 0.12 },
+    2: { x: 0.49, y: 0.11 },
+    3: { x: 0.7, y: 0.125 },
+  },
+  mid: {
+    1: { x: 0.51, y: 0.435 },
+    2: { x: 0.64, y: 0.33 },
+    3: { x: 0.73, y: 0.24 },
+  },
+  bot: {
+    1: { x: 0.84, y: 0.6 },
+    2: { x: 0.85, y: 0.45 },
+    3: { x: 0.855, y: 0.28 },
+  },
+}
+
+/**
+ * Dire's table is listed rather than derived by rotating Radiant's.
+ *
+ * The Dota map is close to 180-degree symmetric but not exactly, and OpenDota's
+ * two tables differ by up to 4% of the map width in places. Rotating one onto
+ * the other would move six towers off their lanes to save twelve lines.
+ */
+export const TOWERS = { radiant: RADIANT_TOWERS, dire: DIRE_TOWERS }
+
+/** The tiers drawn on the map. T4s sit on top of each other inside the base and
+ *  fall only after the game is decided, so they are stored but never plotted. */
+export const RENDERED_TIERS = [1, 2, 3] as const
+export type RenderedTier = (typeof RENDERED_TIERS)[number]
+
+export const LANES: Lane[] = ["top", "mid", "bot"]
+
+export type TowerId = {
+  tier: RenderedTier
+  lane: Lane
+  side: MapSide
+}
+
+/** Every tower drawn on the map, both sides. */
+export const ALL_TOWERS: TowerId[] = (["radiant", "dire"] as MapSide[]).flatMap(
+  side =>
+    LANES.flatMap(lane => RENDERED_TIERS.map(tier => ({ tier, lane, side }))),
+)
+
+export function towerPosition(tower: TowerId): Point {
+  return TOWERS[tower.side][tower.lane][tower.tier]
+}
+
+export function towerKeyOf(tower: TowerId): string {
+  return `${tower.side}-${tower.lane}-${String(tower.tier)}`
+}
+
+const BUILDING_KEY = /^npc_dota_(goodguys|badguys)_tower([1-4])_(top|mid|bot)$/
+
+/**
+ * Parse OpenDota's building entity name into a tower identity.
+ *
+ * Returns null for anything that is not a plotted tower — barracks, forts, T4s,
+ * and the numeric `key` that first blood puts in the same field. Those rows are
+ * stored, so this has to reject rather than assume.
+ */
+export function parseTowerKey(key: string | null): TowerId | null {
+  if (key === null) return null
+  const match = BUILDING_KEY.exec(key)
+  if (!match) return null
+
+  const tier = Number(match[2])
+  if (tier !== 1 && tier !== 2 && tier !== 3) return null
+
+  return {
+    side: match[1] === "goodguys" ? "radiant" : "dire",
+    tier,
+    lane: match[3] as Lane,
+  }
+}
+
+export const LANE_LABEL: Record<Lane, string> = {
+  top: "Top",
+  mid: "Mid",
+  bot: "Bot",
+}
+
+export function towerLabel(tower: TowerId): string {
+  return `T${String(tower.tier)} ${LANE_LABEL[tower.lane]}`
+}
+
+// ---------------------------------------------------------------------------
+// Roshan and the Tormentor
+// ---------------------------------------------------------------------------
+
+/**
+ * The two Roshan pits, read off the shipped minimap art.
+ *
+ * `north` is the lava-lit pit in the upper-left stretch of the river; `south` is
+ * the open rock horseshoe in the lower-right stretch. Named by their position on
+ * the image, because that is the only thing the map itself asserts.
+ */
+export const ROSHAN_PITS: Record<"north" | "south", Point> = {
+  north: { x: 0.3, y: 0.34 },
+  south: { x: 0.665, y: 0.655 },
+}
+
+/**
+ * The two Tormentor spots.
+ *
+ * UNVERIFIED. The minimap carries four identical rock formations — two on the
+ * Radiant side of the river, two on the Dire side — and the art alone cannot say
+ * which pair is the Tormentor and which is the Outpost. The other candidate pair
+ * is { north: {x: 0.235, y: 0.545}, south: {x: 0.758, y: 0.437} }.
+ *
+ * This pair is the one aligned along the river axis the way the Roshan pits are,
+ * which is what "always opposite Roshan" implies. Swap the two constants if the
+ * markers land on the Outposts instead — nothing else needs to change.
+ */
+export const TORMENTOR_SPOTS: Record<"north" | "south", Point> = {
+  north: { x: 0.548, y: 0.262 },
+  south: { x: 0.414, y: 0.725 },
+}
+
+export type PitSide = "north" | "south"
+
+/** Roshan relocates on every 5-minute boundary. */
+const PIT_PERIOD_SECONDS = 300
+
+/**
+ * Patch-keyed pit rules, newest first.
+ *
+ * A table rather than a constant because the rule is patch-specific and half
+ * this database predates the patch it was confirmed on. Filling in an older
+ * patch later is a data edit here, not a change to any caller.
+ *
+ * `startPit` is where Roshan is during the first period; he alternates from
+ * there. The Tormentor is always in the opposite location.
+ */
+export const PIT_RULES: {
+  minPatch: number
+  patchName: string
+  startPit: PitSide
+}[] = [{ minPatch: 60, patchName: "7.41", startPit: "south" }]
+
+/**
+ * Where Roshan is at `time`, or null when no rule covers that patch.
+ *
+ * Evaluated on the clock at the moment of death, not at spawn. That is what
+ * makes the position knowable at all: Roshan moves on every 5-minute boundary
+ * regardless of when he spawned, whereas respawn is a random 8–11 minute window
+ * that straddles the boundary and would leave most kills ambiguous.
+ *
+ * Returning null rather than guessing is the point. Only 176 of 355 matches in
+ * this database are 7.41 or later, and a scouting tool that draws the wrong pit
+ * on the older half is worse than one that draws nothing.
+ */
+export function roshanPitAt(
+  time: number,
+  patch: number | null,
+): PitSide | null {
+  if (patch === null) return null
+  const rule = PIT_RULES.find(r => patch >= r.minPatch)
+  if (!rule) return null
+
+  // Floor, not truncate: pre-horn seconds are negative and must not fold onto
+  // period 0 alongside the first five minutes.
+  const period = Math.floor(time / PIT_PERIOD_SECONDS)
+  const flipped = ((period % 2) + 2) % 2 === 1
+  const other: Record<PitSide, PitSide> = { north: "south", south: "north" }
+  return flipped ? other[rule.startPit] : rule.startPit
+}
+
+/** The Tormentor sits opposite Roshan, so it follows the same clock. */
+export function tormentorSpotAt(
+  time: number,
+  patch: number | null,
+): PitSide | null {
+  const roshan = roshanPitAt(time, patch)
+  if (roshan === null) return null
+  return roshan === "north" ? "south" : "north"
+}
