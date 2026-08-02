@@ -2,6 +2,7 @@ import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { Provider } from "react-redux"
 import { ClerkProvider } from "@clerk/react"
+import { BrowserRouter } from "react-router"
 import { App } from "./App"
 import { store } from "./app/store"
 import "./index.css"
@@ -19,9 +20,14 @@ if (container) {
 
   root.render(
     <StrictMode>
+      {/* Clerk sits above the router so navigating a tab never remounts the
+          auth state, and `afterSignOutUrl` stays "/" on purpose: signing out
+          should not leave you parked on a deep link you can no longer read. */}
       <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
         <Provider store={store}>
-          <App />
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
         </Provider>
       </ClerkProvider>
     </StrictMode>,

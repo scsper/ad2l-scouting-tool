@@ -1,4 +1,12 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react"
+import { useSearchParams } from "react-router"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { getHero } from "../../utils/get-hero"
 import {
@@ -22,6 +30,19 @@ import {
 import { useGetMatchWardsQuery } from "./wards-api"
 
 const ALL_GAMES = "all"
+
+/** How long a drag has to settle before the URL is rewritten. */
+const TIME_WRITE_DELAY_MS = 250
+
+function parseSide(value: string | null): SideFilter {
+  return value === "radiant" || value === "dire" ? value : "all"
+}
+
+function parseTime(value: string | null): number | null {
+  if (value === null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
 
 const panel =
   "bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg"
@@ -146,12 +167,63 @@ export const Wards = ({
   const { data: teamsData, isLoading: isLoadingTeams } =
     useGetTeamsByLeagueQuery({ leagueId })
 
-  const [side, setSide] = useState<SideFilter>("all")
-  const [selectedMatch, setSelectedMatch] = useState<string>(ALL_GAMES)
-  const [showObs, setShowObs] = useState(true)
-  const [showSen, setShowSen] = useState(false)
-  const [time, setTime] = useState<number | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [hovered, setHovered] = useState<PlacedWard | null>(null)
+
+  const side = parseSide(searchParams.get("side"))
+  const selectedMatch = searchParams.get("match") ?? ALL_GAMES
+  const showObs = searchParams.get("obs") !== "0"
+  const showSen = searchParams.get("sen") === "1"
+  const urlTime = parseTime(searchParams.get("t"))
+
+  /**
+   * The filters live in the query string so a ward view can be pasted to
+   * someone rather than described to them.
+   *
+   * A param at its default is deleted rather than written, which keeps the
+   * common URL short enough to read. Every write replaces rather than pushes:
+   * these change what you are looking at, not where you are, and back should
+   * return you to the tab you came from instead of stepping you back through
+   * four toggles.
+   */
+  const updateFilters = (changes: Record<string, string | null>) => {
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of Object.entries(changes)) {
+          if (value === null) {
+            next.delete(key)
+          } else {
+            next.set(key, value)
+          }
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  // The slider tracks the drag; the URL deliberately lags behind it. Browsers
+  // rate-limit history writes, and one sweep of a 60-minute game would spend
+  // the whole allowance.
+  const [draftTime, setDraftTime] = useState<number | null>(null)
+  const pendingTimeWrite = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  // By the time the debounced write lands, the URL holds the value being
+  // dragged to, so dropping the draft changes nothing on screen. Back and
+  // forward land here too, which is what lets them move the slider.
+  useEffect(() => {
+    setDraftTime(null)
+  }, [urlTime])
+
+  useEffect(
+    () => () => {
+      clearTimeout(pendingTimeWrite.current)
+    },
+    [],
+  )
+
+  const time = draftTime ?? urlTime
 
   const allMatches = useMemo(() => data?.matches ?? [], [data])
 
@@ -257,8 +329,10 @@ export const Wards = ({
             <select
               value={selectedMatch}
               onChange={e => {
-                setSelectedMatch(e.target.value)
-                setTime(null)
+                updateFilters({
+                  match: e.target.value === ALL_GAMES ? null : e.target.value,
+                  t: null,
+                })
               }}
               className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200"
             >
@@ -279,8 +353,7 @@ export const Wards = ({
                 <button
                   key={s}
                   onClick={() => {
-                    setSide(s)
-                    setSelectedMatch(ALL_GAMES)
+                    updateFilters({ side: s === "all" ? null : s, match: null })
                   }}
                   className={`px-3 py-1 text-sm capitalize ${
                     side === s
@@ -314,7 +387,7 @@ export const Wards = ({
                 type="checkbox"
                 checked={showObs}
                 onChange={e => {
-                  setShowObs(e.target.checked)
+                  updateFilters({ obs: e.target.checked ? null : "0" })
                 }}
                 className="accent-amber-400"
               />
@@ -326,7 +399,7 @@ export const Wards = ({
                 type="checkbox"
                 checked={showSen}
                 onChange={e => {
-                  setShowSen(e.target.checked)
+                  updateFilters({ sen: e.target.checked ? "1" : null })
                 }}
                 className="accent-sky-400"
               />
@@ -405,7 +478,12 @@ export const Wards = ({
               step={5}
               value={clampedTime}
               onChange={e => {
-                setTime(Number(e.target.value))
+                const next = Number(e.target.value)
+                setDraftTime(next)
+                clearTimeout(pendingTimeWrite.current)
+                pendingTimeWrite.current = setTimeout(() => {
+                  updateFilters({ t: String(next) })
+                }, TIME_WRITE_DELAY_MS)
               }}
               className="w-full accent-blue-500"
               aria-label="Game time"

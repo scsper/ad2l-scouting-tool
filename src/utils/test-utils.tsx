@@ -3,6 +3,7 @@ import { render } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { PropsWithChildren, ReactElement } from "react"
 import { Provider } from "react-redux"
+import { MemoryRouter } from "react-router"
 import type { AppStore, RootState } from "../app/store"
 import { makeStore } from "../app/store"
 
@@ -31,6 +32,12 @@ type ExtendedRenderOptions = Omit<RenderOptions, "queries"> & {
    * @default makeStore(preloadedState)
    */
   store?: AppStore
+
+  /**
+   * The URL the component starts on. Anything keeping state in the query
+   * string reads its initial value from here.
+   */
+  initialEntries?: string[]
 }
 
 /**
@@ -49,11 +56,17 @@ export const renderWithProviders = (
     preloadedState = {},
     // Automatically create a store instance if no store was passed in
     store = makeStore(preloadedState),
+    initialEntries = ["/"],
     ...renderOptions
   } = extendedRenderOptions
 
+  // A router by default, not opt-in: components read the URL for state that
+  // has to survive being pasted to someone, so rendering one without a router
+  // is a crash rather than a degraded test.
   const Wrapper = ({ children }: PropsWithChildren) => (
-    <Provider store={store}>{children}</Provider>
+    <Provider store={store}>
+      <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+    </Provider>
   )
 
   // Return an object with the store and all of RTL's query functions

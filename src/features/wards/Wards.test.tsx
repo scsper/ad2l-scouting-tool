@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Provider } from "react-redux"
+import { MemoryRouter, useLocation } from "react-router"
 import { makeStore } from "../../app/store"
 import { Wards } from "./Wards"
+import { stubFetch } from "../../utils/test-fetch"
 import type { MatchWardsApiResponse } from "../../../api/match-wards"
 
 const LEAGUE_ID = 19554
@@ -41,55 +43,29 @@ const WARDS: MatchWardsApiResponse = {
   ],
 }
 
-/**
- * Node's undici `Request` rejects jsdom's `AbortSignal`, which `fetchBaseQuery`
- * passes through. This shim keeps only the fields the base query reads.
- */
-class TestRequest {
-  url: string
-  method: string
-  headers: Headers
-
-  constructor(input: string | { url: string }, init?: RequestInit) {
-    this.url = typeof input === "string" ? input : input.url
-    this.method = init?.method ?? "GET"
-    this.headers = new Headers(init?.headers)
-  }
-
-  clone() {
-    return this
-  }
+/** Surfaces the query string so a test can read back what the filters wrote. */
+const LocationProbe = () => {
+  const { search } = useLocation()
+  return <span data-testid="search">{search}</span>
 }
 
-function renderWards() {
-  vi.stubGlobal("Request", TestRequest)
-  vi.stubGlobal(
-    "fetch",
-    vi.fn((input: { url: string }) => {
-      const { url } = input
-      const json = (body: unknown) =>
-        Promise.resolve(
-          new Response(JSON.stringify(body), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-
-      if (url.includes("api/match-wards")) return json(WARDS)
-      if (url.includes("api/team"))
-        return json({
-          [LEAGUE_ID]: {
-            [SCOUTED_TEAM]: { name: "Derailed Gaming", division: "Voyager" },
-            [OPPONENT_TEAM]: { name: "Sharkhorse", division: "Voyager" },
-          },
-        })
-      throw new Error(`Unexpected fetch: ${url}`)
-    }),
-  )
+function renderWards(initialEntry = "/") {
+  stubFetch({
+    "api/match-wards": WARDS,
+    "api/team": {
+      [LEAGUE_ID]: {
+        [SCOUTED_TEAM]: { name: "Derailed Gaming", division: "Voyager" },
+        [OPPONENT_TEAM]: { name: "Sharkhorse", division: "Voyager" },
+      },
+    },
+  })
 
   return render(
     <Provider store={makeStore()}>
-      <Wards leagueId={LEAGUE_ID} teamId={SCOUTED_TEAM} />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Wards leagueId={LEAGUE_ID} teamId={SCOUTED_TEAM} />
+        <LocationProbe />
+      </MemoryRouter>
     </Provider>,
   )
 }
@@ -120,5 +96,24 @@ describe("Wards", () => {
 
     await user.unhover(dot as Element)
     expect(container.textContent).not.toContain("vs Sharkhorse")
+  })
+
+  it("writes a filter to the query string so the view can be linked to", async () => {
+    renderWards()
+    const user = userEvent.setup()
+
+    await screen.findByLabelText("Ward placement map")
+    await user.click(screen.getByLabelText(/Sentries/))
+
+    expect(screen.getByTestId("search")).toHaveTextContent("sen=1")
+  })
+
+  it("takes its filters from the query string on a cold load", async () => {
+    renderWards("/?sen=1&obs=0")
+
+    await screen.findByLabelText("Ward placement map")
+
+    expect(screen.getByLabelText(/Sentries/)).toBeChecked()
+    expect(screen.getByLabelText(/Observers/)).not.toBeChecked()
   })
 })

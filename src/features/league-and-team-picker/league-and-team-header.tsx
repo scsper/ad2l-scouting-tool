@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Show, SignInButton, UserButton } from "@clerk/react";
 import { useGetLeaguesQuery } from "./league-api";
 import { useLazyGetTeamsByLeagueQuery } from "./teams-api";
@@ -6,12 +6,19 @@ import type { LeagueTeamEntry } from "./teams-api";
 import { UNASSIGNED_DIVISION, divisionsIn } from "../../../shared/divisions";
 
 type LeagueAndTeamHeaderProps = {
-  leagueId: number | undefined;
-  setLeagueId: (leagueId: number) => void;
+  leagueId: number;
   teamId: number | undefined;
-  setTeamId: (teamId: number | undefined) => void;
   division: string | undefined;
-  setDivision: (division: string | undefined) => void;
+  /**
+   * Both halves of a league change arrive in one call, because both have to
+   * land in one navigation. Whether the team survives depends on the new
+   * league's roster, so the answer comes back asynchronously — and reporting
+   * it as two separate changes would either drop the team for a moment or push
+   * a history entry for a URL nobody was meant to see.
+   */
+  onSelectLeague: (leagueId: number, keepTeamId: number | undefined) => void;
+  onSelectTeam: (teamId: number) => void;
+  onSelectDivision: (division: string | undefined) => void;
 }
 
 /**
@@ -46,10 +53,15 @@ function groupTeamsByDivision(teams: Record<number, LeagueTeamEntry>) {
   return { divisions, groups };
 }
 
-export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, division, setDivision}: LeagueAndTeamHeaderProps) => {
+export const LeagueAndTeamHeader = ({leagueId, teamId, division, onSelectLeague, onSelectTeam, onSelectDivision}: LeagueAndTeamHeaderProps) => {
   const leaguesResult = useGetLeaguesQuery();
   const { data: leagues, isLoading: isLoadingLeagues, isError: isErrorLeagues } = leaguesResult;
   const [triggerTeams, { data: teams, isLoading: isLoadingTeams, isError: isErrorTeams }] = useLazyGetTeamsByLeagueQuery();
+
+  // The league being navigated to, held only until the URL catches up. The
+  // dropdown has to show your pick the instant you make it, but the navigation
+  // it triggers cannot happen until the new league's teams have been fetched.
+  const [pendingLeagueId, setPendingLeagueId] = useState<number>();
 
   // Automatically load teams when leagueId is set (including on initial mount)
   useEffect(() => {
@@ -57,6 +69,10 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, d
       void triggerTeams({ leagueId });
     }
   }, [leagueId, triggerTeams]);
+
+  useEffect(() => {
+    setPendingLeagueId(undefined);
+  }, [leagueId]);
 
   if (isLoadingLeagues) {
     return (
@@ -92,7 +108,7 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, d
   }
 
   const { divisions, groups } = groupTeamsByDivision(
-    (leagueId ? teams?.[leagueId] : undefined) ?? {},
+    teams?.[leagueId] ?? {},
   );
 
   return (
@@ -104,31 +120,34 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, d
           </h1>
           <div className="flex flex-col sm:flex-row gap-3 flex-1">
             <div className="flex-1">
-              <select 
-                value={leagueId} 
+              <select
+                value={pendingLeagueId ?? leagueId}
                 onChange={(e) => {
                   const selectedLeagueId = parseInt(e.target.value, 10);
-                  setLeagueId(selectedLeagueId);
-                  // Divisions are per-season, so the old league's pick means
-                  // nothing here even when the name carries over.
-                  setDivision(undefined);
+                  setPendingLeagueId(selectedLeagueId);
                   // Keep the team if it also plays in the new league — comparing
                   // one team across seasons is the main reason to switch. Clear
                   // it otherwise: the selected pair is now a write target for the
                   // roster editor, so a team that isn't in this league would file
                   // players onto a roster that shouldn't exist.
+                  //
+                  // The answer has to be in hand before we navigate, so that the
+                  // league and the team it keeps or drops move together.
                   void triggerTeams({ leagueId: selectedLeagueId })
                     .unwrap()
                     .then((teamsByLeague) => {
                       const teamsInLeague = teamsByLeague[selectedLeagueId] as
                         | Record<number, LeagueTeamEntry>
                         | undefined;
-                      if (teamId != null && !teamsInLeague?.[teamId]) {
-                        setTeamId(undefined);
-                      }
+                      onSelectLeague(
+                        selectedLeagueId,
+                        teamId != null && teamsInLeague?.[teamId] ? teamId : undefined,
+                      );
                     })
                     .catch(() => {
-                      // The teams query already surfaces its own error state.
+                      // The teams query already surfaces its own error state;
+                      // put the dropdown back on the league we never left.
+                      setPendingLeagueId(undefined);
                     });
                 }}
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
@@ -144,7 +163,7 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, d
                 <select
                   value={division ?? ""}
                   onChange={(e) => {
-                    setDivision(e.target.value || undefined);
+                    onSelectDivision(e.target.value || undefined);
                   }}
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
                 >
@@ -153,13 +172,12 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, d
                 </select>
               </div>
             )}
-            {leagueId && teams?.[leagueId] && (
+            {teams?.[leagueId] && (
               <div className="flex-1">
                 <select
                   value={teamId ?? ""}
                   onChange={(e) => {
-                    const id = parseInt(e.target.value, 10);
-                    setTeamId(id);
+                    onSelectTeam(parseInt(e.target.value, 10));
                   }}
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:bg-slate-600"
                 >
@@ -186,7 +204,7 @@ export const LeagueAndTeamHeader = ({leagueId, setLeagueId, teamId, setTeamId, d
               <UserButton />
             </Show>
             <Show when="signed-out">
-              <SignInButton>
+              <SignInButton mode="modal">
                 <button className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
                   Sign in
                 </button>
