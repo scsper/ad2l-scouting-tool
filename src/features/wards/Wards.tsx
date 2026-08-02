@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { getHero } from "../../utils/get-hero"
 import {
@@ -7,7 +7,7 @@ import {
   wasDewarded,
 } from "../../utils/ward-map"
 import {
-  POSITION_LABELS,
+  POSITION_LEGEND,
   collectWards,
   filterBySide,
   formatGameTime,
@@ -26,26 +26,32 @@ const ALL_GAMES = "all"
 const panel =
   "bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg"
 
-const WardDot = ({ placed, size }: { placed: PlacedWard; size: number }) => {
+const WardDot = ({
+  placed,
+  size,
+  setHovered,
+}: {
+  placed: PlacedWard
+  size: number
+  setHovered: Dispatch<SetStateAction<PlacedWard | null>>
+}) => {
   const { x, y } = wardToFraction(placed.ward)
   const isObs = placed.ward.type === "obs"
   const r = isObs ? 6 : 3.5
   const dewarded = wasDewarded(placed.ward)
   const color = positionColor(placed.position)
 
-  const title =
-    `${placed.playerName ?? "Unknown"} (${getHero(placed.heroId)})\n` +
-    `${isObs ? "Observer" : "Sentry"} placed ${formatGameTime(placed.ward.placed)}\n` +
-    (placed.ward.left === null
-      ? "Stood until the game ended"
-      : `${dewarded ? "Destroyed" : "Expired"} ${formatGameTime(placed.ward.left)} after ${formatGameTime(placed.ward.left - placed.ward.placed)}` +
-        (dewarded && placed.ward.by
-          ? ` by ${placed.ward.by.replace(/_/g, " ")}`
-          : "")) +
-    `\nMatch ${String(placed.matchId)}`
-
   return (
-    <g>
+    <g
+      onMouseEnter={() => {
+        setHovered(placed)
+      }}
+      onMouseLeave={() => {
+        // Only clear our own ward: sliding straight onto a neighbouring dot can
+        // land its enter before this leave, and a blind reset would blank it.
+        setHovered(prev => (prev === placed ? null : prev))
+      }}
+    >
       {/* Dark halo first: the terrain runs from bright jungle to near-black
           river, and a single flat colour disappears against one or the other. */}
       <circle
@@ -67,10 +73,62 @@ const WardDot = ({ placed, size }: { placed: PlacedWard; size: number }) => {
         strokeOpacity={0.9}
         strokeWidth={isObs ? 1.5 : 1}
         strokeDasharray={dewarded ? "2 1.5" : undefined}
-      >
-        <title>{title}</title>
-      </circle>
+      />
+      {/* Invisible, generous hit area: a sentry is 3.5px across, which is a
+          miserable hover target on a 640px map. */}
+      <circle
+        cx={x * size}
+        cy={y * size}
+        r={r + 4}
+        fill="transparent"
+        stroke="none"
+      />
     </g>
+  )
+}
+
+/**
+ * Hover card for a single ward.
+ *
+ * An HTML overlay rather than SVG `<title>`: the native tooltip waits a second,
+ * renders unstyled, and cannot be read at a glance while scrubbing the slider.
+ */
+const WardTooltip = ({
+  placed,
+  opponentName,
+}: {
+  placed: PlacedWard
+  opponentName: string
+}) => {
+  const { x, y } = wardToFraction(placed.ward)
+  const isObs = placed.ward.type === "obs"
+  // Flip near the edges so the card never spills off the map.
+  const flipX = x > 0.6
+  const flipY = y < 0.25
+
+  return (
+    <div
+      className="absolute z-10 pointer-events-none w-max max-w-[15rem] rounded border border-slate-600 bg-slate-900/95 px-2.5 py-1.5 text-xs text-slate-300 shadow-lg"
+      style={{
+        left: `${String(x * 100)}%`,
+        top: `${String(y * 100)}%`,
+        transform: `translate(${flipX ? "calc(-100% - 10px)" : "10px"}, ${
+          flipY ? "10px" : "calc(-100% - 10px)"
+        })`,
+      }}
+    >
+      <div className="font-medium text-slate-100">
+        {isObs ? "Observer" : "Sentry"} placed at{" "}
+        {formatGameTime(placed.ward.placed)}
+      </div>
+      <div>
+        {placed.playerName ?? "Unknown"} - {getHero(placed.heroId)}
+      </div>
+      <div>
+        {new Date(placed.startDateTime * 1000).toLocaleDateString()} - vs{" "}
+        {opponentName}
+      </div>
+    </div>
   )
 }
 
@@ -93,6 +151,7 @@ export const Wards = ({
   const [showObs, setShowObs] = useState(true)
   const [showSen, setShowSen] = useState(false)
   const [time, setTime] = useState<number | null>(null)
+  const [hovered, setHovered] = useState<PlacedWard | null>(null)
 
   const allMatches = useMemo(() => data?.matches ?? [], [data])
 
@@ -276,11 +335,11 @@ export const Wards = ({
             </label>
 
             <div className="flex flex-wrap items-center gap-3 ml-auto text-xs text-slate-400">
-              {Object.entries(POSITION_LABELS).map(([pos, label]) => (
-                <span key={pos} className="flex items-center gap-1.5">
+              {POSITION_LEGEND.map(({ label, color }) => (
+                <span key={label} className="flex items-center gap-1.5">
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: positionColor(pos) }}
+                    style={{ backgroundColor: color }}
                   />
                   {label}
                 </span>
@@ -289,7 +348,7 @@ export const Wards = ({
           </div>
 
           <div className="flex justify-center">
-            <div style={{ width: size, maxWidth: "100%" }}>
+            <div className="relative" style={{ width: size, maxWidth: "100%" }}>
               <svg
                 viewBox={`0 0 ${String(size)} ${String(size)}`}
                 width="100%"
@@ -309,9 +368,20 @@ export const Wards = ({
                     key={`${String(placed.matchId)}-${String(placed.ward.placed)}-${placed.ward.type}-${String(i)}`}
                     placed={placed}
                     size={size}
+                    setHovered={setHovered}
                   />
                 ))}
               </svg>
+              {hovered && (
+                <WardTooltip
+                  placed={hovered}
+                  opponentName={
+                    (hovered.opponentTeamId !== null
+                      ? teamsData?.[leagueId]?.[hovered.opponentTeamId]
+                      : null) ?? "Unknown team"
+                  }
+                />
+              )}
             </div>
           </div>
 
