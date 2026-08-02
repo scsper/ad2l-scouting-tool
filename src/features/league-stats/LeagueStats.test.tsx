@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { screen } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import { renderWithProviders } from "../../utils/test-utils"
 import { stubFetch } from "../../utils/test-fetch"
 import { LeagueStats } from "./LeagueStats"
@@ -40,16 +40,24 @@ function renderBoards() {
   )
 }
 
+const rowsFor = (hero: string) =>
+  screen.getAllByRole("listitem").filter(item => item.textContent.startsWith(hero))
+
 /**
- * The hover text of every row naming a hero. A hero appears on several boards
- * at once — picks, bans, contested, and its position column — and each board
- * explains its own number, so these assert which title landed where.
+ * What every row naming a hero draws when you hover it.
+ *
+ * Driven through real mouse events rather than read off an attribute, because
+ * the attribute was never the part that broke: 135 rows carried a correct
+ * `title` and none of them ever produced a tooltip. A test that reads
+ * `row.title` passes in exactly that situation.
  */
-const titlesFor = (hero: string) =>
-  screen
-    .getAllByRole("listitem")
-    .filter(item => item.textContent.startsWith(hero))
-    .map(item => item.title)
+const breakdownsFor = (hero: string) =>
+  rowsFor(hero).map(row => {
+    fireEvent.mouseEnter(row, { clientX: 10, clientY: 10 })
+    const card = screen.getByRole("tooltip").textContent
+    fireEvent.mouseLeave(row)
+    return card
+  })
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -60,7 +68,7 @@ describe("LeagueStats", () => {
     renderBoards()
     await screen.findAllByText("Anti-Mage")
 
-    expect(titlesFor("Anti-Mage")).toContain(
+    expect(breakdownsFor("Anti-Mage")).toContain(
       [
         "Anti-Mage",
         "",
@@ -75,14 +83,14 @@ describe("LeagueStats", () => {
     renderBoards()
     await screen.findAllByText("Pudge")
 
-    expect(titlesFor("Pudge")).toContain(["Pudge", "", "Banned 3×", "  Sharkhorse 3"].join("\n"))
+    expect(breakdownsFor("Pudge")).toContain(["Pudge", "", "Banned 3×", "  Sharkhorse 3"].join("\n"))
   })
 
   it("accounts for both halves of a contest count", async () => {
     renderBoards()
     await screen.findAllByText("Anti-Mage")
 
-    expect(titlesFor("Anti-Mage")).toContain(
+    expect(breakdownsFor("Anti-Mage")).toContain(
       [
         "Anti-Mage",
         "",
@@ -97,21 +105,23 @@ describe("LeagueStats", () => {
   })
 
   // The hover target has to be the row element itself, gaps included. Hanging
-  // the tooltip off the inner pill would leave the space between rows dead, and
-  // a tooltip that dies in the crack between two rows reads as a broken one.
-  it("hangs the tooltip on the row, and leaves no gap between rows", async () => {
+  // the card off the inner pill would leave the space between rows dead, and a
+  // card that dies in the crack between two rows reads as a broken one.
+  it("draws the card from the row, and leaves no gap between rows", async () => {
     renderBoards()
     await screen.findAllByText("Anti-Mage")
 
-    const rows = screen
-      .getAllByRole("listitem")
-      .filter(item => item.textContent.startsWith("Anti-Mage"))
-
-    expect(rows.every(row => row.title !== "")).toBe(true)
+    const rows = rowsFor("Anti-Mage")
     // Vertical space between rows is the row's own padding, never the list's
     // margin — `space-y-*` on the <ul> is what used to make the crack.
     expect(rows.every(row => row.className.includes("py-["))).toBe(true)
     expect(rows.every(row => row.parentElement?.className.includes("space-y"))).toBe(false)
+
+    expect(screen.queryByRole("tooltip")).toBeNull()
+    fireEvent.mouseEnter(rows[0], { clientX: 10, clientY: 10 })
+    expect(screen.getByRole("tooltip").textContent).toContain("scsper (Sharkhorse) 1-0")
+    fireEvent.mouseLeave(rows[0])
+    expect(screen.queryByRole("tooltip")).toBeNull()
   })
 
   // The position card's number is a subset of the league-wide one, so its
@@ -120,7 +130,7 @@ describe("LeagueStats", () => {
     renderBoards()
     await screen.findAllByText("Anti-Mage")
 
-    expect(titlesFor("Anti-Mage")).toContain(
+    expect(breakdownsFor("Anti-Mage")).toContain(
       [
         "Anti-Mage — Carry",
         "",
