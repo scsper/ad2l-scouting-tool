@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { MatchDraftRow, MatchPlayerRow, MatchRow } from "../types/db.js";
 import { selectAll } from "../server/select-all.js";
 import { matchesWithinDivision } from "../server/division-scope.js";
+import { buildDivisionPlayerRows, type DivisionPlayerRow } from "../server/division-players.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -10,11 +11,47 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-export type LeagueMatchPlayer = Pick<MatchPlayerRow, 'match_id' | 'hero_id' | 'position' | 'team_id'>;
+/**
+ * Every column both aggregates need. The draft counts want hero and side; the
+ * player board wants the rest, including the clock-independent `@10` block.
+ */
+export type LeagueMatchPlayer = Pick<
+  MatchPlayerRow,
+  | 'match_id'
+  | 'player_id'
+  | 'player_name'
+  | 'hero_id'
+  | 'position'
+  | 'team_id'
+  | 'gpm'
+  | 'xpm'
+  | 'kills'
+  | 'deaths'
+  | 'assists'
+  | 'hero_damage'
+  | 'obs_placed'
+  | 'sen_placed'
+  | 'gold_at_10'
+  | 'xp_at_10'
+  | 'lh_at_10'
+>;
 
-export type LeagueMatch = Pick<MatchRow, 'id' | 'winning_team_id' | 'radiant_team_id' | 'dire_team_id'>;
+const PLAYER_COLUMNS = [
+  'match_id', 'player_id', 'player_name', 'hero_id', 'position', 'team_id',
+  'gpm', 'xpm', 'kills', 'deaths', 'assists', 'hero_damage',
+  'obs_placed', 'sen_placed', 'gold_at_10', 'xp_at_10', 'lh_at_10',
+].join(', ');
 
-export type LeagueMatchResponse = LeagueMatch & {
+/**
+ * Timestamps are selected for the player board's per-minute stats, and are the
+ * only reason this isn't just the four ids the draft counts need.
+ */
+export type LeagueMatch = Pick<
+  MatchRow,
+  'id' | 'winning_team_id' | 'radiant_team_id' | 'dire_team_id' | 'start_date_time' | 'end_date_time'
+>;
+
+type JoinedMatch = LeagueMatch & {
   draft: MatchDraftRow[];
   players: LeagueMatchPlayer[];
 };
@@ -34,10 +71,17 @@ export type LeagueHeroDraftStats = {
 
 export type LeagueHeroDraftMap = Record<string, LeagueHeroDraftStats>;
 
+/**
+ * Three aggregates and no raw rows.
+ *
+ * The joined matches used to ship too — 456 KB of them on S46 — and the single
+ * caller discarded every one in `transformResponse`. Everything a screen reads
+ * is computed here, so sending the inputs as well was pure weight.
+ */
 export type LeagueMatchesApiResponse = {
-  matches: LeagueMatchResponse[];
   picksByPosition: LeaguePicksByPosition;
   heroDraftStats: LeagueHeroDraftMap;
+  playerStats: DivisionPlayerRow[];
 };
 
 /**
@@ -69,7 +113,7 @@ async function getMatchesByLeague(
   // are meaningless if they cover an arbitrary subset of the league.
   const allMatches = await selectAll<LeagueMatch>((from, to) => supabase
     .from('match')
-    .select('id, winning_team_id, radiant_team_id, dire_team_id')
+    .select('id, winning_team_id, radiant_team_id, dire_team_id, start_date_time, end_date_time')
     .eq('league_id', leagueIdNum)
     .range(from, to));
 
@@ -77,7 +121,7 @@ async function getMatchesByLeague(
     ? allMatches
     : matchesWithinDivision(allMatches, await getDivisionTeamIds(leagueIdNum, division));
 
-  if (matches.length === 0) return { matches: [], picksByPosition: {}, heroDraftStats: {} };
+  if (matches.length === 0) return { picksByPosition: {}, heroDraftStats: {}, playerStats: [] };
 
   const matchIds = matches.map(m => m.id);
 
@@ -85,10 +129,10 @@ async function getMatchesByLeague(
     selectAll<MatchDraftRow>((from, to) => supabase
       .from('match_draft').select('*').in('match_id', matchIds).range(from, to)),
     selectAll<LeagueMatchPlayer>((from, to) => supabase
-      .from('match_player').select('match_id, hero_id, position, team_id').in('match_id', matchIds).range(from, to)),
+      .from('match_player').select(PLAYER_COLUMNS).in('match_id', matchIds).range(from, to)),
   ]);
 
-  const matchesMap = new Map<number, LeagueMatchResponse>();
+  const matchesMap = new Map<number, JoinedMatch>();
   matches.forEach(match => {
     matchesMap.set(match.id, { ...match, draft: [], players: [] });
   });
@@ -131,7 +175,12 @@ async function getMatchesByLeague(
     }
   }
 
-  return { matches: Array.from(matchesMap.values()), picksByPosition, heroDraftStats };
+  // Handed the division-scoped matches and the unfiltered player rows: the
+  // builder joins on match id, so anything outside the division is dropped
+  // there rather than being filtered twice.
+  const playerStats = buildDivisionPlayerRows(matches, players);
+
+  return { picksByPosition, heroDraftStats, playerStats };
 }
 
 export default async function handler(
