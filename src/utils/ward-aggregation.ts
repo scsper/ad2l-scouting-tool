@@ -8,6 +8,8 @@ export type PlacedWard = {
   ward: WardRecord
   matchId: number
   startDateTime: number
+  /** The other team in that game, so hover can name who they were playing. */
+  opponentTeamId: number | null
   playerName: string | null
   heroId: number
   position: string | null
@@ -68,6 +70,9 @@ export function collectWards(matches: WardMatch[]): PlacedWard[] {
           ward,
           matchId: match.id,
           startDateTime: match.start_date_time,
+          opponentTeamId: match.isRadiant
+            ? match.dire_team_id
+            : match.radiant_team_id,
           playerName: player.player_name,
           heroId: player.hero_id,
           position: player.position,
@@ -163,13 +168,16 @@ export function formatGameTime(seconds: number): string {
   return `${sign}${String(m)}:${String(s).padStart(2, "0")}`
 }
 
-/** Distinct colours per position so "their 5 wards here" reads at a glance. */
+/**
+ * Colours by role rather than by position: the cores share one colour so
+ * "a core warded here" reads at a glance, and each support gets its own.
+ */
 export const POSITION_COLORS: Record<string, string> = {
-  POSITION_1: "#f87171",
-  POSITION_2: "#fbbf24",
+  POSITION_1: "#a78bfa",
+  POSITION_2: "#a78bfa",
   POSITION_3: "#a78bfa",
   POSITION_4: "#34d399",
-  POSITION_5: "#38bdf8",
+  POSITION_5: "#fbbf24",
 }
 
 export const POSITION_LABELS: Record<string, string> = {
@@ -179,6 +187,13 @@ export const POSITION_LABELS: Record<string, string> = {
   POSITION_4: "Soft Support",
   POSITION_5: "Hard Support",
 }
+
+/** Legend rows — the three cores share a colour, so they share one row. */
+export const POSITION_LEGEND: { label: string; color: string }[] = [
+  { label: "Cores", color: POSITION_COLORS.POSITION_1 },
+  { label: POSITION_LABELS.POSITION_4, color: POSITION_COLORS.POSITION_4 },
+  { label: POSITION_LABELS.POSITION_5, color: POSITION_COLORS.POSITION_5 },
+]
 
 const UNKNOWN_POSITION_COLOR = "#94a3b8"
 
