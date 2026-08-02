@@ -41,6 +41,8 @@ function renderAt(path: string) {
       picksByPosition: {},
       heroDraftStats: {},
       playerStats: [],
+      playerNames: {},
+      teamNames: {},
     },
     "api/league": [{ id: LEAGUE_ID, name: "AD2L Season 47" }],
     "api/team": {
