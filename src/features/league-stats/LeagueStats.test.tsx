@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { screen } from "@testing-library/react"
 import { renderWithProviders } from "../../utils/test-utils"
 import { stubFetch } from "../../utils/test-fetch"
-import { LeagueAggregate } from "./LeagueAggregate"
+import { LeagueStats } from "./LeagueStats"
 
 const LEAGUE_ID = 19554
 const SHARKHORSE = 9403219
@@ -36,7 +36,7 @@ function renderBoards() {
   })
 
   return renderWithProviders(
-    <LeagueAggregate leagueId={LEAGUE_ID} division="Voyager" hasDivisions={true} />,
+    <LeagueStats leagueId={LEAGUE_ID} division="Voyager" hasDivisions={true} />,
   )
 }
 
@@ -55,7 +55,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("LeagueAggregate", () => {
+describe("LeagueStats", () => {
   it("names the players behind a pick count", async () => {
     renderBoards()
     await screen.findAllByText("Anti-Mage")

@@ -1,4 +1,4 @@
-import { useGetLeagueAggregateQuery } from "./league-aggregate-api";
+import { useGetLeagueStatsQuery } from "./league-stats-api";
 import { getHero } from "../../utils/get-hero";
 import {
   bannedByTitle,
@@ -76,7 +76,7 @@ function HeroList({
   );
 }
 
-export const LeagueAggregate = ({
+export const LeagueStats = ({
   leagueId,
   division,
   hasDivisions,
@@ -91,7 +91,7 @@ export const LeagueAggregate = ({
   // query until one is picked also avoids fetching a whole league's drafts to
   // throw them away.
   const needsDivision = hasDivisions && !division;
-  const { data, isLoading, isError } = useGetLeagueAggregateQuery(
+  const { data, isLoading, isError } = useGetLeagueStatsQuery(
     { leagueId, division },
     { skip: needsDivision },
   );
@@ -99,7 +99,7 @@ export const LeagueAggregate = ({
   if (needsDivision) {
     return (
       <div className="flex items-center justify-center h-48 text-slate-400">
-        Select a division to see its aggregate data.
+        Select a division to see its stats.
       </div>
     );
   }

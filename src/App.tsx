@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router"
-import { AggregateRoute } from "./routes/AggregateRoute"
-import { DivisionPlayersTab, HeroesTab } from "./routes/aggregate-tab-routes"
+import { StatsRoute } from "./routes/StatsRoute"
+import { DivisionPlayersTab, HeroesTab } from "./routes/stats-tab-routes"
 import { LeagueLayout } from "./routes/LeagueLayout"
 import { LeaguePicker } from "./routes/LeaguePicker"
 import { RootLayout } from "./routes/RootLayout"
@@ -37,20 +37,40 @@ const RedirectToDefaultTab = () => {
 }
 
 /**
- * The aggregate with no board named, or one we don't have.
+ * The stats screen with no board named, or one we don't have.
  *
- * `/leagues/:id/aggregate` was the whole screen before it grew a second board,
- * so it is a URL already out in the world and has to keep landing somewhere.
- * The search string comes along because it carries the division, without which
- * the board it lands on would refuse to query.
+ * `/leagues/:id/stats` was the whole screen before it grew a second board, so
+ * it is a URL already out in the world and has to keep landing somewhere. The
+ * search string comes along because it carries the division, without which the
+ * board it lands on would refuse to query.
  */
-const RedirectToDefaultAggregateTab = () => {
+const RedirectToDefaultStatsTab = () => {
   const { leagueId } = useParams()
   const { search } = useLocation()
 
   return (
     <Navigate
-      to={`/leagues/${String(leagueId)}/aggregate/heroes${search}`}
+      to={`/leagues/${String(leagueId)}/stats/heroes${search}`}
+      replace
+    />
+  )
+}
+
+/**
+ * The screen's old path, from when it was called the aggregate.
+ *
+ * Renaming a route breaks every link already pasted into a scrims thread, and
+ * nobody goes back to edit those. The board and the query are carried through
+ * so an old link lands on the exact screen it named rather than the default.
+ */
+const RedirectFromAggregate = () => {
+  const params = useParams()
+  const { search } = useLocation()
+  const board = params["*"]
+
+  return (
+    <Navigate
+      to={`/leagues/${String(params.leagueId)}/stats${board ? `/${board}` : ""}${search}`}
       replace
     />
   )
@@ -67,12 +87,14 @@ export const App = () => (
       <Route path="leagues/:leagueId" element={<LeagueLayout />}>
         <Route index element={<LeaguePicker />} />
 
-        <Route path="aggregate" element={<AggregateRoute />}>
-          <Route index element={<RedirectToDefaultAggregateTab />} />
+        <Route path="stats" element={<StatsRoute />}>
+          <Route index element={<RedirectToDefaultStatsTab />} />
           <Route path="heroes" element={<HeroesTab />} />
           <Route path="players" element={<DivisionPlayersTab />} />
-          <Route path="*" element={<RedirectToDefaultAggregateTab />} />
+          <Route path="*" element={<RedirectToDefaultStatsTab />} />
         </Route>
+
+        <Route path="aggregate/*" element={<RedirectFromAggregate />} />
 
         <Route path="teams/:teamId" element={<TeamLayout />}>
           <Route index element={<RedirectToDefaultTab />} />

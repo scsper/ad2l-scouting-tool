@@ -13,14 +13,14 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "wards", label: "Wards" },
 ]
 
-export type AggregateTab = "heroes" | "players"
+export type StatsTab = "heroes" | "players"
 
 /**
  * The two questions a division can be asked: what it drafts, and who plays in
  * it. Routes rather than a query param, on the same reasoning that made the
  * team tabs routes — they are different datasets, not two views of one screen.
  */
-export const AGGREGATE_TABS: { id: AggregateTab; label: string }[] = [
+export const STATS_TABS: { id: StatsTab; label: string }[] = [
   { id: "heroes", label: "Heroes" },
   { id: "players", label: "Players" },
 ]
@@ -46,17 +46,17 @@ export function useTeamScope() {
   return useOutletContext<TeamScope>()
 }
 
-export type AggregateScope = {
+export type StatsScope = {
   leagueId: number
   division: string | undefined
   hasDivisions: boolean
 }
 
 /**
- * Handed down by `AggregateRoute`. `hasDivisions` rides along because both
+ * Handed down by `StatsRoute`. `hasDivisions` rides along because both
  * boards refuse to query without a division once a league has them, and asking
  * again below would mean a second copy of the same derivation.
  */
-export function useAggregateScope() {
-  return useOutletContext<AggregateScope>()
+export function useStatsScope() {
+  return useOutletContext<StatsScope>()
 }
