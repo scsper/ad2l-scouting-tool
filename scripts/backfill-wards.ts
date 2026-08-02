@@ -23,7 +23,7 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { createClient } from "@supabase/supabase-js"
-import { getMatch } from "../api/lib/match-operations"
+import { getMatch } from "../server/match-operations"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

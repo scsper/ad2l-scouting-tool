@@ -1,4 +1,4 @@
-import type { WardRecord } from "../../types/db.js"
+import type { WardRecord } from "../types/db.js"
 
 // OpenDota emits one entry per ward placement in `obs_log`/`sen_log`, and one per
 // removal in `obs_left_log`/`sen_left_log`. The two are joined on `ehandle`, which
