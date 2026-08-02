@@ -1,6 +1,6 @@
-import { ParseError, parseMatch } from "./lib/match-operations.js"
-import type { ParseErrorCode } from "./lib/match-operations.js"
-import { UnauthorizedError, requireAuth } from "./lib/require-auth.js"
+import { ParseError, parseMatch } from "../server/match-operations.js"
+import type { ParseErrorCode } from "../server/match-operations.js"
+import { UnauthorizedError, requireAuth } from "../server/require-auth.js"
 
 /**
  * Parse a single match from OpenDota into the database.

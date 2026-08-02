@@ -1,4 +1,4 @@
-import { ParseError, parseMatch } from "../api/lib/match-operations"
+import { ParseError, parseMatch } from "../server/match-operations"
 
 // to run: tsx scripts/parse-match.ts <matchId> [--overwrite]
 function getMatchIdFromCommandLine(): number {
