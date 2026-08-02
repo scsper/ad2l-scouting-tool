@@ -76,6 +76,7 @@ function registered(opts: {
   id: number
   role?: string
   name?: string
+  isStandIn?: boolean
 }): RosterEntry {
   return {
     league_id: LEAGUE,
@@ -87,7 +88,17 @@ function registered(opts: {
     name: opts.name ?? `Registered ${String(opts.id)}`,
     rank: "Divine",
     original_rank: null,
+    is_stand_in: opts.isStandIn ?? false,
   }
+}
+
+/** A stand-in declared on the roster, as opposed to one inferred from matches. */
+function declaredStandIn(opts: {
+  id: number
+  role?: string
+  name?: string
+}): RosterEntry {
+  return registered({ ...opts, isStandIn: true })
 }
 
 describe("getGameKda", () => {
@@ -656,5 +667,128 @@ describe("buildPlayerStats roster split", () => {
 
     expect(roster.map(entry => entry.playerId)).toEqual([1])
     expect(standIns.map(entry => entry.playerId)).toEqual([2])
+  })
+})
+
+describe("buildPlayerStats declared stand-ins", () => {
+  it("shows a declared stand-in who has not played yet", () => {
+    // The case match data can never produce, and the reason declaring exists:
+    // the sub is announced on Tuesday and plays on Thursday.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [matchPlayer({ playerId: 1, position: "POSITION_1" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [
+        registered({ id: 1, role: "Carry" }),
+        declaredStandIn({ id: 7, role: "Hard Support", name: "Thursday" }),
+      ],
+    )
+
+    expect(roster.map(entry => entry.playerId)).toEqual([1])
+    expect(standIns.map(entry => entry.name)).toEqual(["Thursday"])
+    expect(standIns[0].games).toEqual([])
+    // No games to infer from, so the position comes from the declared role.
+    expect(standIns[0].positionLabel).toBe("Pos 5")
+  })
+
+  it("keeps a declared stand-in out of the roster once they play", () => {
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+            matchPlayer({ playerId: 7, position: "POSITION_5" }),
+          ],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [
+        registered({ id: 1, role: "Carry" }),
+        declaredStandIn({ id: 7, role: "Hard Support" }),
+      ],
+    )
+
+    expect(roster.map(entry => entry.playerId)).toEqual([1])
+    expect(standIns.map(entry => entry.playerId)).toEqual([7])
+    expect(standIns[0].games).toHaveLength(1)
+  })
+
+  it("pins declared stand-ins above ones inferred from match history", () => {
+    // Games-played leads among inferred stand-ins, which would otherwise bury
+    // the declared sub at the bottom on zero games — the one being looked for.
+    const { standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+            matchPlayer({ playerId: 98, position: "POSITION_4" }),
+          ],
+        }),
+        match({
+          id: 2,
+          startDateTime: 200,
+          players: [matchPlayer({ playerId: 98, position: "POSITION_4" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [
+        registered({ id: 1, role: "Carry" }),
+        declaredStandIn({ id: 7, role: "Hard Support", name: "Thursday" }),
+      ],
+    )
+
+    expect(standIns.map(entry => entry.playerId)).toEqual([7, 98])
+    expect(standIns[0].games).toEqual([])
+    expect(standIns[1].games).toHaveLength(2)
+  })
+
+  it("does not let a lone stand-in reclassify an unregistered team", () => {
+    // Declaring one sub is not asserting a lineup. Keying the fallback on the
+    // whole roster instead of its members would file five starters as stand-ins.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 5, position: "POSITION_5" }),
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+          ],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [declaredStandIn({ id: 7, role: "Offlane", name: "Thursday" })],
+    )
+
+    expect(roster.map(entry => entry.playerId)).toEqual([1, 5])
+    expect(standIns.map(entry => entry.name)).toEqual(["Thursday"])
+  })
+
+  it("still splits when the only registered member never played", () => {
+    // One asserted member is enough to say who the team is, so the players who
+    // turned up without being registered are stand-ins rather than the roster.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [matchPlayer({ playerId: 99, position: "POSITION_1" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [registered({ id: 1, name: "Benched" })],
+    )
+
+    expect(roster.map(entry => entry.name)).toEqual(["Benched"])
+    expect(standIns.map(entry => entry.playerId)).toEqual([99])
   })
 })

@@ -59,15 +59,24 @@ export type PlayerStatsEntry = {
   losses: number
   averages: PlayerAverages
   games: PlayerGame[]
+  /**
+   * Flagged as a stand-in on the roster, as opposed to inferred to be one by
+   * having played without being registered.
+   */
+  isDeclaredStandIn: boolean
 }
 
 export type PlayerStatsSplit = {
   /**
-   * Players on the team's roster for this league, including any who haven't
+   * Players registered to the team for this league, including any who haven't
    * played a game in it — an empty `games` array is the signal.
    */
   roster: PlayerStatsEntry[]
-  /** Players who appeared for the team but aren't on its roster. */
+  /**
+   * Players declared as stand-ins, plus anyone who appeared for the team without
+   * being on its roster at all. A declared stand-in can have no games: that's
+   * the case match data can never produce, and the reason they're declarable.
+   */
   standIns: PlayerStatsEntry[]
 }
 
@@ -205,11 +214,16 @@ function compareRoster(a: PlayerStatsEntry, b: PlayerStatsEntry): number {
 }
 
 /**
- * Stand-in order: most games first. Position is noisy here — a stand-in often
- * played a single game out of role — so "who actually shows up" leads.
+ * Stand-in order: declared first, then most games. Games-played is the right
+ * lead among stand-ins inferred from match history — position is noisy there,
+ * since a stand-in often played a single game out of role — but it buries the
+ * declared ones, who typically have zero games precisely because you added them
+ * for a match that hasn't happened. That upcoming sub is the one being looked
+ * for, so it goes on top.
  */
 function compareStandIn(a: PlayerStatsEntry, b: PlayerStatsEntry): number {
   return (
+    Number(b.isDeclaredStandIn) - Number(a.isDeclaredStandIn) ||
     b.games.length - a.games.length ||
     a.positionSortKey - b.positionSortKey ||
     a.name.localeCompare(b.name)
@@ -238,14 +252,26 @@ function getDeclaredPositionLabel(role: string): {
  * `rosterMembers` is scoped to one league, so a player registered for S47 is not
  * treated as roster when you're looking at S46 — which is what made a 7-game S46
  * starter render under "Stand-ins".
+ *
+ * Stand-ins come from two places, and both belong in the same section: those
+ * flagged on the roster, and those inferred from having played without being
+ * registered. Only the flagged ones can be known before they play.
  */
 export function buildPlayerStats(
   matches: MatchApiResponse[],
   teamId: number,
   rosterMembers: RosterEntry[],
 ): PlayerStatsSplit {
+  // `registered` covers both kinds of membership: a declared stand-in's name and
+  // role are as authoritative as a member's, and are what the entry is built
+  // from. `members` is the narrower question of who the team actually is.
   const registered = new Map(
     rosterMembers.map(member => [member.player_id, member]),
+  )
+  const members = new Map(
+    rosterMembers
+      .filter(member => !member.is_stand_in)
+      .map(member => [member.player_id, member]),
   )
   const gamesByPlayer = new Map<number, PlayerGame[]>()
   const latestNames = new Map<number, { name: string; at: number }>()
@@ -319,20 +345,16 @@ export function buildPlayerStats(
       losses: games.length - wins,
       averages: getAverages(games),
       games,
+      isDeclaredStandIn: registeredPlayer?.is_stand_in ?? false,
     })
   }
 
-  // An empty roster means "we don't know who plays for this team", not "nobody
-  // does". Calling all ten players stand-ins would be worse than saying nothing,
-  // so fall back to a single position-ordered list.
-  if (registered.size === 0) {
-    return { roster: entries.sort(compareRoster), standIns: [] }
-  }
-
-  // Roster members with no games in this league would otherwise vanish, hiding
+  // Roster entries with no games in this league would otherwise vanish, hiding
   // half of every roster mistake: you'd see the stand-in who played but not the
   // registered player who didn't. Both halves need to be visible to notice the
-  // roster is wrong for the season you're looking at.
+  // roster is wrong for the season you're looking at. For a declared stand-in
+  // this is the normal case rather than a mistake — you add them for a match
+  // that hasn't been played yet, so zero games is the state you added them in.
   const played = new Set(entries.map(entry => entry.playerId))
   for (const member of rosterMembers) {
     if (played.has(member.player_id)) continue
@@ -347,14 +369,26 @@ export function buildPlayerStats(
       losses: 0,
       averages: getAverages([]),
       games: [],
+      isDeclaredStandIn: member.is_stand_in,
     })
   }
 
+  // No registered members means "we don't know who plays for this team", not
+  // "nobody does". Calling all ten players stand-ins would be worse than saying
+  // nothing, so fall back to a single position-ordered list. Keyed on members
+  // rather than the whole roster: declaring one stand-in is not the same as
+  // asserting a lineup, and it must not be enough to reclassify nine starters.
+  // Anyone explicitly declared still shows as a stand-in — that much is known.
+  if (members.size === 0) {
+    return {
+      roster: entries.filter(e => !e.isDeclaredStandIn).sort(compareRoster),
+      standIns: entries.filter(e => e.isDeclaredStandIn).sort(compareStandIn),
+    }
+  }
+
   return {
-    roster: entries.filter(e => registered.has(e.playerId)).sort(compareRoster),
-    standIns: entries
-      .filter(e => !registered.has(e.playerId))
-      .sort(compareStandIn),
+    roster: entries.filter(e => members.has(e.playerId)).sort(compareRoster),
+    standIns: entries.filter(e => !members.has(e.playerId)).sort(compareStandIn),
   }
 }
 
