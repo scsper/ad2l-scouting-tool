@@ -143,8 +143,8 @@ describe("buildDivisionPlayerRows", () => {
       ),
     )
 
-    expect(row.obsPerMin).toBeNull()
-    expect(row.senPerMin).toBeNull()
+    expect(row.obsPerGame).toBeNull()
+    expect(row.senPerGame).toBeNull()
   })
 
   // A real zero is an observation: a carry who warded nothing warded nothing.
@@ -156,28 +156,38 @@ describe("buildDivisionPlayerRows", () => {
       ),
     )
 
-    expect(row.obsPerMin).toBe(0)
+    expect(row.obsPerGame).toBe(0)
   })
 
-  // The point of the per-minute units: these two placed wards at the same rate,
-  // and an average of raw counts would have ranked the long game's support
-  // twice as high.
-  it("rates wards per minute so game length doesn't decide the ranking", () => {
-    const short = only(
+  // Wards are counted per game, so the longer game's support does read higher.
+  // That is the trade the column makes for showing a number a scout recognises;
+  // the `@10` columns are what's there when game length matters.
+  it("averages wards placed per game", () => {
+    const row = only(
       buildDivisionPlayerRows(
-        [match(1, 100, { minutes: 25 })],
-        [player(1, 7, "POSITION_5", { obs_placed: 5 })],
-      ),
-    )
-    const long = only(
-      buildDivisionPlayerRows(
-        [match(1, 100, { minutes: 50 })],
-        [player(1, 8, "POSITION_5", { obs_placed: 10 })],
+        [match(1, 100, { minutes: 25 }), match(2, 100, { minutes: 50 })],
+        [
+          player(1, 7, "POSITION_5", { obs_placed: 5 }),
+          player(2, 7, "POSITION_5", { obs_placed: 10 }),
+        ],
       ),
     )
 
-    expect(short.obsPerMin).toBeCloseTo(0.2)
-    expect(long.obsPerMin).toBeCloseTo(0.2)
+    expect(row.obsPerGame).toBeCloseTo(7.5)
+  })
+
+  // Ward counts don't need the match clock, so a game whose timestamps we can't
+  // use still contributes them — unlike the hero-damage rate.
+  it("counts wards from a game with an unusable duration", () => {
+    const row = only(
+      buildDivisionPlayerRows(
+        [match(1, 100, { minutes: 0 })],
+        [player(1, 7, "POSITION_5", { obs_placed: 6 })],
+      ),
+    )
+
+    expect(row.obsPerGame).toBe(6)
+    expect(row.heroDamagePerMin).toBeNull()
   })
 
   // Averaging the per-game rates, rather than dividing summed damage by summed

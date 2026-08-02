@@ -9,11 +9,15 @@
  * pooled-archetype mistake the scouting playbook learned to split by position,
  * applied to players instead of heroes.
  *
- * Every stat here is duration-neutral, which is the difference between this and
- * the per-team Players tab. Games in these leagues run 23 to 83 minutes, so
- * ranking supports by observers *placed* would substantially rank them by how
- * long their games went. The `@10` columns are the strongest for that reason:
- * a fixed ten-minute window is comparable across every game ever played.
+ * Most stats here are duration-neutral, which is the difference between this and
+ * the per-team Players tab; the `@10` columns are the strongest for that reason,
+ * since a fixed ten-minute window is comparable across every game ever played.
+ * Wards are the deliberate exception. A rate per minute is the cleaner quantity
+ * — games run 23 to 83 minutes, so a long game inflates the count — but nobody
+ * scouting a support thinks in wards per minute, and rescaling to per-ten to
+ * make it readable produced a column whose numbers matched nothing anyone had
+ * seen elsewhere. Wards placed per game is what Dotabuff shows and what the
+ * Players tab shows, so it is what this shows.
  */
 export type DivisionPlayerRow = {
   playerId: number
@@ -43,8 +47,9 @@ export type DivisionPlayerRow = {
   kda: number
   /** Per minute of game time. `null` when no game had a usable duration. */
   heroDamagePerMin: number | null
-  obsPerMin: number | null
-  senPerMin: number | null
+  /** Wards placed per game, averaged over the games that report them. */
+  obsPerGame: number | null
+  senPerGame: number | null
 }
 
 /** Sentinel written by the ingest scripts when a Steam profile is private. */
@@ -114,8 +119,8 @@ type Accumulator = {
   deaths: number
   assists: number
   heroDamagePerMin: SkippingMean
-  obsPerMin: SkippingMean
-  senPerMin: SkippingMean
+  obsPerGame: SkippingMean
+  senPerGame: SkippingMean
 }
 
 /**
@@ -180,8 +185,8 @@ export function buildDivisionPlayerRows(
         deaths: 0,
         assists: 0,
         heroDamagePerMin: new SkippingMean(),
-        obsPerMin: new SkippingMean(),
-        senPerMin: new SkippingMean(),
+        obsPerGame: new SkippingMean(),
+        senPerGame: new SkippingMean(),
       }
       accumulators.set(key, accumulator)
     }
@@ -211,18 +216,17 @@ export function buildDivisionPlayerRows(
     accumulator.deaths += player.deaths
     accumulator.assists += player.assists
 
+    // Ward counts don't need the match's duration, so they survive a game whose
+    // timestamps we can't use — which the hero-damage rate can't.
+    accumulator.obsPerGame.add(player.obs_placed)
+    accumulator.senPerGame.add(player.sen_placed)
+
     // Rated per game and then averaged, rather than summing both sides and
     // dividing once. Otherwise a single long game would weigh more than a short
     // one in a stat whose entire purpose is to be independent of game length.
     const minutes = durationMinutes(match)
     if (minutes !== null) {
       accumulator.heroDamagePerMin.add(player.hero_damage / minutes)
-      accumulator.obsPerMin.add(
-        player.obs_placed == null ? null : player.obs_placed / minutes,
-      )
-      accumulator.senPerMin.add(
-        player.sen_placed == null ? null : player.sen_placed / minutes,
-      )
     }
   }
 
@@ -241,7 +245,7 @@ export function buildDivisionPlayerRows(
     kda:
       (accumulator.kills + accumulator.assists) / Math.max(accumulator.deaths, 1),
     heroDamagePerMin: accumulator.heroDamagePerMin.get(),
-    obsPerMin: accumulator.obsPerMin.get(),
-    senPerMin: accumulator.senPerMin.get(),
+    obsPerGame: accumulator.obsPerGame.get(),
+    senPerGame: accumulator.senPerGame.get(),
   }))
 }
