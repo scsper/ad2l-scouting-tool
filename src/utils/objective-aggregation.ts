@@ -1,13 +1,16 @@
 import type { ObjectiveEvent, ObjectiveMatch } from "../../api/match-objectives"
 import {
-  ALL_TOWERS,
+  ALL_TOWER_SLOTS,
   parseTowerKey,
   roshanPitAt,
   tormentorSpotAt,
+  slotKey,
+  slotLabel,
+  slotOf,
   towerKeyOf,
-  towerLabel,
   type PitSide,
   type TowerId,
+  type TowerSlot,
 } from "./dota-map"
 
 export const ROSHAN_TYPE = "CHAT_MESSAGE_ROSHAN_KILL"
@@ -128,10 +131,7 @@ export function median(values: number[]): number | null {
  * without the fall rate turns "they lose T3 top at 31:00 in the third of games
  * where they lose it" into "they lose T3 top at 31:00".
  */
-export type TowerRecord = {
-  tower: TowerId
-  /** True when this is the scouted team's own tower. */
-  ownedByTeam: boolean
+export type TowerRecord = TowerSlot & {
   /** Games in which this tower fell. */
   fell: number
   /** Objective-parsed games in the sample. */
@@ -154,28 +154,29 @@ export function aggregateTowers(matches: ObjectiveMatch[]): TowerRecord[] {
   const falls = collectTowerFalls(parsed)
   const games = parsed.length
 
+  // Keyed on the team-relative slot, never on the building. Keying on the
+  // building looks equivalent and is not: a team that played both sides owns
+  // Radiant's T1 mid in some games and faces it in others, so one absolute
+  // tower carries two different meanings. Collapsing that to a single
+  // ownership flag both mixed their own falls in with the opposition's and,
+  // when the two buildings for a lane happened to land on the same flag, left
+  // one of the eighteen rows with nothing in it at all.
   const byKey = new Map<string, number[]>()
-  const ownership = new Map<string, boolean>()
   for (const fall of falls) {
-    const key = towerKeyOf(fall.tower)
+    const key = slotKey(slotOf(fall.tower, fall.ownedByTeam))
     const list = byKey.get(key) ?? []
     list.push(fall.time)
     byKey.set(key, list)
-    ownership.set(key, fall.ownedByTeam)
   }
 
-  return ALL_TOWERS.map(tower => {
-    const key = towerKeyOf(tower)
-    const times = byKey.get(key) ?? []
-    // A tower that never fell in the sample has no observed ownership, so fall
-    // back to the side split of the games themselves.
-    const owned =
-      ownership.get(key) ??
-      parsed.some(m => tower.side === (m.isRadiant ? "radiant" : "dire"))
+  return ALL_TOWER_SLOTS.map(slot => {
+    const times = byKey.get(slotKey(slot)) ?? []
     return {
-      tower,
-      ownedByTeam: owned,
+      ...slot,
       fell: times.length,
+      // Every game contributes one observation to every slot: both teams have
+      // a T1 mid in every game, whichever side they were on. So the
+      // denominator is the parsed sample, not the games this slot fell in.
       games,
       medianTime: median(times),
       earliest: times.length > 0 ? Math.min(...times) : null,
@@ -212,12 +213,12 @@ export function towerTicks(
 
   for (const record of records) {
     if (record.times.length === 0) continue
-    const label = towerLabel(record.tower)
+    const label = slotLabel(record)
 
     if (singleGame) {
       for (const time of record.times) {
         ticks.push({
-          key: `${towerKeyOf(record.tower)}-${String(time)}`,
+          key: `${slotKey(record)}-${String(time)}`,
           time,
           label,
           ownedByTeam: record.ownedByTeam,
@@ -228,7 +229,7 @@ export function towerTicks(
       }
     } else if (record.medianTime !== null) {
       ticks.push({
-        key: towerKeyOf(record.tower),
+        key: slotKey(record),
         time: record.medianTime,
         label,
         ownedByTeam: record.ownedByTeam,

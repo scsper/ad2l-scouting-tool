@@ -103,10 +103,7 @@ describe("aggregateTowers", () => {
 
   it("reports the median only over games where the tower fell", () => {
     const row = aggregateTowers(games).find(
-      r =>
-        r.tower.side === "radiant" &&
-        r.tower.tier === 1 &&
-        r.tower.lane === "mid",
+      r => r.ownedByTeam && r.tier === 1 && r.lane === "mid",
     )
     expect(row?.medianTime).toBe(750)
   })
@@ -115,10 +112,7 @@ describe("aggregateTowers", () => {
     // The censoring guard: 2 of 3, never 2 of 2. A median over the two games
     // where the tower fell is biased fast, and only the denominator says so.
     const row = aggregateTowers(games).find(
-      r =>
-        r.tower.side === "radiant" &&
-        r.tower.tier === 1 &&
-        r.tower.lane === "mid",
+      r => r.ownedByTeam && r.tier === 1 && r.lane === "mid",
     )
     expect(row?.fell).toBe(2)
     expect(row?.games).toBe(3)
@@ -130,13 +124,69 @@ describe("aggregateTowers", () => {
     const rows = aggregateTowers(games)
     expect(rows).toHaveLength(18)
     const never = rows.find(
-      r =>
-        r.tower.side === "radiant" &&
-        r.tower.tier === 3 &&
-        r.tower.lane === "top",
+      r => r.ownedByTeam && r.tier === 3 && r.lane === "top",
     )
     expect(never?.fell).toBe(0)
     expect(never?.medianTime).toBeNull()
+  })
+})
+
+describe("aggregateTowers across both map sides", () => {
+  // The scouted team is Radiant in one game and Dire in the other, and the
+  // SAME building key falls in both. That makes Radiant's T1 mid theirs in
+  // game 1 and the opposition's in game 2 — the case that broke when records
+  // were keyed on the building instead of the team-relative slot.
+  const bothSides = [
+    match({
+      id: 1,
+      isRadiant: true,
+      objectives: [towerKill("npc_dota_goodguys_tower1_mid", 600)],
+    }),
+    match({
+      id: 2,
+      isRadiant: false,
+      objectives: [towerKill("npc_dota_goodguys_tower1_mid", 1200)],
+    }),
+  ]
+
+  it("does not mix their own falls in with the opposition's", () => {
+    const rows = aggregateTowers(bothSides)
+    const theirs = rows.find(
+      r => r.ownedByTeam && r.tier === 1 && r.lane === "mid",
+    )
+    const enemy = rows.find(
+      r => !r.ownedByTeam && r.tier === 1 && r.lane === "mid",
+    )
+
+    // 600 belongs to them, 1200 to the opposition. Keying on the building put
+    // both in one bucket and reported the average as a habit.
+    expect(theirs?.times).toEqual([600])
+    expect(enemy?.times).toEqual([1200])
+    expect(theirs?.medianTime).toBe(600)
+    expect(enemy?.medianTime).toBe(1200)
+  })
+
+  it("returns all eighteen slots, both splits complete", () => {
+    // The visible symptom of the old keying: when both buildings for a lane
+    // landed on the same ownership flag, one of the eighteen rows vanished and
+    // the Tempo table showed a partial grid.
+    const rows = aggregateTowers(bothSides)
+    expect(rows).toHaveLength(18)
+    expect(rows.filter(r => r.ownedByTeam)).toHaveLength(9)
+    expect(rows.filter(r => !r.ownedByTeam)).toHaveLength(9)
+
+    for (const owned of [true, false]) {
+      for (const tier of [1, 2, 3]) {
+        for (const lane of ["top", "mid", "bot"]) {
+          expect(
+            rows.filter(
+              r =>
+                r.ownedByTeam === owned && r.tier === tier && r.lane === lane,
+            ),
+          ).toHaveLength(1)
+        }
+      }
+    }
   })
 })
 

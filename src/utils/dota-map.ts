@@ -127,6 +127,44 @@ export function towerLabel(tower: TowerId): string {
   return `T${String(tower.tier)} ${LANE_LABEL[tower.lane]}`
 }
 
+/**
+ * A tower slot as a scouting question asks about it: "their T1 mid", "the
+ * enemy's T3 top".
+ *
+ * Distinct from `TowerId`, and the distinction is the whole point. A `TowerId`
+ * names a building on the map — Radiant's T1 mid — but the scouted team is
+ * Radiant in some games and Dire in others, so that same building is theirs in
+ * half the sample and the opposition's in the other half. Anything aggregating
+ * across games has to key on the slot; anything drawing on the map has to key
+ * on the id.
+ */
+export type TowerSlot = {
+  tier: RenderedTier
+  lane: Lane
+  /** True when the slot is the scouted team's own tower. */
+  ownedByTeam: boolean
+}
+
+/** All eighteen slots: nine towers, theirs and the enemy's. */
+export const ALL_TOWER_SLOTS: TowerSlot[] = [true, false].flatMap(ownedByTeam =>
+  RENDERED_TIERS.flatMap(tier =>
+    LANES.map(lane => ({ tier, lane, ownedByTeam })),
+  ),
+)
+
+export function slotKey(slot: TowerSlot): string {
+  return `${slot.ownedByTeam ? "theirs" : "enemy"}-${slot.lane}-${String(slot.tier)}`
+}
+
+export function slotLabel(slot: TowerSlot): string {
+  return `T${String(slot.tier)} ${LANE_LABEL[slot.lane]}`
+}
+
+/** The slot a fall belongs to, given who owned the building in that game. */
+export function slotOf(tower: TowerId, ownedByTeam: boolean): TowerSlot {
+  return { tier: tower.tier, lane: tower.lane, ownedByTeam }
+}
+
 // ---------------------------------------------------------------------------
 // Roshan and the Tormentor
 // ---------------------------------------------------------------------------

@@ -147,6 +147,36 @@ describe("Tempo", () => {
     expect(screen.getByText(/1 without/)).toBeInTheDocument()
   })
 
+  it("shows all nine towers in both tables, even for a team that switched sides", async () => {
+    // The reported symptom: a partial grid. It appeared when the same building
+    // was the team's in one game and the opposition's in another, which is the
+    // normal case for any team with more than a couple of games.
+    renderTempo({
+      matches: [
+        {
+          ...game(1, [towerKill("npc_dota_goodguys_tower3_top", 2000)]),
+          isRadiant: true,
+        },
+        {
+          ...game(2, [towerKill("npc_dota_goodguys_tower3_top", 2400)]),
+          isRadiant: false,
+        },
+      ],
+      leagueBaseline: OBJECTIVES.leagueBaseline,
+    })
+
+    for (const title of ["Their towers", "Towers they take"]) {
+      const table = (await screen.findByText(title)).closest("div")
+      for (const tier of [1, 2, 3]) {
+        for (const lane of ["Top", "Mid", "Bot"]) {
+          expect(
+            within(table as HTMLElement).getByText(`T${String(tier)} ${lane}`),
+          ).toBeInTheDocument()
+        }
+      }
+    }
+  })
+
   it("explains itself when there is no objective data at all", async () => {
     renderTempo({ matches: [], leagueBaseline: [] })
 

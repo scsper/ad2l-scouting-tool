@@ -117,24 +117,18 @@ export function buildTempoRows(
   for (const split of ["theirs", "enemy"] as TempoSplit[]) {
     for (const tier of RENDERED_TIERS) {
       for (const lane of LANES) {
-        const matching = records.filter(
+        // Exactly one record per slot now that aggregateTowers keys on the
+        // team-relative slot, so there is nothing to merge and no slot that can
+        // go missing — all eighteen rows are always present.
+        const record = records.find(
           r =>
-            r.tower.tier === tier &&
-            r.tower.lane === lane &&
+            r.tier === tier &&
+            r.lane === lane &&
             r.ownedByTeam === (split === "theirs"),
         )
-        if (matching.length === 0) continue
+        if (!record) continue
 
-        const times = matching.flatMap(r => r.times)
-        const fell = times.length
-        const sorted = [...times].sort((a, b) => a - b)
-        const mid = Math.floor(sorted.length / 2)
-        const medianTime =
-          sorted.length === 0
-            ? null
-            : sorted.length % 2 === 0
-              ? (sorted[mid - 1] + sorted[mid]) / 2
-              : sorted[mid]
+        const { fell, medianTime } = record
 
         const league = baselineFor(
           baseline,
