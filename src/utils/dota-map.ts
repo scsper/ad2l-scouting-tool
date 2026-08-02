@@ -128,19 +128,65 @@ export function towerLabel(tower: TowerId): string {
 }
 
 /**
- * A tower slot as a scouting question asks about it: "their T1 mid", "the
- * enemy's T3 top".
+ * A lane named by the role played in it rather than by where it sits.
+ *
+ * Top and bottom mean opposite things to the two teams: the top lane is Dire's
+ * safe lane and Radiant's off lane at the same time. So an aggregate keyed on
+ * "top" pools a safe-lane tower with an off-lane one and reports the mixture as
+ * a tendency — which is what made the league table read as though top-lane
+ * towers behaved wildly differently by side.
+ */
+export type LaneRole = "safe" | "mid" | "off"
+
+/** Safe first, then mid, then off — the order a draft is talked through. */
+export const LANE_ROLES: LaneRole[] = ["safe", "mid", "off"]
+
+export const LANE_ROLE_LABEL: Record<LaneRole, string> = {
+  safe: "Safe",
+  mid: "Mid",
+  off: "Off",
+}
+
+const ROLE_BY_SIDE: Record<MapSide, Record<Lane, LaneRole>> = {
+  radiant: { bot: "safe", mid: "mid", top: "off" },
+  dire: { top: "safe", mid: "mid", bot: "off" },
+}
+
+const LANE_BY_SIDE: Record<MapSide, Record<LaneRole, Lane>> = {
+  radiant: { safe: "bot", mid: "mid", off: "top" },
+  dire: { safe: "top", mid: "mid", off: "bot" },
+}
+
+/**
+ * The role a lane plays for the side that owns the building in it.
+ *
+ * Keyed on the owner's side, not the attacker's: a tower's lane role is a fact
+ * about whose base it defends.
+ */
+export function laneRoleOf(side: MapSide, lane: Lane): LaneRole {
+  return ROLE_BY_SIDE[side][lane]
+}
+
+/** The inverse, for reading side-keyed league figures back out by role. */
+export function laneForRole(side: MapSide, role: LaneRole): Lane {
+  return LANE_BY_SIDE[side][role]
+}
+
+/**
+ * A tower slot as a scouting question asks about it: "their T1 safe lane", "the
+ * enemy's T3 off lane".
  *
  * Distinct from `TowerId`, and the distinction is the whole point. A `TowerId`
- * names a building on the map — Radiant's T1 mid — but the scouted team is
- * Radiant in some games and Dire in others, so that same building is theirs in
- * half the sample and the opposition's in the other half. Anything aggregating
- * across games has to key on the slot; anything drawing on the map has to key
- * on the id.
+ * names a building on the map — Radiant's T1 mid — while a slot names a role
+ * two buildings can fill. The scouted team is Radiant in some games and Dire in
+ * others, so one building is theirs in half the sample and the opposition's in
+ * the other half, and it is their safe lane in half and their off lane in the
+ * other half. Anything aggregating across games has to key on the slot;
+ * anything drawing on the map has to key on the id.
  */
 export type TowerSlot = {
   tier: RenderedTier
-  lane: Lane
+  laneRole: LaneRole
   /** True when the slot is the scouted team's own tower. */
   ownedByTeam: boolean
 }
@@ -148,21 +194,25 @@ export type TowerSlot = {
 /** All eighteen slots: nine towers, theirs and the enemy's. */
 export const ALL_TOWER_SLOTS: TowerSlot[] = [true, false].flatMap(ownedByTeam =>
   RENDERED_TIERS.flatMap(tier =>
-    LANES.map(lane => ({ tier, lane, ownedByTeam })),
+    LANE_ROLES.map(laneRole => ({ tier, laneRole, ownedByTeam })),
   ),
 )
 
 export function slotKey(slot: TowerSlot): string {
-  return `${slot.ownedByTeam ? "theirs" : "enemy"}-${slot.lane}-${String(slot.tier)}`
+  return `${slot.ownedByTeam ? "theirs" : "enemy"}-${slot.laneRole}-${String(slot.tier)}`
 }
 
 export function slotLabel(slot: TowerSlot): string {
-  return `T${String(slot.tier)} ${LANE_LABEL[slot.lane]}`
+  return `T${String(slot.tier)} ${LANE_ROLE_LABEL[slot.laneRole]}`
 }
 
 /** The slot a fall belongs to, given who owned the building in that game. */
 export function slotOf(tower: TowerId, ownedByTeam: boolean): TowerSlot {
-  return { tier: tower.tier, lane: tower.lane, ownedByTeam }
+  return {
+    tier: tower.tier,
+    laneRole: laneRoleOf(tower.side, tower.lane),
+    ownedByTeam,
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -147,10 +147,10 @@ describe("Tempo", () => {
     expect(screen.getByText(/1 without/)).toBeInTheDocument()
   })
 
-  it("shows all nine towers in both tables, even for a team that switched sides", async () => {
-    // The reported symptom: a partial grid. It appeared when the same building
-    // was the team's in one game and the opposition's in another, which is the
-    // normal case for any team with more than a couple of games.
+  it("shows all nine towers in both tables, named by lane role", async () => {
+    // Rows are safe/mid/off rather than top/mid/bot, so a team that switched
+    // sides has its safe-lane games pooled with its safe-lane games rather than
+    // with whatever happened to be in the same corner of the map.
     renderTempo({
       matches: [
         {
@@ -168,9 +168,9 @@ describe("Tempo", () => {
     for (const title of ["Their towers", "Towers they take"]) {
       const table = (await screen.findByText(title)).closest("div")
       for (const tier of [1, 2, 3]) {
-        for (const lane of ["Top", "Mid", "Bot"]) {
+        for (const role of ["Safe", "Mid", "Off"]) {
           expect(
-            within(table as HTMLElement).getByText(`T${String(tier)} ${lane}`),
+            within(table as HTMLElement).getByText(`T${String(tier)} ${role}`),
           ).toBeInTheDocument()
         }
       }

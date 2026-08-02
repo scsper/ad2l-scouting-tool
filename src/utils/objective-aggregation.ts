@@ -8,6 +8,7 @@ import {
   slotLabel,
   slotOf,
   towerKeyOf,
+  towerLabel,
   type PitSide,
   type TowerId,
   type TowerSlot,
@@ -208,36 +209,40 @@ export function towerTicks(
   matches: ObjectiveMatch[],
   singleGame: boolean,
 ): ObjectiveTick[] {
-  const records = aggregateTowers(matches)
+  const parsed = withObjectiveData(matches)
   const ticks: ObjectiveTick[] = []
 
-  for (const record of records) {
-    if (record.times.length === 0) continue
-    const label = slotLabel(record)
-
-    if (singleGame) {
-      for (const time of record.times) {
-        ticks.push({
-          key: `${slotKey(record)}-${String(time)}`,
-          time,
-          label,
-          ownedByTeam: record.ownedByTeam,
-          kind: "tower",
-          sampleSize: 1,
-          totalGames: record.games,
-        })
-      }
-    } else if (record.medianTime !== null) {
+  // One game is read next to the map, where a tower is a place. Naming it "Top"
+  // matches the marker the reader is looking at, and the lane role adds nothing
+  // there because with the side fixed the two are the same fact.
+  if (singleGame) {
+    for (const fall of collectTowerFalls(parsed)) {
       ticks.push({
-        key: slotKey(record),
-        time: record.medianTime,
-        label,
-        ownedByTeam: record.ownedByTeam,
+        key: `${towerKeyOf(fall.tower)}-${String(fall.time)}`,
+        time: fall.time,
+        label: towerLabel(fall.tower),
+        ownedByTeam: fall.ownedByTeam,
         kind: "tower",
-        sampleSize: record.fell,
-        totalGames: record.games,
+        sampleSize: 1,
+        totalGames: parsed.length,
       })
     }
+    return ticks.sort((a, b) => a.time - b.time)
+  }
+
+  // Across games there is no single place to point at, and "Top" would pool a
+  // safe-lane tower with an off-lane one, so the aggregate is named by role.
+  for (const record of aggregateTowers(parsed)) {
+    if (record.medianTime === null) continue
+    ticks.push({
+      key: slotKey(record),
+      time: record.medianTime,
+      label: slotLabel(record),
+      ownedByTeam: record.ownedByTeam,
+      kind: "tower",
+      sampleSize: record.fell,
+      totalGames: record.games,
+    })
   }
 
   return ticks.sort((a, b) => a.time - b.time)

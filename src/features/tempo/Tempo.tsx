@@ -44,7 +44,7 @@ const TempoTable = ({
     <table className="w-full text-sm">
       <thead>
         <tr className="text-xs text-slate-400 border-b border-slate-700">
-          <th className="text-left font-medium py-1.5">Tower</th>
+          <th className="text-left font-medium py-1.5">Lane</th>
           <th className="text-right font-medium py-1.5">Median</th>
           <th className="text-right font-medium py-1.5">Fell</th>
           <th className="text-right font-medium py-1.5">League</th>
