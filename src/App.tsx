@@ -9,10 +9,11 @@ import { AggregateContestRate } from "./features/matches/aggregate-contest-rate"
 import { Players } from "./features/players/players";
 import { PlayerStats } from "./features/player-stats/PlayerStats";
 import { Lanes } from "./features/lanes/Lanes";
+import { Wards } from "./features/wards/Wards";
 import { LeagueAggregate } from "./features/league-aggregate/LeagueAggregate";
 import { ParseMatchesModal } from "./features/parse-matches/ParseMatchesModal";
 
-type Tab = "team" | "players" | "pub-stats" | "lanes";
+type Tab = "team" | "players" | "pub-stats" | "lanes" | "wards";
 
 export const App = () => {
   const [teamId, setTeamId] = useState<number>();
@@ -26,6 +27,7 @@ export const App = () => {
     { id: "players", label: "Players" },
     { id: "pub-stats", label: "Pub Stats" },
     { id: "lanes", label: "Lanes" },
+    { id: "wards", label: "Wards" },
   ];
 
   return (
@@ -139,6 +141,10 @@ export const App = () => {
 
           {activeTab === "lanes" && leagueId && teamId && (
             <Lanes leagueId={leagueId} teamId={teamId} />
+          )}
+
+          {activeTab === "wards" && leagueId && teamId && (
+            <Wards leagueId={leagueId} teamId={teamId} />
           )}
         </div>
       </div>

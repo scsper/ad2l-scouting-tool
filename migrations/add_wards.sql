@@ -1,0 +1,23 @@
+-- NOT YET APPLIED. Run this in the Supabase SQL editor.
+--
+-- Adds per-player ward placement data to match_player, sourced from OpenDota's
+-- replay-parsed obs_log / sen_log / obs_left_log / sen_left_log.
+--
+-- NULL vs '[]' is load-bearing and both the parser and the backfill must respect it:
+--   NULL  -> this match was never ward-parsed (pre-feature rows, or OpenDota 404s
+--            the match entirely, as with the hand-inserted Sharkhorse games)
+--   '[]'  -> parsed successfully, this player genuinely placed zero wards
+--            (cores routinely place none)
+-- Aggregates must report the denominator off this distinction rather than
+-- silently averaging over whichever games happen to have data.
+--
+-- Shape of each element (see api/lib/wards.ts):
+--   { "type": "obs"|"sen", "x": number, "y": number,
+--     "placed": number, "left": number|null, "by": string|null }
+-- `placed`/`left` are seconds relative to the horn and CAN be negative for
+-- wards placed during the pre-horn setup. `left` is null when the ward was
+-- still standing at game end. `by` is the killing hero with the
+-- "npc_dota_hero_" prefix stripped; it is populated on natural expiries too,
+-- so it does NOT by itself mean the ward was dewarded.
+
+ALTER TABLE match_player ADD COLUMN IF NOT EXISTS wards JSONB;

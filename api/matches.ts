@@ -37,9 +37,15 @@ async function getMatchesByLeagueAndTeam(
   const matchIds = (matches as MatchRow[]).map(m => m.id);
 
   // Get all match players for these matches
+  // Columns are listed explicitly rather than '*' so the `wards` JSONB blob
+  // (~14KB per match) stays out of this response. Every tab except Wards reads
+  // through this endpoint and none of them need it; the Wards tab has its own
+  // route so the payload is opt-in.
   const { data: players, error: playersError } = await supabase
     .from('match_player')
-    .select('*')
+    .select(
+      'player_id, match_id, team_id, player_name, hero_id, position, lane_outcome, lane, kills, deaths, assists, last_hits, denies, gpm, xpm, hero_damage, tower_damage, gold_at_10, xp_at_10, lh_at_10, denies_at_10'
+    )
     .in('match_id', matchIds);
 
   if (playersError) {
