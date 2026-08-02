@@ -33,6 +33,7 @@ export const CreatePlayerModal = ({
   const [rank, setRank] = useState("")
   const [originalRank, setOriginalRank] = useState("")
   const [role, setRole] = useState("")
+  const [isStandIn, setIsStandIn] = useState(false)
   const [knownPlayer, setKnownPlayer] = useState<string | null>(null)
 
   const [addRosterMember, { isLoading, error }] = useAddRosterMemberMutation()
@@ -49,6 +50,7 @@ export const CreatePlayerModal = ({
     setRank("")
     setOriginalRank("")
     setRole("")
+    setIsStandIn(false)
     setKnownPlayer(null)
   }
 
@@ -88,6 +90,7 @@ export const CreatePlayerModal = ({
         role,
         rank: rank || null,
         original_rank: originalRank || null,
+        is_stand_in: isStandIn,
       }).unwrap()
 
       resetForm()
@@ -174,6 +177,30 @@ export const CreatePlayerModal = ({
           </select>
         </div>
 
+        {/* Stand-in. A role is still required: it scopes the pub stats fetched
+            on save, and it's the only position a sub who hasn't played yet can
+            be shown at. Being a stand-in here says nothing about elsewhere —
+            they may be a registered member of another team in this league. */}
+        <div>
+          <label
+            htmlFor="player-stand-in"
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <input
+              id="player-stand-in"
+              type="checkbox"
+              checked={isStandIn}
+              onChange={e => setIsStandIn(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-2 focus:ring-blue-400"
+            />
+            <span className="text-sm font-medium text-slate-300">Stand-in</span>
+          </label>
+          <p className="text-slate-500 text-xs mt-2">
+            Filed separately from the roster, and not carried over by &ldquo;Copy
+            roster from…&rdquo;.
+          </p>
+        </div>
+
         {/* Ranks — optional: you often add someone before looking them up. */}
         <div>
           <label
@@ -207,10 +234,19 @@ export const CreatePlayerModal = ({
             className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             placeholder="Rank they registered at"
           />
-          <p className="text-slate-500 text-xs mt-2">
-            The rank they signed up at — what stand-in validity is judged
-            against.
-          </p>
+          {/* The one field worth chasing for a stand-in and the one most often
+              left blank for a member, so it's called out only when it matters. */}
+          {isStandIn ? (
+            <p className="text-amber-400/80 text-xs mt-2">
+              Worth filling in for a stand-in — this is what their eligibility is
+              judged against.
+            </p>
+          ) : (
+            <p className="text-slate-500 text-xs mt-2">
+              The rank they signed up at — what stand-in validity is judged
+              against.
+            </p>
+          )}
         </div>
 
         {/* Team and league - display only. The league is the write target, so
@@ -247,7 +283,11 @@ export const CreatePlayerModal = ({
             disabled={isLoading}
             className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? "Adding..." : "Add to roster"}
+            {isLoading
+              ? "Adding..."
+              : isStandIn
+                ? "Add stand-in"
+                : "Add to roster"}
           </button>
         </div>
       </form>

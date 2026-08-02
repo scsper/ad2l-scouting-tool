@@ -90,6 +90,13 @@ type RosterMemberRow = {
   rank: string | null
   /** Free text. The rank they registered at, which gates stand-in validity. */
   original_rank: string | null
+  /**
+   * A stand-in rather than a registered member. Declared up front, because the
+   * useful time to know about a sub is before they've played — which is exactly
+   * when match data can't tell you. Someone can be a stand-in here while being a
+   * registered member of another team in the same league.
+   */
+  is_stand_in: boolean
   created_at: string
   updated_at: string
 }

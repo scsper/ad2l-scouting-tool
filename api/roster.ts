@@ -25,6 +25,7 @@ type CreateRosterMemberRequest = {
   role: string
   rank?: string | null
   original_rank?: string | null
+  is_stand_in?: boolean
 }
 
 type CopyRosterRequest = {
@@ -40,6 +41,7 @@ type RosterMemberRecord = {
   role: string
   rank: string | null
   original_rank: string | null
+  is_stand_in: boolean
   created_at: string
   updated_at: string
   player: { name: string } | { name: string }[] | null
@@ -119,6 +121,12 @@ async function hasFreshPubStats(playerId: number): Promise<boolean> {
  * Adds someone to a roster. The person is upserted rather than inserted: a
  * player who left one roster keeps their row (and their pub match history), and
  * reappears constantly as a stand-in or on another team.
+ *
+ * The membership is upserted too. Status is not fixed for a season — a member
+ * gets benched and starts subbing, a stand-in gets properly registered — and
+ * remove-then-re-add was the only way to change one. A plain insert also meant
+ * re-adding an existing member surfaced a primary key violation as an opaque
+ * 500, which is the first thing you hit when you forget you already added them.
  */
 async function createRosterMember(
   body: CreateRosterMemberRequest,
@@ -145,14 +153,19 @@ async function createRosterMember(
 
   const memberResult = await supabase
     .from("roster_member")
-    .insert({
-      league_id: body.league_id,
-      team_id: body.team_id,
-      player_id: body.player_id,
-      role: body.role,
-      rank: body.rank ?? null,
-      original_rank: body.original_rank ?? null,
-    })
+    .upsert(
+      {
+        league_id: body.league_id,
+        team_id: body.team_id,
+        player_id: body.player_id,
+        role: body.role,
+        rank: body.rank ?? null,
+        original_rank: body.original_rank ?? null,
+        is_stand_in: body.is_stand_in ?? false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "league_id,team_id,player_id" },
+    )
     .select("*, player(name)")
     .single()
 
@@ -185,7 +198,14 @@ async function createRosterMember(
 async function copyRoster(body: CopyRosterRequest): Promise<RosterEntry[]> {
   await assertTeamInLeague(body.league_id, body.team_id)
 
-  const source = await getRoster(body.from_league_id, body.team_id)
+  // Stand-ins are deliberately left behind. Copying is explicit rather than an
+  // implicit inheritance so that a roster is asserted for the season it's used
+  // in; an inherited stand-in nobody asserted is a claim that last season's
+  // emergency sub is playing this week. The ones who recur cost 20 seconds to
+  // re-add, and show up on their own as soon as they play a game.
+  const source = (await getRoster(body.from_league_id, body.team_id)).filter(
+    member => !member.is_stand_in,
+  )
   if (source.length === 0) return []
 
   const result = await supabase

@@ -13,6 +13,7 @@ type CreateRosterMemberRequest = {
   role: string
   rank?: string | null
   original_rank?: string | null
+  is_stand_in?: boolean
 }
 
 type CopyRosterRequest = {
@@ -53,6 +54,7 @@ export const playersApiSlice = createApi({
     getPlayerById: build.query<PlayerRow, { playerId: number }>({
       query: ({ playerId }) => `api/player?playerId=${String(playerId)}`,
     }),
+    /** Upserts, so re-submitting for an existing member edits them in place. */
     addRosterMember: build.mutation<RosterEntry, CreateRosterMemberRequest>({
       query: body => ({
         url: "api/roster",

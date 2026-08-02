@@ -86,11 +86,15 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
     "Hard Support": 5,
   }
 
-  const sortedRoster = [...roster].sort((a, b) => {
-    const orderA = roleOrder[a.role] ?? 999
-    const orderB = roleOrder[b.role] ?? 999
-    return orderA - orderB
-  })
+  const byRole = (a: RosterEntry, b: RosterEntry) =>
+    (roleOrder[a.role] ?? 999) - (roleOrder[b.role] ?? 999)
+
+  // Kept as two lists rather than one sorted list with a badge. The role sort is
+  // what makes the top block readable as "this is the team" without counting; a
+  // stand-in Carry filed under the real Carry destroys that, and a season's
+  // worth of subs turns five rows into eight.
+  const members = roster.filter(member => !member.is_stand_in).sort(byRole)
+  const standIns = roster.filter(member => member.is_stand_in).sort(byRole)
 
   const handleRemoveClick = (member: RosterEntry) => {
     setMemberToRemove(member)
@@ -129,6 +133,169 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
       })
     }
   }
+
+  const renderRosterCards = (entries: RosterEntry[]) => (
+    <div className="grid gap-4">
+      {entries.map(member => (
+        <div key={member.player_id} className="space-y-0">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg hover:bg-slate-900/30 transition-colors">
+            <div className="p-6 flex items-center justify-between">
+              <div
+                className="flex-1 grid grid-cols-4 gap-6 cursor-pointer"
+                onClick={() => togglePlayerExpanded(member.player_id)}
+              >
+                <div>
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                    Name
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-lg font-medium text-slate-200">
+                      {member.name}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <a
+                        href={`https://www.dotabuff.com/players/${member.player_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                        title="View on Dotabuff"
+                      >
+                        DB
+                      </a>
+                      <span className="text-slate-600">|</span>
+                      <a
+                        href={`https://www.stratz.com/players/${member.player_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                        title="View on Stratz"
+                      >
+                        STZ
+                      </a>
+                      <span className="text-slate-600">|</span>
+                      <a
+                        href={`https://www.opendota.com/players/${member.player_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                        title="View on OpenDota"
+                      >
+                        OD
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                    Role
+                  </div>
+                  <div className="text-lg text-slate-300">{member.role}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                    Rank
+                  </div>
+                  <div className="text-lg text-slate-300">
+                    {member.rank ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                    Original Rank
+                  </div>
+                  <div className="text-lg text-slate-300">
+                    {member.original_rank ?? "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 ml-6">
+                <button
+                  onClick={() => handleRefreshPlayerData(member)}
+                  disabled={fetchingPlayerIds.has(member.player_id)}
+                  className="text-blue-400 hover:text-blue-300 disabled:text-blue-400/50 disabled:cursor-not-allowed transition-colors"
+                  title="Refresh player data"
+                >
+                  <svg
+                    className={`w-5 h-5 ${
+                      fetchingPlayerIds.has(member.player_id)
+                        ? "animate-spin"
+                        : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => togglePlayerExpanded(member.player_id)}
+                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  title={
+                    isPlayerExpanded(member.player_id)
+                      ? "Hide hero stats"
+                      : "Show hero stats"
+                  }
+                >
+                  <svg
+                    className={`w-5 h-5 transition-transform ${
+                      isPlayerExpanded(member.player_id) ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => handleRemoveClick(member)}
+                  className="text-red-400 hover:text-red-300 transition-colors"
+                  title="Remove from roster"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          {isPlayerExpanded(member.player_id) && (
+            <div className="mt-0">
+              <PlayerPubMatchStats
+                playerId={member.player_id}
+                playerRole={member.role}
+                matchesData={matchesData}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     <div className="space-y-6">
@@ -183,185 +350,40 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
             Error loading roster
           </div>
         </div>
-      ) : roster.length === 0 ? (
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
-          <div className="text-slate-400 text-lg font-medium">
-            No roster registered for {leagueName}
-          </div>
-          <div className="text-slate-500 text-sm mt-2">
-            Rosters mostly carry over between seasons — copy last season's and
-            swap whoever changed.
-          </div>
-          <button
-            onClick={() => setIsCopyModalOpen(true)}
-            className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
-          >
-            Copy roster from…
-          </button>
-        </div>
       ) : (
-        <div className="grid gap-4">
-          {sortedRoster.map(member => (
-            <div key={member.player_id} className="space-y-0">
-              <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg hover:bg-slate-900/30 transition-colors">
-                <div className="p-6 flex items-center justify-between">
-                  <div
-                    className="flex-1 grid grid-cols-4 gap-6 cursor-pointer"
-                    onClick={() => togglePlayerExpanded(member.player_id)}
-                  >
-                    <div>
-                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
-                        Name
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-lg font-medium text-slate-200">
-                          {member.name}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <a
-                            href={`https://www.dotabuff.com/players/${member.player_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                            title="View on Dotabuff"
-                          >
-                            DB
-                          </a>
-                          <span className="text-slate-600">|</span>
-                          <a
-                            href={`https://www.stratz.com/players/${member.player_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                            title="View on Stratz"
-                          >
-                            STZ
-                          </a>
-                          <span className="text-slate-600">|</span>
-                          <a
-                            href={`https://www.opendota.com/players/${member.player_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                            title="View on OpenDota"
-                          >
-                            OD
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
-                        Role
-                      </div>
-                      <div className="text-lg text-slate-300">
-                        {member.role}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
-                        Rank
-                      </div>
-                      <div className="text-lg text-slate-300">
-                        {member.rank ?? "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
-                        Original Rank
-                      </div>
-                      <div className="text-lg text-slate-300">
-                        {member.original_rank ?? "—"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-6">
-                    <button
-                      onClick={() => handleRefreshPlayerData(member)}
-                      disabled={fetchingPlayerIds.has(member.player_id)}
-                      className="text-blue-400 hover:text-blue-300 disabled:text-blue-400/50 disabled:cursor-not-allowed transition-colors"
-                      title="Refresh player data"
-                    >
-                      <svg
-                        className={`w-5 h-5 ${
-                          fetchingPlayerIds.has(member.player_id)
-                            ? "animate-spin"
-                            : ""
-                        }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => togglePlayerExpanded(member.player_id)}
-                      className="text-blue-400 hover:text-blue-300 transition-colors"
-                      title={
-                        isPlayerExpanded(member.player_id)
-                          ? "Hide hero stats"
-                          : "Show hero stats"
-                      }
-                    >
-                      <svg
-                        className={`w-5 h-5 transition-transform ${
-                          isPlayerExpanded(member.player_id) ? "rotate-180" : ""
-                        }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleRemoveClick(member)}
-                      className="text-red-400 hover:text-red-300 transition-colors"
-                      title="Remove from roster"
-                    >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+        <>
+          {/* Keyed on members, not the whole roster: a team with only a stand-in
+              declared still has no roster, and the prompt to go fix that should
+              stay up rather than be satisfied by a sub. */}
+          {members.length === 0 ? (
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
+              <div className="text-slate-400 text-lg font-medium">
+                No roster registered for {leagueName}
               </div>
-              {isPlayerExpanded(member.player_id) && (
-                <div className="mt-0">
-                  <PlayerPubMatchStats
-                    playerId={member.player_id}
-                    playerRole={member.role}
-                    matchesData={matchesData}
-                  />
-                </div>
-              )}
+              <div className="text-slate-500 text-sm mt-2">
+                Rosters mostly carry over between seasons — copy last season's
+                and swap whoever changed.
+              </div>
+              <button
+                onClick={() => setIsCopyModalOpen(true)}
+                className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
+              >
+                Copy roster from…
+              </button>
             </div>
-          ))}
-        </div>
+          ) : (
+            renderRosterCards(members)
+          )}
+
+          {standIns.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
+                Stand-ins
+              </h3>
+              {renderRosterCards(standIns)}
+            </div>
+          )}
+        </>
       )}
 
       {/* Add to roster modal */}

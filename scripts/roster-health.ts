@@ -77,8 +77,12 @@ async function main(): Promise<void> {
         team_id: number
         player_id: number
         role: string
+        is_stand_in: boolean
         player: { name: string } | { name: string }[] | null
-      }>("roster_member", "league_id, team_id, player_id, role, player(name)"),
+      }>(
+        "roster_member",
+        "league_id, team_id, player_id, role, is_stand_in, player(name)",
+      ),
       selectAll<{ id: number; league_id: number }>("match", "id, league_id"),
       selectAll<{
         match_id: number
@@ -115,7 +119,7 @@ async function main(): Promise<void> {
 
   const rosters = new Map<
     string,
-    { playerId: number; name: string; role: string }[]
+    { playerId: number; name: string; role: string; isStandIn: boolean }[]
   >()
   for (const row of rosterMembers) {
     const leagueId = row.league_id
@@ -128,6 +132,7 @@ async function main(): Promise<void> {
       playerId: row.player_id,
       name: joined?.name ?? String(row.player_id),
       role: row.role,
+      isStandIn: row.is_stand_in,
     })
     rosters.set(key, members)
   }
@@ -144,11 +149,18 @@ async function main(): Promise<void> {
     const played = appearances.get(key) ?? new Map<number, Appearance>()
 
     // Nothing registered means "we don't know this team's roster", not that it's
-    // wrong. Reporting all ten players as unregistered would be noise.
-    if (members.length === 0) continue
+    // wrong. Reporting all ten players as unregistered would be noise. A team
+    // with only a stand-in declared is still in that state.
+    if (members.every(m => m.isStandIn)) continue
 
+    // Stand-ins count as known people — they just aren't the roster. So they
+    // suppress "played, unregistered" but are exempt from "registered, 0 games":
+    // a sub with no games is a sub you declared for a match not yet played, not
+    // a roster that's wrong for the season.
     const registeredIds = new Set(members.map(m => m.playerId))
-    const neverPlayed = members.filter(m => !played.has(m.playerId))
+    const neverPlayed = members.filter(
+      m => !m.isStandIn && !played.has(m.playerId),
+    )
     const unregistered = [...played.values()]
       .filter(a => !registeredIds.has(a.playerId))
       .sort((a, b) => b.games - a.games)
