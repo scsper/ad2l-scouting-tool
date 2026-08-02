@@ -1,5 +1,6 @@
 import { useGetLeagueStatsQuery } from "./league-stats-api";
 import { getHero } from "../../utils/get-hero";
+import { HeroRow } from "./HeroRow";
 import {
   bannedByTitle,
   contestedByTitle,
@@ -58,9 +59,9 @@ function HeroList({
       {entries.map(({ heroId, count, winPct: pct, title }) => (
         // The gap between rows is padding on the row rather than margin between
         // rows, so the whole strip is one hover target. As `space-y`, those six
-        // pixels belonged to no row, and a tooltip that dies in the crack
-        // between two of them reads as a tooltip that doesn't work.
-        <li key={heroId} title={title} className="py-[3px]">
+        // pixels belonged to no row, and a card that dies in the crack between
+        // two of them reads as a card that doesn't work.
+        <HeroRow key={heroId} breakdown={title} className="py-[3px]">
           <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-all">
             <span className="font-medium text-slate-200 text-sm">{getHero(heroId)}</span>
             <div className="flex items-center gap-4">
@@ -72,7 +73,7 @@ function HeroList({
               </span>
             </div>
           </div>
-        </li>
+        </HeroRow>
       ))}
     </ul>
   );
@@ -186,7 +187,7 @@ export const LeagueStats = ({
               <li className="text-slate-500 text-xs text-center py-4">No data</li>
             )}
             {entries.map(({ heroId, picks, winPct, title }) => (
-              <li key={heroId} title={title} className="py-[2px]">
+              <HeroRow key={heroId} breakdown={title} className="py-[2px]">
                 <div className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-700/30 hover:bg-slate-700/50 transition-all">
                   <span className="text-xs text-slate-200 truncate mr-2">{getHero(heroId)}</span>
                   <div className="flex items-center gap-2 shrink-0">
@@ -196,7 +197,7 @@ export const LeagueStats = ({
                     <span className="text-xs px-1.5 py-0.5 bg-slate-600/50 text-slate-300 rounded font-semibold">{picks}</span>
                   </div>
                 </div>
-              </li>
+              </HeroRow>
             ))}
           </ul>
         </div>
