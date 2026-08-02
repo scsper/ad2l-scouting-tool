@@ -6,6 +6,7 @@ import { leagueApiSlice } from "../features/league-and-team-picker/league-api"
 import { teamsApiSlice } from "../features/league-and-team-picker/teams-api"
 import { playersApiSlice } from "../features/players/players-api"
 import { leagueAggregateApiSlice } from "../features/league-aggregate/league-aggregate-api"
+import { wardsApiSlice } from "../features/wards/wards-api"
 
 // `combineSlices` automatically combines the reducers using
 // their `reducerPath`s, therefore we no longer need to call `combineReducers`.
@@ -15,6 +16,7 @@ const rootReducer = combineSlices(
   teamsApiSlice,
   playersApiSlice,
   leagueAggregateApiSlice,
+  wardsApiSlice,
 )
 // Infer the `RootState` type from the root reducer
 export type RootState = ReturnType<typeof rootReducer>
@@ -41,6 +43,7 @@ export const makeStore = (preloadedState?: Partial<RootState>) => {
         teamsApiSlice.middleware,
         playersApiSlice.middleware,
         leagueAggregateApiSlice.middleware,
+        wardsApiSlice.middleware,
       )
     },
     preloadedState,

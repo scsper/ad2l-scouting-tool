@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js"
-import type { MatchRow, MatchPlayerRow, MatchDraftRow } from "../../types/db.js"
+import type {
+  MatchRow,
+  MatchPlayerRow,
+  MatchDraftRow,
+  WardRecord,
+} from "../../types/db.js"
+import { extractWards, type OpenDotaWardLogs } from "./wards.js"
 
 const API_URL = "https://api.opendota.com/api/matches"
 const OPENDOTA_API_KEY = process.env.OPENDOTA_API_TOKEN ?? ""
@@ -48,7 +54,7 @@ type OpenDotaPlayer = {
   xp_t?: number[]
   lh_t?: number[]
   dn_t?: number[]
-}
+} & OpenDotaWardLogs
 
 // OpenDota match response
 type OpenDotaMatch = {
@@ -111,6 +117,8 @@ type Player = {
   xpAt10: number | null
   lastHitsAt10: number | null
   deniesAt10: number | null
+  // null when the replay carried no ward logs; [] when the player placed none.
+  wards: WardRecord[] | null
 }
 
 export type Match = {
@@ -296,6 +304,7 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
       xpAt10: at10.xpAt10,
       lastHitsAt10: at10.lastHitsAt10,
       deniesAt10: at10.deniesAt10,
+      wards: extractWards(player),
     }
   })
 
@@ -448,6 +457,7 @@ export async function convertMatchDataToMatchPlayersTable(
     xp_at_10: player.xpAt10,
     lh_at_10: player.lastHitsAt10,
     denies_at_10: player.deniesAt10,
+    wards: player.wards,
   }))
 
   const { data, error } = await supabase

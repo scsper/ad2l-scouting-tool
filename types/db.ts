@@ -8,6 +8,21 @@ type MatchRow = {
   end_date_time: number
 }
 
+// A single ward placement, extracted from OpenDota's replay-parsed logs.
+// Times are seconds relative to the horn and can be negative (pre-horn setup).
+type WardRecord = {
+  type: "obs" | "sen"
+  x: number
+  y: number
+  placed: number
+  // null when the ward was still standing at game end.
+  left: number | null
+  // Killing hero, "npc_dota_hero_" prefix stripped. OpenDota populates this on
+  // natural expiries too, so it does NOT mean the ward was dewarded — compare
+  // lifespan against the nominal duration for that (see src/utils/ward-map.ts).
+  by: string | null
+}
+
 type MatchPlayerRow = {
   player_id: number
   match_id: number
@@ -41,6 +56,8 @@ type MatchPlayerRow = {
   xp_at_10?: number | null
   lh_at_10?: number | null
   denies_at_10?: number | null
+  // null = never ward-parsed; [] = parsed, placed nothing. See migrations/add_wards.sql.
+  wards?: WardRecord[] | null
 }
 
 type MatchDraftRow = {
@@ -93,6 +110,7 @@ type PlayerPubMatchStatsRow = {
 
 export type {
   MatchRow,
+  WardRecord,
   MatchPlayerRow,
   MatchDraftRow,
   PlayerRow,
