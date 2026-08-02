@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { buildPlayerStats, getGameKda } from "./player-stats-utils"
 import type { MatchApiResponse } from "../../../types/api"
-import type { MatchPlayerRow, PlayerRow } from "../../../types/db"
+import type { MatchPlayerRow, RosterEntry } from "../../../types/db"
 
 const SCOUTED_TEAM = 100
 const OPPONENT_TEAM = 200
+const LEAGUE = 19554
 
 function matchPlayer(opts: {
   playerId: number
@@ -18,6 +19,9 @@ function matchPlayer(opts: {
   gpm?: number
   xpm?: number
   heroDamage?: number
+  towerDamage?: number
+  obsPlaced?: number | null
+  senPlaced?: number | null
 }): MatchPlayerRow {
   return {
     player_id: opts.playerId,
@@ -37,7 +41,11 @@ function matchPlayer(opts: {
     gpm: opts.gpm ?? 0,
     xpm: opts.xpm ?? 0,
     hero_damage: opts.heroDamage ?? 0,
-    tower_damage: 0,
+    tower_damage: opts.towerDamage ?? 0,
+    // Wards default to null ("no data for this match"), so a test has to opt in
+    // to ward numbers. An explicit 0 means the player placed none.
+    obs_placed: opts.obsPlaced ?? null,
+    sen_placed: opts.senPlaced ?? null,
   }
 }
 
@@ -68,15 +76,17 @@ function registered(opts: {
   id: number
   role?: string
   name?: string
-}): PlayerRow {
+}): RosterEntry {
   return {
-    id: opts.id,
+    league_id: LEAGUE,
     team_id: SCOUTED_TEAM,
+    player_id: opts.id,
     created_at: "",
     updated_at: "",
     role: opts.role ?? "Carry",
     name: opts.name ?? `Registered ${String(opts.id)}`,
     rank: "Divine",
+    original_rank: null,
   }
 }
 
@@ -192,14 +202,26 @@ describe("buildPlayerStats", () => {
           id: 1,
           startDateTime: 100,
           players: [
-            matchPlayer({ playerId: 1, gpm: 600, xpm: 700, heroDamage: 30000 }),
+            matchPlayer({
+              playerId: 1,
+              gpm: 600,
+              xpm: 700,
+              heroDamage: 30000,
+              towerDamage: 5000,
+            }),
           ],
         }),
         match({
           id: 2,
           startDateTime: 200,
           players: [
-            matchPlayer({ playerId: 1, gpm: 400, xpm: 500, heroDamage: 10000 }),
+            matchPlayer({
+              playerId: 1,
+              gpm: 400,
+              xpm: 500,
+              heroDamage: 10000,
+              towerDamage: 1000,
+            }),
           ],
         }),
       ],
@@ -210,6 +232,7 @@ describe("buildPlayerStats", () => {
     expect(stats[0].averages.gpm).toBe(500)
     expect(stats[0].averages.xpm).toBe(600)
     expect(stats[0].averages.heroDamage).toBe(20000)
+    expect(stats[0].averages.towerDamage).toBe(3000)
   })
 
   it("records wins and losses from the winning team", () => {
@@ -345,9 +368,7 @@ describe("buildPlayerStats", () => {
       [],
     )
 
-    expect(
-      stats.map(entry => [entry.playerId, entry.positionLabel]),
-    ).toEqual([
+    expect(stats.map(entry => [entry.playerId, entry.positionLabel])).toEqual([
       [1, "Pos 1"],
       [3, "Pos 3"],
       [45, "Pos 4/5"],
@@ -425,6 +446,81 @@ describe("buildPlayerStats", () => {
   })
 })
 
+describe("buildPlayerStats ward averages", () => {
+  /** Two games, only the first with ward data. */
+  function wardMatches(first: number | null, second: number | null) {
+    return [
+      match({
+        id: 1,
+        startDateTime: 100,
+        players: [
+          matchPlayer({ playerId: 1, obsPlaced: first, senPlaced: first }),
+        ],
+      }),
+      match({
+        id: 2,
+        startDateTime: 200,
+        players: [
+          matchPlayer({ playerId: 1, obsPlaced: second, senPlaced: second }),
+        ],
+      }),
+    ]
+  }
+
+  it("averages over only the games that carry ward data", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(10, null),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    // Divided by 1, not 2: the match with no ward data is skipped entirely
+    // rather than counted as a zero, which would halve the average.
+    expect(stats[0].games).toHaveLength(2)
+    expect(stats[0].averages.obsPlaced).toBe(10)
+    expect(stats[0].averages.senPlaced).toBe(10)
+  })
+
+  it("counts a real zero instead of skipping it", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(10, 0),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    // Guards the opposite mistake from the test above: skipping a null must not
+    // become skipping anything falsy. A core who genuinely placed no wards has
+    // to pull the average down, so this is (10 + 0) / 2, not 10 / 1. Rewriting
+    // the null check as `if (!placed) continue` fails here and nowhere else.
+    expect(stats[0].averages.obsPlaced).toBe(5)
+    expect(stats[0].averages.senPlaced).toBe(5)
+  })
+
+  it("reports null when no game carries ward data", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(null, null),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    // Null rather than NaN or 0 — the UI renders it as an em dash.
+    expect(stats[0].averages.obsPlaced).toBeNull()
+    expect(stats[0].averages.senPlaced).toBeNull()
+  })
+
+  it("keeps per-game ward values null rather than zeroing them", () => {
+    const { roster: stats } = buildPlayerStats(
+      wardMatches(10, null),
+      SCOUTED_TEAM,
+      [],
+    )
+
+    const [newest, oldest] = stats[0].games
+    expect(newest.obsPlaced).toBeNull()
+    expect(oldest.obsPlaced).toBe(10)
+  })
+})
+
 describe("buildPlayerStats roster split", () => {
   it("separates registered players from stand-ins", () => {
     const { roster, standIns } = buildPlayerStats(
@@ -493,5 +589,72 @@ describe("buildPlayerStats roster split", () => {
 
     expect(roster.map(entry => entry.playerId)).toEqual([1, 5])
     expect(standIns).toEqual([])
+  })
+
+  it("keeps roster members who played no games in this league", () => {
+    // Alca is on Sharkhorse's roster but only played the previous season. Hiding
+    // him hides half the evidence that the roster is wrong for this league; the
+    // other half is the stand-in below who started every game.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [matchPlayer({ playerId: 99, position: "POSITION_3" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [
+        registered({ id: 1, role: "Hard Support", name: "Alca" }),
+        registered({ id: 2, role: "Carry", name: "scsper" }),
+      ],
+    )
+
+    expect(roster.map(entry => entry.name)).toEqual(["scsper", "Alca"])
+    expect(roster.every(entry => entry.games.length === 0)).toBe(true)
+    // Position comes from the declared role, since there are no games to infer it.
+    expect(roster.map(entry => entry.positionLabel)).toEqual(["Pos 1", "Pos 5"])
+    expect(standIns.map(entry => entry.playerId)).toEqual([99])
+  })
+
+  it("sorts a roster member with games ahead of one without at the same position", () => {
+    const { roster } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [matchPlayer({ playerId: 1, position: "POSITION_1" })],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [
+        registered({ id: 2, role: "Carry", name: "Benched" }),
+        registered({ id: 1, role: "Carry", name: "Starter" }),
+      ],
+    )
+
+    expect(roster.map(entry => entry.name)).toEqual(["Starter", "Benched"])
+  })
+
+  it("does not count a player registered for another league as roster", () => {
+    // The whole point of scoping: buildPlayerStats only ever sees the selected
+    // league's members, so a player registered elsewhere is a stand-in here.
+    const { roster, standIns } = buildPlayerStats(
+      [
+        match({
+          id: 1,
+          startDateTime: 100,
+          players: [
+            matchPlayer({ playerId: 1, position: "POSITION_1" }),
+            matchPlayer({ playerId: 2, position: "POSITION_2" }),
+          ],
+        }),
+      ],
+      SCOUTED_TEAM,
+      [registered({ id: 1 })],
+    )
+
+    expect(roster.map(entry => entry.playerId)).toEqual([1])
+    expect(standIns.map(entry => entry.playerId)).toEqual([2])
   })
 })

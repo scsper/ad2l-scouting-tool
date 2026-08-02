@@ -43,6 +43,9 @@ type OpenDotaPlayer = {
   xp_per_min: number
   hero_damage: number
   tower_damage: number
+  // Only present on replay-parsed matches; absent means unknown, not zero.
+  obs_placed?: number
+  sen_placed?: number
   lane?: number
   lane_role?: number
   is_roaming?: boolean
@@ -107,6 +110,9 @@ type Player = {
   experiencePerMinute: number
   heroDamage: number
   towerDamage: number
+  /** `null` when OpenDota supplied no ward data; `0` means none were placed. */
+  obsPlaced: number | null
+  senPlaced: number | null
   goldAt10: number | null
   xpAt10: number | null
   lastHitsAt10: number | null
@@ -290,6 +296,10 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
       experiencePerMinute: player.xp_per_min,
       heroDamage: player.hero_damage,
       towerDamage: player.tower_damage,
+      // `?? null`, never `?? 0`: an absent field means OpenDota has no ward data
+      // for this player, which is not the same as placing no wards.
+      obsPlaced: player.obs_placed ?? null,
+      senPlaced: player.sen_placed ?? null,
       goldAt10: at10.goldAt10,
       xpAt10: at10.xpAt10,
       lastHitsAt10: at10.lastHitsAt10,
@@ -441,6 +451,8 @@ export async function convertMatchDataToMatchPlayersTable(
     xpm: player.experiencePerMinute,
     hero_damage: player.heroDamage,
     tower_damage: player.towerDamage,
+    obs_placed: player.obsPlaced,
+    sen_placed: player.senPlaced,
     gold_at_10: player.goldAt10,
     xp_at_10: player.xpAt10,
     lh_at_10: player.lastHitsAt10,

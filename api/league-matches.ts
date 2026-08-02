@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { MatchDraftRow, MatchPlayerRow, MatchRow } from "../types/db";
+import { selectAll } from "./lib/select-all.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -10,7 +11,9 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
 
 export type LeagueMatchPlayer = Pick<MatchPlayerRow, 'match_id' | 'hero_id' | 'position' | 'team_id'>;
 
-export type LeagueMatchResponse = Pick<MatchRow, 'id' | 'winning_team_id' | 'radiant_team_id' | 'dire_team_id'> & {
+export type LeagueMatch = Pick<MatchRow, 'id' | 'winning_team_id' | 'radiant_team_id' | 'dire_team_id'>;
+
+export type LeagueMatchResponse = LeagueMatch & {
   draft: MatchDraftRow[];
   players: LeagueMatchPlayer[];
 };
@@ -37,45 +40,37 @@ export type LeagueMatchesApiResponse = {
 };
 
 async function getMatchesByLeague(leagueId: string): Promise<LeagueMatchesApiResponse> {
-  const { data: matches, error: matchesError } = await supabase
+  // Every read here is paged. A whole league's drafts run to 2782 rows, well
+  // past PostgREST's silent 1000-row ceiling, and they feed pick/ban counts that
+  // are meaningless if they cover an arbitrary subset of the league.
+  const matches = await selectAll<LeagueMatch>((from, to) => supabase
     .from('match')
     .select('id, winning_team_id, radiant_team_id, dire_team_id')
-    .eq('league_id', parseInt(leagueId, 10));
+    .eq('league_id', parseInt(leagueId, 10))
+    .range(from, to));
 
-  if (matchesError) {
-    console.error("Error fetching matches:", matchesError);
-    throw matchesError;
-  }
+  if (matches.length === 0) return { matches: [], picksByPosition: {}, heroDraftStats: {} };
 
-  if (!matches || matches.length === 0) return { matches: [], picksByPosition: {}, heroDraftStats: {} };
+  const matchIds = matches.map(m => m.id);
 
-  const matchIds = (matches as MatchRow[]).map(m => m.id);
-
-  const [{ data: drafts, error: draftsError }, { data: players, error: playersError }] = await Promise.all([
-    supabase.from('match_draft').select('*').in('match_id', matchIds),
-    supabase.from('match_player').select('match_id, hero_id, position, team_id').in('match_id', matchIds),
+  const [drafts, players] = await Promise.all([
+    selectAll<MatchDraftRow>((from, to) => supabase
+      .from('match_draft').select('*').in('match_id', matchIds).range(from, to)),
+    selectAll<LeagueMatchPlayer>((from, to) => supabase
+      .from('match_player').select('match_id, hero_id, position, team_id').in('match_id', matchIds).range(from, to)),
   ]);
 
-  if (draftsError) {
-    console.error("Error fetching match drafts:", draftsError);
-    throw draftsError;
-  }
-  if (playersError) {
-    console.error("Error fetching match players:", playersError);
-    throw playersError;
-  }
-
   const matchesMap = new Map<number, LeagueMatchResponse>();
-  (matches as MatchRow[]).forEach(match => {
+  matches.forEach(match => {
     matchesMap.set(match.id, { ...match, draft: [], players: [] });
   });
 
-  (drafts as MatchDraftRow[]).forEach(draft => {
+  drafts.forEach(draft => {
     const match = matchesMap.get(draft.match_id);
     if (match) match.draft.push(draft);
   });
 
-  (players as LeagueMatchPlayer[]).forEach(player => {
+  players.forEach(player => {
     const match = matchesMap.get(player.match_id);
     if (match) match.players.push(player);
   });

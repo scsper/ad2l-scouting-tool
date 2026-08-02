@@ -41,6 +41,17 @@ type MatchPlayerRow = {
   xpm: number
   hero_damage: number
   tower_damage: number
+  /**
+   * Wards placed. Nullable on purpose and required on purpose: `null` means we
+   * have no ward data for the row (OpenDota never parsed the match, or it was
+   * hand-entered from post-game screenshots, which don't show ward counts),
+   * while `0` means the player placed none. Ward averages skip `null` but
+   * include real zeroes, so the two must never be collapsed. Unlike the
+   * `*_at_10` fields below, these are not optional — every construction site
+   * should have to say which one it means.
+   */
+  obs_placed: number | null
+  sen_placed: number | null
   gold_at_10?: number | null
   xp_at_10?: number | null
   lh_at_10?: number | null
@@ -57,15 +68,34 @@ type MatchDraftRow = {
   is_pick: boolean
 }
 
+/** A person. Roster membership lives in `roster_member`, scoped to a league. */
 type PlayerRow = {
   id: number
   created_at: string
   updated_at: string
-  team_id: number
-  role: string
   name: string
-  rank: string
 }
+
+/**
+ * One player's membership of one team's roster for one league. A team fields a
+ * different lineup each season, so `role` and both ranks are per-league facts,
+ * not per-person ones.
+ */
+type RosterMemberRow = {
+  league_id: number
+  team_id: number
+  player_id: number
+  role: string
+  /** Free text, e.g. "Archon V". Their rank during this league. */
+  rank: string | null
+  /** Free text. The rank they registered at, which gates stand-in validity. */
+  original_rank: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** A `roster_member` row joined to the person it refers to. */
+type RosterEntry = RosterMemberRow & { name: string }
 
 type PlayerPubMatchStatsRow = {
   id: number
@@ -84,5 +114,7 @@ export type {
   MatchPlayerRow,
   MatchDraftRow,
   PlayerRow,
+  RosterMemberRow,
+  RosterEntry,
   PlayerPubMatchStatsRow,
 }

@@ -1,5 +1,5 @@
 import type { MatchApiResponse } from "../../../types/api"
-import type { PlayerRow } from "../../../types/db"
+import type { RosterEntry } from "../../../types/db"
 import { roleToPosition } from "../../../shared/roles"
 
 const POSITIONS: string[] = [
@@ -29,6 +29,10 @@ export type PlayerGame = {
   deaths: number
   assists: number
   heroDamage: number
+  towerDamage: number
+  /** `null` when the match has no ward data; `0` means none were placed. */
+  obsPlaced: number | null
+  senPlaced: number | null
   kda: number
 }
 
@@ -39,6 +43,10 @@ export type PlayerAverages = {
   deaths: number
   assists: number
   heroDamage: number
+  towerDamage: number
+  /** `null` when none of the player's games carry ward data. */
+  obsPlaced: number | null
+  senPlaced: number | null
   kda: number
 }
 
@@ -54,7 +62,10 @@ export type PlayerStatsEntry = {
 }
 
 export type PlayerStatsSplit = {
-  /** Players registered on the team's roster. */
+  /**
+   * Players on the team's roster for this league, including any who haven't
+   * played a game in it — an empty `games` array is the signal.
+   */
   roster: PlayerStatsEntry[]
   /** Players who appeared for the team but aren't on its roster. */
   standIns: PlayerStatsEntry[]
@@ -121,6 +132,30 @@ function getOpponentTeamId(
   return null
 }
 
+/**
+ * Averages a ward stat over only the games that carry ward data, so the
+ * denominator differs from the player's game count. Games with `null` are
+ * skipped rather than counted as zero — treating "we have no data" as "placed
+ * none" would quietly drag a support's average toward zero for games nobody has
+ * numbers for. A real `0` is a genuine observation and is included.
+ *
+ * Returns `null` when no game has data, which the UI renders as an em dash.
+ */
+function getWardAverage(
+  games: PlayerGame[],
+  select: (game: PlayerGame) => number | null,
+): number | null {
+  let total = 0
+  let count = 0
+  for (const game of games) {
+    const placed = select(game)
+    if (placed == null) continue
+    total += placed
+    count += 1
+  }
+  return count === 0 ? null : total / count
+}
+
 function getAverages(games: PlayerGame[]): PlayerAverages {
   const totals = games.reduce(
     (acc, game) => ({
@@ -130,8 +165,17 @@ function getAverages(games: PlayerGame[]): PlayerAverages {
       deaths: acc.deaths + game.deaths,
       assists: acc.assists + game.assists,
       heroDamage: acc.heroDamage + game.heroDamage,
+      towerDamage: acc.towerDamage + game.towerDamage,
     }),
-    { gpm: 0, xpm: 0, kills: 0, deaths: 0, assists: 0, heroDamage: 0 },
+    {
+      gpm: 0,
+      xpm: 0,
+      kills: 0,
+      deaths: 0,
+      assists: 0,
+      heroDamage: 0,
+      towerDamage: 0,
+    },
   )
 
   const gameCount = Math.max(games.length, 1)
@@ -143,6 +187,9 @@ function getAverages(games: PlayerGame[]): PlayerAverages {
     deaths: totals.deaths / gameCount,
     assists: totals.assists / gameCount,
     heroDamage: totals.heroDamage / gameCount,
+    towerDamage: totals.towerDamage / gameCount,
+    obsPlaced: getWardAverage(games, game => game.obsPlaced),
+    senPlaced: getWardAverage(games, game => game.senPlaced),
     // Ratio of totals, matching how Dotabuff/OpenDota/Stratz report aggregate KDA.
     kda: (totals.kills + totals.assists) / Math.max(totals.deaths, 1),
   }
@@ -169,18 +216,36 @@ function compareStandIn(a: PlayerStatsEntry, b: PlayerStatsEntry): number {
   )
 }
 
+/** Position a roster member declares, for someone with no games to infer from. */
+function getDeclaredPositionLabel(role: string): {
+  label: string
+  sortKey: number
+} {
+  const position = roleToPosition(role)
+  if (!position) return { label: "—", sortKey: UNKNOWN_POSITION_SORT_KEY }
+
+  return {
+    label: `Pos ${position.replace("POSITION_", "")}`,
+    sortKey: POSITIONS.indexOf(position),
+  }
+}
+
 /**
  * Builds one entry per player who appeared for the scouted team, aggregating by
  * `player_id` because `player_name` changes between matches, then splits them
- * into the registered roster and everyone else.
+ * into the league's registered roster and everyone else.
+ *
+ * `rosterMembers` is scoped to one league, so a player registered for S47 is not
+ * treated as roster when you're looking at S46 — which is what made a 7-game S46
+ * starter render under "Stand-ins".
  */
 export function buildPlayerStats(
   matches: MatchApiResponse[],
   teamId: number,
-  registeredPlayers: PlayerRow[],
+  rosterMembers: RosterEntry[],
 ): PlayerStatsSplit {
   const registered = new Map(
-    registeredPlayers.map(player => [player.id, player]),
+    rosterMembers.map(member => [member.player_id, member]),
   )
   const gamesByPlayer = new Map<number, PlayerGame[]>()
   const latestNames = new Map<number, { name: string; at: number }>()
@@ -210,12 +275,20 @@ export function buildPlayerStats(
         deaths: player.deaths,
         assists: player.assists,
         heroDamage: player.hero_damage,
+        towerDamage: player.tower_damage,
+        // Rows predating the ward columns, and the hand-entered matches, carry
+        // null here. Normalise undefined to null but never to 0.
+        obsPlaced: player.obs_placed ?? null,
+        senPlaced: player.sen_placed ?? null,
         kda: getGameKda(player.kills, player.deaths, player.assists),
       })
       gamesByPlayer.set(player.player_id, games)
 
       const latest = latestNames.get(player.player_id)
-      if (player.player_name && (!latest || match.start_date_time > latest.at)) {
+      if (
+        player.player_name &&
+        (!latest || match.start_date_time > latest.at)
+      ) {
         latestNames.set(player.player_id, {
           name: player.player_name,
           at: match.start_date_time,
@@ -256,6 +329,27 @@ export function buildPlayerStats(
     return { roster: entries.sort(compareRoster), standIns: [] }
   }
 
+  // Roster members with no games in this league would otherwise vanish, hiding
+  // half of every roster mistake: you'd see the stand-in who played but not the
+  // registered player who didn't. Both halves need to be visible to notice the
+  // roster is wrong for the season you're looking at.
+  const played = new Set(entries.map(entry => entry.playerId))
+  for (const member of rosterMembers) {
+    if (played.has(member.player_id)) continue
+
+    const { label, sortKey } = getDeclaredPositionLabel(member.role)
+    entries.push({
+      playerId: member.player_id,
+      name: member.name,
+      positionLabel: label,
+      positionSortKey: sortKey,
+      wins: 0,
+      losses: 0,
+      averages: getAverages([]),
+      games: [],
+    })
+  }
+
   return {
     roster: entries.filter(e => registered.has(e.playerId)).sort(compareRoster),
     standIns: entries
@@ -269,4 +363,12 @@ export function formatDamage(value: number): string {
   return value >= 1000
     ? `${(value / 1000).toFixed(1)}k`
     : String(Math.round(value))
+}
+
+/**
+ * Renders an em dash for missing ward data so it never reads as a zero. A core
+ * who warded nothing shows "0"; a match we have no data for shows "—".
+ */
+export function formatWards(placed: number | null, digits = 0): string {
+  return placed == null ? "—" : placed.toFixed(digits)
 }

@@ -30,6 +30,8 @@ function player(overrides: Partial<MatchPlayerRow>): MatchPlayerRow {
     xpm: 0,
     hero_damage: 0,
     tower_damage: 0,
+    obs_placed: null,
+    sen_placed: null,
     ...overrides,
   }
 }
@@ -52,6 +54,11 @@ const MATCHES: MatchApiResponse[] = [
         deaths: 0,
         assists: 10,
         hero_damage: 30000,
+        // Only this match has ward data; match 222 leaves it null so the em-dash
+        // path and the ward-specific denominator are both exercised. Values are
+        // chosen not to collide with any other number rendered on the row.
+        obs_placed: 9,
+        sen_placed: 14,
       }),
     ],
   },
@@ -97,6 +104,20 @@ class TestRequest {
   }
 }
 
+function rosterMember(opts: { playerId: number; name: string; role?: string }) {
+  return {
+    league_id: LEAGUE_ID,
+    team_id: SCOUTED_TEAM,
+    player_id: opts.playerId,
+    created_at: "",
+    updated_at: "",
+    role: opts.role ?? "Carry",
+    name: opts.name,
+    rank: "Divine",
+    original_rank: null,
+  }
+}
+
 function stubFetch(roster: unknown[]) {
   vi.stubGlobal("Request", TestRequest)
   vi.stubGlobal(
@@ -113,7 +134,7 @@ function stubFetch(roster: unknown[]) {
 
       if (url.includes("api/matches")) return json(MATCHES)
       if (url.includes("api/team")) return json({})
-      if (url.includes("api/player")) return json(roster)
+      if (url.includes("api/roster")) return json(roster)
       throw new Error(`Unexpected fetch: ${url}`)
     }),
   )
@@ -154,6 +175,10 @@ describe("PlayerStats", () => {
     // KDA is the ratio of totals: (12 + 14) / 10
     expect(cells.getByText("2.6")).toBeInTheDocument()
     expect(cells.getByText("20.0k")).toBeInTheDocument()
+    // Wards average over the one game that has data, not both, so 9 obs in a
+    // single match reads 9.0 rather than being halved to 4.5.
+    expect(cells.getByText("9.0")).toBeInTheDocument()
+    expect(cells.getByText("14.0")).toBeInTheDocument()
 
     // Per-game rows stay hidden until the card is expanded.
     expect(screen.queryByTitle("View on Dotabuff")).not.toBeInTheDocument()
@@ -180,6 +205,20 @@ describe("PlayerStats", () => {
     expect(screen.getByText("20.0")).toBeInTheDocument()
   })
 
+  it("renders an em dash for a game with no ward data", async () => {
+    renderPlayerStats()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByText("Scott"))
+
+    // Match 111 has real counts; match 222 has none. The second game must read
+    // "—" and not "0", which would claim the player warded nothing rather than
+    // admitting the data is missing.
+    expect(screen.getByText("9")).toBeInTheDocument()
+    expect(screen.getByText("14")).toBeInTheDocument()
+    expect(screen.getAllByText("—")).toHaveLength(2)
+  })
+
   it("omits the stand-in heading when the roster is unknown", async () => {
     renderPlayerStats()
 
@@ -188,22 +227,19 @@ describe("PlayerStats", () => {
   })
 
   it("lists a player who isn't on the roster under Stand-ins", async () => {
-    // Roster holds someone who never played, so Scott is the only card and the
-    // registered player stays hidden rather than rendering an empty stat row.
-    renderPlayerStats([
-      {
-        id: 2,
-        team_id: SCOUTED_TEAM,
-        created_at: "",
-        updated_at: "",
-        role: "Carry",
-        name: "Benched",
-        rank: "Divine",
-      },
-    ])
+    renderPlayerStats([rosterMember({ playerId: 2, name: "Benched" })])
 
     expect(await screen.findByText("Stand-ins")).toBeInTheDocument()
     expect(screen.getByText("Scott")).toBeInTheDocument()
-    expect(screen.queryByText("Benched")).not.toBeInTheDocument()
+  })
+
+  it("keeps a roster member who played no games in this league", async () => {
+    // Both halves of a wrong roster have to be visible: the stand-in who played
+    // (Scott) and the registered player who didn't (Benched). Hiding the latter
+    // is what let a 7-game starter sit under "Stand-ins" unnoticed.
+    renderPlayerStats([rosterMember({ playerId: 2, name: "Benched" })])
+
+    expect(await screen.findByText("Benched")).toBeInTheDocument()
+    expect(screen.getByText("no games this league")).toBeInTheDocument()
   })
 })

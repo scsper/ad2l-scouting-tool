@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { selectAll } from "./lib/select-all"
 import type { MatchPlayerRow, MatchRow, WardRecord } from "../types/db"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
@@ -47,53 +48,38 @@ async function getWardsByLeagueAndTeam(
   const leagueIdNum = parseInt(leagueId, 10)
   const teamIdNum = parseInt(teamId, 10)
 
-  const { data: matches, error: matchesError } = await supabase
-    .from("match")
-    .select(
-      "id, start_date_time, end_date_time, radiant_team_id, dire_team_id, winning_team_id",
-    )
-    .eq("league_id", leagueIdNum)
-    .or(
-      `radiant_team_id.eq.${String(teamIdNum)},dire_team_id.eq.${String(teamIdNum)}`,
-    )
-    .order("start_date_time", { ascending: false })
-
-  if (matchesError) {
-    console.error("Error fetching matches:", matchesError)
-    throw matchesError
-  }
+  const matches = await selectAll<MatchRow>((from, to) =>
+    supabase
+      .from("match")
+      .select(
+        "id, start_date_time, end_date_time, radiant_team_id, dire_team_id, winning_team_id",
+      )
+      .eq("league_id", leagueIdNum)
+      .or(
+        `radiant_team_id.eq.${String(teamIdNum)},dire_team_id.eq.${String(teamIdNum)}`,
+      )
+      .order("start_date_time", { ascending: false })
+      .range(from, to),
+  )
 
   if (matches.length === 0) return { matches: [] }
 
-  const matchIds = (matches as MatchRow[]).map(m => m.id)
+  const matchIds = matches.map(m => m.id)
 
   // Only this team's players. `parseMatch` writes all ten rows together, so if
   // the replay was never parsed these five are NULL too — enough to derive
   // `hasWardData` without pulling the opponent's blobs across the wire.
-  //
-  // Paginated because PostgREST caps an unbounded select at 1000 rows and
-  // reports a normal 200 with a short array. A team with more than 200 league
-  // games would silently lose its oldest matches from every aggregate.
-  const PAGE_SIZE = 1000
-  const players: (WardMatchPlayer & { match_id: number })[] = []
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error: playersError } = await supabase
-      .from("match_player")
-      .select(
-        "match_id, player_id, player_name, hero_id, position, team_id, wards",
-      )
-      .in("match_id", matchIds)
-      .eq("team_id", teamIdNum)
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (playersError) {
-      console.error("Error fetching match players:", playersError)
-      throw playersError
-    }
-
-    players.push(...(data as (WardMatchPlayer & { match_id: number })[]))
-    if (data.length < PAGE_SIZE) break
-  }
+  const players = await selectAll<WardMatchPlayer & { match_id: number }>(
+    (from, to) =>
+      supabase
+        .from("match_player")
+        .select(
+          "match_id, player_id, player_name, hero_id, position, team_id, wards",
+        )
+        .in("match_id", matchIds)
+        .eq("team_id", teamIdNum)
+        .range(from, to),
+  )
 
   const byMatch = new Map<number, (WardMatchPlayer & { match_id: number })[]>()
   for (const player of players) {
@@ -102,7 +88,7 @@ async function getWardsByLeagueAndTeam(
     byMatch.set(player.match_id, list)
   }
 
-  const result: WardMatch[] = (matches as MatchRow[]).map(match => {
+  const result: WardMatch[] = matches.map(match => {
     const all = byMatch.get(match.id) ?? []
     return {
       id: match.id,

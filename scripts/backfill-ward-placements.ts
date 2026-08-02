@@ -26,6 +26,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import { createClient } from "@supabase/supabase-js"
 import { getMatch } from "../api/lib/match-operations"
+import { selectAll } from "../api/lib/select-all"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -49,39 +50,25 @@ function getMatchIdsFromFile(filePath: string): number[] {
     .map(Number)
 }
 
-const PAGE_SIZE = 1000
-
 /**
  * Match IDs with at least one match_player row that has never been ward-parsed.
  *
- * Paginated deliberately. PostgREST caps an unbounded select at 1000 rows and
- * signals nothing — a normal 200 with a short array. `wards` starts NULL on
- * every one of the ~3520 match_player rows, so the unpaged version of this query
- * matches all of them, returns the first 1000, and reports roughly 100 matches
- * instead of 355. The script would then print "Done" having silently skipped
- * most of the table.
+ * Paged via `selectAll` deliberately. PostgREST caps an unbounded select at 1000
+ * rows and signals nothing — a normal 200 with a short array. `wards` starts
+ * NULL on every one of the ~3520 match_player rows, so an unpaged version of
+ * this query matches all of them, returns the first 1000, and reports roughly
+ * 100 matches instead of 355. The script would then print "Done" having silently
+ * skipped most of the table.
  */
 async function getMatchIdsNeedingBackfill(): Promise<Set<number>> {
-  const ids = new Set<number>()
-  let from = 0
-
-  for (;;) {
-    const { data, error } = await supabase
+  const rows = await selectAll<{ match_id: number }>((from, to) =>
+    supabase
       .from("match_player")
       .select("match_id")
       .is("wards", null)
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (error) {
-      throw new Error(`Failed to fetch match IDs: ${error.message}`)
-    }
-
-    for (const row of data as { match_id: number }[]) ids.add(row.match_id)
-    if (data.length < PAGE_SIZE) break
-    from += PAGE_SIZE
-  }
-
-  return ids
+      .range(from, to),
+  )
+  return new Set(rows.map(r => r.match_id))
 }
 
 /** Rows still needing backfill, so the sweep can be checked against a real count. */
@@ -166,7 +153,7 @@ async function main() {
     )
     // A paginated sweep that ends up under one page is the signature of the
     // PostgREST row cap biting, so say it out loud rather than proceeding.
-    if (rowCount > PAGE_SIZE && matchIds.length * 10 < rowCount) {
+    if (matchIds.length * 10 < rowCount) {
       console.warn(
         `WARNING: ${String(matchIds.length)} matches cannot account for ${String(rowCount)} rows — the sweep looks truncated.`,
       )
