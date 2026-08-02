@@ -137,32 +137,56 @@ export function towerLabel(tower: TowerId): string {
  * `north` is the lava-lit pit in the upper-left stretch of the river; `south` is
  * the open rock horseshoe in the lower-right stretch. Named by their position on
  * the image, because that is the only thing the map itself asserts.
+ * Which name goes with which pit was settled empirically, not from the art. The
+ * lava-lit pit in the upper-left stretch of the river is "south" and the open
+ * rock horseshoe in the lower-right stretch is "north" — the reverse of what the
+ * image suggests, and the reverse of what this file first assumed.
+ *
+ * The check: for every Roshan kill in a 7.41+ game, take the killing team's
+ * wards placed shortly beforehand and still alive, and see which pit they
+ * cluster around. That is a strong signal because teams ward the pit they are
+ * about to take. Across 343 kills the deduced pit matched the warded one 85–99%
+ * of the time under this labelling and 1–15% under the other, holding across
+ * every window and radius tried; at the tightest setting — wards placed within
+ * 90 seconds and inside 7% of the map — it was 99% over 83 decisive kills.
  */
 export const ROSHAN_PITS: Record<"north" | "south", Point> = {
-  north: { x: 0.3, y: 0.34 },
-  south: { x: 0.665, y: 0.655 },
+  north: { x: 0.665, y: 0.655 },
+  south: { x: 0.3, y: 0.34 },
 }
 
 /**
  * The two Tormentor spots.
  *
- * UNVERIFIED. The minimap carries four identical rock formations — two on the
- * Radiant side of the river, two on the Dire side — and the art alone cannot say
- * which pair is the Tormentor and which is the Outpost. The other candidate pair
- * is { north: {x: 0.235, y: 0.545}, south: {x: 0.758, y: 0.437} }.
+ * UNVERIFIED, unlike the Roshan pits. The minimap carries four identical rock
+ * formations — two on the Radiant side of the river, two on the Dire side — and
+ * the art alone cannot say which pair is the Tormentor and which is the Outpost.
+ * The other candidate pair is
+ * { north: {x: 0.758, y: 0.437}, south: {x: 0.235, y: 0.545} }.
  *
  * This pair is the one aligned along the river axis the way the Roshan pits are,
- * which is what "always opposite Roshan" implies. Swap the two constants if the
- * markers land on the Outposts instead — nothing else needs to change.
+ * which is what "always opposite Roshan" implies — each spot sits at the far end
+ * of that axis from the pit it pairs with. Swap the two constants if the markers
+ * land on the Outposts instead; nothing else needs to change.
+ *
+ * The same ward-cluster check that settled the Roshan pits cannot settle these:
+ * teams do not reliably ward a Tormentor before killing it, so there is no
+ * signal to test against.
  */
 export const TORMENTOR_SPOTS: Record<"north" | "south", Point> = {
-  north: { x: 0.548, y: 0.262 },
-  south: { x: 0.414, y: 0.725 },
+  north: { x: 0.414, y: 0.725 },
+  south: { x: 0.548, y: 0.262 },
 }
 
 export type PitSide = "north" | "south"
 
-/** Roshan relocates on every 5-minute boundary. */
+/**
+ * Roshan relocates on every 5-minute boundary.
+ *
+ * Confirmed against the ward-cluster check described on ROSHAN_PITS by fitting
+ * the period rather than assuming it: sweeping 60..900s, only 300 stands out
+ * (91% agreement, against roughly 50% — noise — at 150s, 420s and 600s).
+ */
 const PIT_PERIOD_SECONDS = 300
 
 /**

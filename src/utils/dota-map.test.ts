@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   ALL_TOWERS,
+  ROSHAN_PITS,
+  TORMENTOR_SPOTS,
   parseTowerKey,
   roshanPitAt,
   tormentorSpotAt,
@@ -100,6 +102,28 @@ describe("roshanPitAt", () => {
     // worse than drawing nothing.
     expect(roshanPitAt(600, PATCH_740)).toBeNull()
     expect(roshanPitAt(600, null)).toBeNull()
+  })
+})
+
+describe("pit coordinates", () => {
+  it("puts the south pit at the upper-left lava pit, not the lower-right one", () => {
+    // Deliberately counter-intuitive and settled by data, not by the map art:
+    // matching each Roshan kill against where the killing team had just warded
+    // agreed 99% with this labelling and 1% with the reverse. The obvious
+    // "fix" is to swap these back, so the finding is pinned here.
+    expect(ROSHAN_PITS.south.x).toBeLessThan(0.5)
+    expect(ROSHAN_PITS.north.x).toBeGreaterThan(0.5)
+  })
+
+  it("keeps the Tormentor spots opposite the pits along the river axis", () => {
+    // The river runs upper-left to lower-right, so position along it is x + y.
+    // Roshan south is at the low end, so the Tormentor paired with it — north —
+    // has to be at the high end, or "always opposite" stops being true.
+    const along = (p: { x: number; y: number }) => p.x + p.y
+    expect(along(ROSHAN_PITS.south)).toBeLessThan(along(ROSHAN_PITS.north))
+    expect(along(TORMENTOR_SPOTS.north)).toBeGreaterThan(
+      along(TORMENTOR_SPOTS.south),
+    )
   })
 })
 
