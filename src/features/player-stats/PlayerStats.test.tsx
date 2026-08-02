@@ -104,6 +104,20 @@ class TestRequest {
   }
 }
 
+function rosterMember(opts: { playerId: number; name: string; role?: string }) {
+  return {
+    league_id: LEAGUE_ID,
+    team_id: SCOUTED_TEAM,
+    player_id: opts.playerId,
+    created_at: "",
+    updated_at: "",
+    role: opts.role ?? "Carry",
+    name: opts.name,
+    rank: "Divine",
+    original_rank: null,
+  }
+}
+
 function stubFetch(roster: unknown[]) {
   vi.stubGlobal("Request", TestRequest)
   vi.stubGlobal(
@@ -120,7 +134,7 @@ function stubFetch(roster: unknown[]) {
 
       if (url.includes("api/matches")) return json(MATCHES)
       if (url.includes("api/team")) return json({})
-      if (url.includes("api/player")) return json(roster)
+      if (url.includes("api/roster")) return json(roster)
       throw new Error(`Unexpected fetch: ${url}`)
     }),
   )
@@ -213,22 +227,19 @@ describe("PlayerStats", () => {
   })
 
   it("lists a player who isn't on the roster under Stand-ins", async () => {
-    // Roster holds someone who never played, so Scott is the only card and the
-    // registered player stays hidden rather than rendering an empty stat row.
-    renderPlayerStats([
-      {
-        id: 2,
-        team_id: SCOUTED_TEAM,
-        created_at: "",
-        updated_at: "",
-        role: "Carry",
-        name: "Benched",
-        rank: "Divine",
-      },
-    ])
+    renderPlayerStats([rosterMember({ playerId: 2, name: "Benched" })])
 
     expect(await screen.findByText("Stand-ins")).toBeInTheDocument()
     expect(screen.getByText("Scott")).toBeInTheDocument()
-    expect(screen.queryByText("Benched")).not.toBeInTheDocument()
+  })
+
+  it("keeps a roster member who played no games in this league", async () => {
+    // Both halves of a wrong roster have to be visible: the stand-in who played
+    // (Scott) and the registered player who didn't (Benched). Hiding the latter
+    // is what let a 7-game starter sit under "Stand-ins" unnoticed.
+    renderPlayerStats([rosterMember({ playerId: 2, name: "Benched" })])
+
+    expect(await screen.findByText("Benched")).toBeInTheDocument()
+    expect(screen.getByText("no games this league")).toBeInTheDocument()
   })
 })

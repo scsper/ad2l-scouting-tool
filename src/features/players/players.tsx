@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react"
 import { CreatePlayerModal } from "./CreatePlayerModal"
 import {
-  useGetPlayersByTeamQuery,
-  useDeletePlayerMutation,
+  useGetRosterQuery,
+  useRemoveRosterMemberMutation,
   useFetchPlayerPubMatchesMutation,
 } from "./players-api"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
+import { CopyRosterModal } from "./CopyRosterModal"
 import { PlayerPubMatchStats } from "./PlayerPubMatchStats"
 import { useGetMatchesQuery } from "../matches/matches-api"
-import type { PlayerRow } from "../../../types/db"
+import { useGetLeaguesQuery } from "../league-and-team-picker/league-api"
+import type { RosterEntry } from "../../../types/db"
 import { roleToPositions } from "../../../shared/roles"
 
 type PlayersProps = {
@@ -18,41 +20,47 @@ type PlayersProps = {
 
 export const Players = ({ leagueId, teamId }: PlayersProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [playerToDelete, setPlayerToDelete] = useState<PlayerRow | null>(null)
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false)
+  const [memberToRemove, setMemberToRemove] = useState<RosterEntry | null>(null)
   const {
-    data: players = [],
+    data: roster = [],
     isLoading,
     error,
-  } = useGetPlayersByTeamQuery({ teamId })
+  } = useGetRosterQuery({ leagueId, teamId })
   const [collapsedPlayerIds, setCollapsedPlayerIds] = useState<Set<number>>(
-    new Set(players.map(p => p.id)),
+    new Set(roster.map(m => m.player_id)),
   )
   const { data: matchesData } = useGetMatchesQuery({ leagueId, teamId })
-  const [deletePlayer, { isLoading: isDeleting }] = useDeletePlayerMutation()
+  const { data: leagues } = useGetLeaguesQuery()
+  const [removeRosterMember, { isLoading: isRemoving }] =
+    useRemoveRosterMemberMutation()
   const [fetchPlayerPubMatches] = useFetchPlayerPubMatchesMutation()
   const [fetchingPlayerIds, setFetchingPlayerIds] = useState<Set<number>>(
     new Set(),
   )
 
-  // Initialize collapsed state with all player IDs when players load
+  const leagueName =
+    leagues?.find(league => league.id === leagueId)?.name ?? "this league"
+
+  // Initialize collapsed state with all player IDs when the roster loads
   // Only add new players to collapsed set, don't reset existing state
   useEffect(() => {
-    if (players.length > 0) {
+    if (roster.length > 0) {
       setCollapsedPlayerIds(prev => {
         const newSet = new Set(prev)
-        players.forEach(p => {
-          if (!prev.has(p.id) && prev.size > 0) {
+        roster.forEach(m => {
+          if (!prev.has(m.player_id) && prev.size > 0) {
             // Only auto-collapse newly added players
-            newSet.add(p.id)
+            newSet.add(m.player_id)
           } else if (prev.size === 0) {
             // Initial load - collapse all
-            newSet.add(p.id)
+            newSet.add(m.player_id)
           }
         })
         return newSet
       })
     }
-  }, [players])
+  }, [roster])
 
   const togglePlayerExpanded = (playerId: number) => {
     setCollapsedPlayerIds(prev => {
@@ -78,33 +86,37 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
     "Hard Support": 5,
   }
 
-  const sortedPlayers = [...players].sort((a, b) => {
+  const sortedRoster = [...roster].sort((a, b) => {
     const orderA = roleOrder[a.role] ?? 999
     const orderB = roleOrder[b.role] ?? 999
     return orderA - orderB
   })
 
-  const handleDeleteClick = (player: PlayerRow) => {
-    setPlayerToDelete(player)
+  const handleRemoveClick = (member: RosterEntry) => {
+    setMemberToRemove(member)
   }
 
-  const handleConfirmDelete = async () => {
-    if (!playerToDelete) return
+  const handleConfirmRemove = async () => {
+    if (!memberToRemove) return
 
     try {
-      await deletePlayer({ playerId: playerToDelete.id }).unwrap()
-      setPlayerToDelete(null)
+      await removeRosterMember({
+        leagueId,
+        teamId,
+        playerId: memberToRemove.player_id,
+      }).unwrap()
+      setMemberToRemove(null)
     } catch (err) {
-      console.error("Failed to delete player:", err)
+      console.error("Failed to remove roster member:", err)
     }
   }
 
-  const handleRefreshPlayerData = async (player: PlayerRow) => {
-    setFetchingPlayerIds(prev => new Set(prev).add(player.id))
+  const handleRefreshPlayerData = async (member: RosterEntry) => {
+    setFetchingPlayerIds(prev => new Set(prev).add(member.player_id))
     try {
-      const positions = roleToPositions(player.role)
+      const positions = roleToPositions(member.role)
       await fetchPlayerPubMatches({
-        playerId: player.id,
+        playerId: member.player_id,
         positions: positions.length > 0 ? positions : undefined,
       }).unwrap()
     } catch (err) {
@@ -112,7 +124,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
     } finally {
       setFetchingPlayerIds(prev => {
         const newSet = new Set(prev)
-        newSet.delete(player.id)
+        newSet.delete(member.player_id)
         return newSet
       })
     }
@@ -124,27 +136,40 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-200">Players</h2>
-          <p className="text-slate-400 text-sm mt-1">Manage team players</p>
+          {/* The league is the write target, not just a filter: adding someone
+              here puts them on this team's roster for this league only. */}
+          <p className="text-slate-400 text-sm mt-1">
+            Roster for{" "}
+            <span className="text-slate-200 font-medium">{leagueName}</span>
+          </p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors flex items-center gap-2"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsCopyModalOpen(true)}
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md transition-colors"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          Add Player
-        </button>
+            Copy roster from…
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors flex items-center gap-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Add Player
+          </button>
+        </div>
       </div>
 
       {/* Players List */}
@@ -155,27 +180,34 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
       ) : error ? (
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
           <div className="text-red-400 text-lg font-medium">
-            Error loading players
+            Error loading roster
           </div>
         </div>
-      ) : players.length === 0 ? (
+      ) : roster.length === 0 ? (
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-12 text-center">
           <div className="text-slate-400 text-lg font-medium">
-            No Players Yet
+            No roster registered for {leagueName}
           </div>
           <div className="text-slate-500 text-sm mt-2">
-            Click "Add Player" to create your first player
+            Rosters mostly carry over between seasons — copy last season's and
+            swap whoever changed.
           </div>
+          <button
+            onClick={() => setIsCopyModalOpen(true)}
+            className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
+          >
+            Copy roster from…
+          </button>
         </div>
       ) : (
         <div className="grid gap-4">
-          {sortedPlayers.map(player => (
-            <div key={player.id} className="space-y-0">
+          {sortedRoster.map(member => (
+            <div key={member.player_id} className="space-y-0">
               <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg hover:bg-slate-900/30 transition-colors">
                 <div className="p-6 flex items-center justify-between">
                   <div
-                    className="flex-1 grid grid-cols-3 gap-6 cursor-pointer"
-                    onClick={() => togglePlayerExpanded(player.id)}
+                    className="flex-1 grid grid-cols-4 gap-6 cursor-pointer"
+                    onClick={() => togglePlayerExpanded(member.player_id)}
                   >
                     <div>
                       <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
@@ -183,11 +215,11 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-lg font-medium text-slate-200">
-                          {player.name}
+                          {member.name}
                         </div>
                         <div className="flex items-center gap-1">
                           <a
-                            href={`https://www.dotabuff.com/players/${player.id}`}
+                            href={`https://www.dotabuff.com/players/${member.player_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={e => e.stopPropagation()}
@@ -198,7 +230,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                           </a>
                           <span className="text-slate-600">|</span>
                           <a
-                            href={`https://www.stratz.com/players/${player.id}`}
+                            href={`https://www.stratz.com/players/${member.player_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={e => e.stopPropagation()}
@@ -209,7 +241,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                           </a>
                           <span className="text-slate-600">|</span>
                           <a
-                            href={`https://www.opendota.com/players/${player.id}`}
+                            href={`https://www.opendota.com/players/${member.player_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={e => e.stopPropagation()}
@@ -226,7 +258,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                         Role
                       </div>
                       <div className="text-lg text-slate-300">
-                        {player.role}
+                        {member.role}
                       </div>
                     </div>
                     <div>
@@ -234,20 +266,30 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                         Rank
                       </div>
                       <div className="text-lg text-slate-300">
-                        {player.rank}
+                        {member.rank ?? "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                        Original Rank
+                      </div>
+                      <div className="text-lg text-slate-300">
+                        {member.original_rank ?? "—"}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-6">
                     <button
-                      onClick={() => handleRefreshPlayerData(player)}
-                      disabled={fetchingPlayerIds.has(player.id)}
+                      onClick={() => handleRefreshPlayerData(member)}
+                      disabled={fetchingPlayerIds.has(member.player_id)}
                       className="text-blue-400 hover:text-blue-300 disabled:text-blue-400/50 disabled:cursor-not-allowed transition-colors"
                       title="Refresh player data"
                     >
                       <svg
                         className={`w-5 h-5 ${
-                          fetchingPlayerIds.has(player.id) ? "animate-spin" : ""
+                          fetchingPlayerIds.has(member.player_id)
+                            ? "animate-spin"
+                            : ""
                         }`}
                         fill="none"
                         stroke="currentColor"
@@ -262,17 +304,17 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                       </svg>
                     </button>
                     <button
-                      onClick={() => togglePlayerExpanded(player.id)}
+                      onClick={() => togglePlayerExpanded(member.player_id)}
                       className="text-blue-400 hover:text-blue-300 transition-colors"
                       title={
-                        isPlayerExpanded(player.id)
+                        isPlayerExpanded(member.player_id)
                           ? "Hide hero stats"
                           : "Show hero stats"
                       }
                     >
                       <svg
                         className={`w-5 h-5 transition-transform ${
-                          isPlayerExpanded(player.id) ? "rotate-180" : ""
+                          isPlayerExpanded(member.player_id) ? "rotate-180" : ""
                         }`}
                         fill="none"
                         stroke="currentColor"
@@ -287,9 +329,9 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                       </svg>
                     </button>
                     <button
-                      onClick={() => handleDeleteClick(player)}
+                      onClick={() => handleRemoveClick(member)}
                       className="text-red-400 hover:text-red-300 transition-colors"
-                      title="Delete player"
+                      title="Remove from roster"
                     >
                       <svg
                         className="w-5 h-5"
@@ -308,11 +350,11 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                   </div>
                 </div>
               </div>
-              {isPlayerExpanded(player.id) && (
+              {isPlayerExpanded(member.player_id) && (
                 <div className="mt-0">
                   <PlayerPubMatchStats
-                    playerId={player.id}
-                    playerRole={player.role}
+                    playerId={member.player_id}
+                    playerRole={member.role}
                     matchesData={matchesData}
                   />
                 </div>
@@ -322,7 +364,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
         </div>
       )}
 
-      {/* Create Player Modal */}
+      {/* Add to roster modal */}
       <CreatePlayerModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -330,15 +372,23 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
         teamId={teamId}
       />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Copy roster from another league */}
+      <CopyRosterModal
+        isOpen={isCopyModalOpen}
+        onClose={() => setIsCopyModalOpen(false)}
+        leagueId={leagueId}
+        teamId={teamId}
+      />
+
+      {/* Remove confirmation */}
       <ConfirmDialog
-        isOpen={!!playerToDelete}
-        onClose={() => setPlayerToDelete(null)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Player"
-        message={`Are you sure you want to delete ${playerToDelete?.name}? This action cannot be undone.`}
-        confirmText="Delete"
-        isLoading={isDeleting}
+        isOpen={!!memberToRemove}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={handleConfirmRemove}
+        title="Remove from roster"
+        message={`Remove ${memberToRemove?.name ?? ""} from this team's ${leagueName} roster? Their player record and pub match history are kept.`}
+        confirmText="Remove"
+        isLoading={isRemoving}
       />
     </div>
   )

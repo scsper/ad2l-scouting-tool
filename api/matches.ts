@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { MatchApiResponse } from "../types/api";
 import type { MatchRow, MatchDraftRow, MatchPlayerRow } from "../types/db";
+import { selectAll } from "./lib/select-all.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -16,54 +17,46 @@ async function getMatchesByLeagueAndTeam(
   const leagueIdNum = parseInt(leagueId, 10);
   const teamIdNum = parseInt(teamId, 10);
 
-  // Get all matches for the specified league and team
-  const { data: matches, error: matchesError } = await supabase
+  // Get all matches for the specified league and team. Paged like the league
+  // aggregates: one team's drafts peak around 550 rows today, under PostgREST's
+  // silent 1000-row ceiling but only just, and it grows every season. Truncation
+  // would drop games from a scouting report without saying so.
+  const matches = await selectAll<MatchRow>((from, to) => supabase
     .from('match')
     .select('*')
     .eq('league_id', leagueIdNum)
     .or(`radiant_team_id.eq.${String(teamIdNum)},dire_team_id.eq.${String(teamIdNum)}`)
-    .order('start_date_time', { ascending: false });
-
-  if (matchesError) {
-    console.error("Error fetching matches:", matchesError);
-    throw matchesError;
-  }
+    .order('start_date_time', { ascending: false })
+    .range(from, to));
 
   if (matches.length === 0) {
     return [];
   }
 
   // Get match IDs
-  const matchIds = (matches as MatchRow[]).map(m => m.id);
+  const matchIds = matches.map(m => m.id);
 
-  // Get all match players for these matches
-  const { data: players, error: playersError } = await supabase
-    .from('match_player')
-    .select('*')
-    .in('match_id', matchIds);
-
-  if (playersError) {
-    console.error("Error fetching match players:", playersError);
-    throw playersError;
-  }
-
-  // Get draft data for these matches
-  const { data: drafts, error: draftsError } = await supabase
-    .from('match_draft')
-    .select('*')
-    .in('match_id', matchIds)
-    .order('order', { ascending: true });
-
-  if (draftsError) {
-    console.error("Error fetching match drafts:", draftsError);
-    throw draftsError;
-  }
+  const [players, drafts] = await Promise.all([
+    // Get all match players for these matches
+    selectAll<MatchPlayerRow>((from, to) => supabase
+      .from('match_player')
+      .select('*')
+      .in('match_id', matchIds)
+      .range(from, to)),
+    // Get draft data for these matches
+    selectAll<MatchDraftRow>((from, to) => supabase
+      .from('match_draft')
+      .select('*')
+      .in('match_id', matchIds)
+      .order('order', { ascending: true })
+      .range(from, to)),
+  ]);
 
   // Group data by match_id
   const matchesMap = new Map<number, MatchApiResponse>();
 
   // Initialize with match data
-  (matches as MatchRow[]).forEach(match => {
+  matches.forEach(match => {
     matchesMap.set(match.id, {
       ...match,
       players: [],
@@ -72,7 +65,7 @@ async function getMatchesByLeagueAndTeam(
   });
 
   // Add players to their matches
-  (players as MatchPlayerRow[]).forEach(player => {
+  players.forEach(player => {
     const match = matchesMap.get(player.match_id);
     if (match) {
       match.players.push(player);
@@ -80,7 +73,7 @@ async function getMatchesByLeagueAndTeam(
   });
 
   // Add drafts to their matches
-  (drafts as MatchDraftRow[]).forEach(draft => {
+  drafts.forEach(draft => {
     const match = matchesMap.get(draft.match_id);
     if (match) {
       match.draft.push(draft);

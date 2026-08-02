@@ -1,11 +1,23 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
-import type { PlayerRow, PlayerPubMatchStatsRow } from "../../../types/db"
+import type {
+  PlayerRow,
+  PlayerPubMatchStatsRow,
+  RosterEntry,
+} from "../../../types/db"
 
-type CreatePlayerRequest = {
-  id: number
+type CreateRosterMemberRequest = {
+  league_id: number
+  team_id: number
+  player_id: number
   name: string
-  rank: string
   role: string
+  rank?: string | null
+  original_rank?: string | null
+}
+
+type CopyRosterRequest = {
+  from_league_id: number
+  league_id: number
   team_id: number
 }
 
@@ -29,21 +41,41 @@ export const playersApiSlice = createApi({
   // Tag types are used for caching and invalidation.
   tagTypes: ["Players", "PlayerPubMatches"],
   endpoints: build => ({
-    getPlayersByTeam: build.query<PlayerRow[], { teamId: number }>({
-      query: ({ teamId }) => `api/player?teamId=${String(teamId)}`,
-      providesTags: ["Players"],
+    /** A team's roster for one league. Both ids are required — see api/roster.ts. */
+    getRoster: build.query<RosterEntry[], { leagueId: number; teamId: number }>(
+      {
+        query: ({ leagueId, teamId }) =>
+          `api/roster?leagueId=${String(leagueId)}&teamId=${String(teamId)}`,
+        providesTags: ["Players"],
+      },
+    ),
+    /** Looks a person up by steam id so the add form can prefill a known name. */
+    getPlayerById: build.query<PlayerRow, { playerId: number }>({
+      query: ({ playerId }) => `api/player?playerId=${String(playerId)}`,
     }),
-    createPlayer: build.mutation<PlayerRow, CreatePlayerRequest>({
-      query: playerData => ({
-        url: "api/player",
+    addRosterMember: build.mutation<RosterEntry, CreateRosterMemberRequest>({
+      query: body => ({
+        url: "api/roster",
         method: "POST",
-        body: playerData,
+        body,
       }),
       invalidatesTags: ["Players"],
     }),
-    deletePlayer: build.mutation<void, { playerId: number }>({
-      query: ({ playerId }) => ({
-        url: `api/player?playerId=${String(playerId)}`,
+    copyRoster: build.mutation<RosterEntry[], CopyRosterRequest>({
+      query: body => ({
+        url: "api/roster",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Players"],
+    }),
+    /** Removes the membership row only — the person and their pub stats stay. */
+    removeRosterMember: build.mutation<
+      void,
+      { leagueId: number; teamId: number; playerId: number }
+    >({
+      query: ({ leagueId, teamId, playerId }) => ({
+        url: `api/roster?leagueId=${String(leagueId)}&teamId=${String(teamId)}&playerId=${String(playerId)}`,
         method: "DELETE",
       }),
       invalidatesTags: ["Players"],
@@ -71,9 +103,11 @@ export const playersApiSlice = createApi({
 })
 
 export const {
-  useGetPlayersByTeamQuery,
-  useCreatePlayerMutation,
-  useDeletePlayerMutation,
+  useGetRosterQuery,
+  useLazyGetPlayerByIdQuery,
+  useAddRosterMemberMutation,
+  useCopyRosterMutation,
+  useRemoveRosterMemberMutation,
   useFetchPlayerPubMatchesMutation,
   useGetPlayerPubMatchesQuery,
 } = playersApiSlice

@@ -1,7 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
 import type { PlayerRow } from "../types/db"
-import { fetchAndStorePlayerStats } from "./player-pub-matches.js"
-import { roleToPositions } from "../shared/roles.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? ""
@@ -10,156 +8,58 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-type CreatePlayerRequest = {
-  id: number
-  name: string
-  rank: string
-  role: string
-  team_id: number
-}
-
-async function createPlayer(
-  playerData: CreatePlayerRequest,
-): Promise<PlayerRow> {
+/**
+ * The person directory. Roster membership — which team, in which league, at
+ * which role and rank — lives in `roster_member` and is served by `api/roster`.
+ *
+ * The only read here is a lookup by steam id, so the add-to-roster form can
+ * recognise someone who already exists and prefill their name instead of
+ * creating a second record for the same person.
+ */
+async function getPlayerById(playerId: number): Promise<PlayerRow | null> {
   const result = await supabase
     .from("player")
-    .insert({
-      id: playerData.id,
-      name: playerData.name,
-      rank: playerData.rank,
-      role: playerData.role,
-      team_id: playerData.team_id,
-    })
-    .select()
-    .single()
+    .select("id, created_at, updated_at, name")
+    .eq("id", playerId)
+    .maybeSingle()
 
   if (result.error) {
-    console.error("Error creating player:", result.error)
+    console.error("Error fetching player:", result.error)
     throw result.error
   }
 
-  const player = result.data as PlayerRow
-
-  // Automatically fetch and store public match stats
-  try {
-    const positions = roleToPositions(playerData.role)
-    await fetchAndStorePlayerStats(playerData.id, positions)
-    console.log(
-      `Successfully fetched and stored pub match stats for player ${String(playerData.id)}`,
-    )
-  } catch (error) {
-    // Log the error but don't fail player creation
-    console.error(
-      `Failed to fetch pub match stats for player ${String(playerData.id)}:`,
-      error,
-    )
-  }
-
-  return player
-}
-
-async function getPlayersByTeamId(teamId: string): Promise<PlayerRow[]> {
-  const teamIdNum = parseInt(teamId, 10)
-
-  const result = await supabase
-    .from("player")
-    .select("*")
-    .eq("team_id", teamIdNum)
-    .order("name", { ascending: true })
-
-  if (result.error) {
-    console.error("Error fetching players for team:", result.error)
-    throw result.error
-  }
-
-  return result.data as PlayerRow[]
-}
-
-async function deletePlayer(playerId: string): Promise<void> {
-  const playerIdNum = parseInt(playerId, 10)
-
-  // First, delete all public match stats for this player
-  const statsResult = await supabase
-    .from("player_pub_match_stats")
-    .delete()
-    .eq("player_id", playerIdNum)
-
-  if (statsResult.error) {
-    console.error("Error deleting player pub match stats:", statsResult.error)
-    throw statsResult.error
-  }
-
-  // Then delete the player
-  const result = await supabase.from("player").delete().eq("id", playerIdNum)
-
-  if (result.error) {
-    console.error("Error deleting player:", result.error)
-    throw result.error
-  }
+  return result.data as PlayerRow | null
 }
 
 export default async function handler(
   req: {
     method: string
-    body: CreatePlayerRequest
-    query: { teamId: string; playerId: string }
+    query: { playerId?: string }
   },
   res: {
     status: (code: number) => { json: (data: unknown) => void }
   },
 ) {
   if (req.method === "GET") {
-    const { teamId } = req.query
+    const playerId = parseInt(req.query.playerId ?? "", 10)
 
-    if (!teamId) {
-      res.status(400).json({ error: "teamId is required" })
-      return
-    }
-
-    try {
-      const data = await getPlayersByTeamId(teamId)
-      res.status(200).json(data)
-    } catch (error) {
-      console.error("Error in handler:", error)
-      res.status(500).json({ error: "Failed to fetch players" })
-    }
-    return
-  }
-
-  if (req.method === "POST") {
-    const { id, name, rank, role, team_id } = req.body
-
-    if (!id || !name || !rank || !role || !team_id) {
-      res
-        .status(400)
-        .json({ error: "id, name, rank, role, and team_id are required" })
-      return
-    }
-
-    try {
-      const data = await createPlayer({ id, name, rank, role, team_id })
-      res.status(201).json(data)
-    } catch (error) {
-      console.error("Error in handler:", error)
-      res.status(500).json({ error: "Failed to create player" })
-    }
-    return
-  }
-
-  if (req.method === "DELETE") {
-    const { playerId } = req.query
-
-    if (!playerId) {
+    if (Number.isNaN(playerId)) {
       res.status(400).json({ error: "playerId is required" })
       return
     }
 
     try {
-      await deletePlayer(playerId)
-      res.status(200).json({ success: true })
+      const player = await getPlayerById(playerId)
+
+      if (!player) {
+        res.status(404).json({ error: "Player not found" })
+        return
+      }
+
+      res.status(200).json(player)
     } catch (error) {
       console.error("Error in handler:", error)
-      res.status(500).json({ error: "Failed to delete player" })
+      res.status(500).json({ error: "Failed to fetch player" })
     }
     return
   }
