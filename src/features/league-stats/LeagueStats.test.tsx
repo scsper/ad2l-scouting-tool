@@ -96,6 +96,24 @@ describe("LeagueStats", () => {
     )
   })
 
+  // The hover target has to be the row element itself, gaps included. Hanging
+  // the tooltip off the inner pill would leave the space between rows dead, and
+  // a tooltip that dies in the crack between two rows reads as a broken one.
+  it("hangs the tooltip on the row, and leaves no gap between rows", async () => {
+    renderBoards()
+    await screen.findAllByText("Anti-Mage")
+
+    const rows = screen
+      .getAllByRole("listitem")
+      .filter(item => item.textContent.startsWith("Anti-Mage"))
+
+    expect(rows.every(row => row.title !== "")).toBe(true)
+    // Vertical space between rows is the row's own padding, never the list's
+    // margin — `space-y-*` on the <ul> is what used to make the crack.
+    expect(rows.every(row => row.className.includes("py-["))).toBe(true)
+    expect(rows.every(row => row.parentElement?.className.includes("space-y"))).toBe(false)
+  })
+
   // The position card's number is a subset of the league-wide one, so its
   // tooltip has to be too — otherwise the pos 1 column explains pos 5 games.
   it("scopes a position card's tooltip to that position", async () => {
