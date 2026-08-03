@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   ALL_TOWERS,
+  laneForRole,
+  laneRoleOf,
   ROSHAN_PITS,
   TORMENTOR_SPOTS,
   parseTowerKey,
@@ -102,6 +104,28 @@ describe("roshanPitAt", () => {
     // worse than drawing nothing.
     expect(roshanPitAt(600, PATCH_740)).toBeNull()
     expect(roshanPitAt(600, null)).toBeNull()
+  })
+})
+
+describe("lane roles", () => {
+  it("reads top as Radiant's off lane and Dire's safe lane", () => {
+    // The whole reason the tempo table normalises: one lane, two meanings.
+    expect(laneRoleOf("radiant", "top")).toBe("off")
+    expect(laneRoleOf("dire", "top")).toBe("safe")
+    expect(laneRoleOf("radiant", "bot")).toBe("safe")
+    expect(laneRoleOf("dire", "bot")).toBe("off")
+    expect(laneRoleOf("radiant", "mid")).toBe("mid")
+    expect(laneRoleOf("dire", "mid")).toBe("mid")
+  })
+
+  it("round-trips through laneForRole", () => {
+    // The inverse is used to read side-keyed league figures back out by role,
+    // so a drift between the two tables would silently compare the wrong towers.
+    for (const side of ["radiant", "dire"] as const) {
+      for (const lane of ["top", "mid", "bot"] as const) {
+        expect(laneForRole(side, laneRoleOf(side, lane))).toBe(lane)
+      }
+    }
   })
 })
 

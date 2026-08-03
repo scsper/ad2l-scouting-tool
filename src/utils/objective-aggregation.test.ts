@@ -103,10 +103,7 @@ describe("aggregateTowers", () => {
 
   it("reports the median only over games where the tower fell", () => {
     const row = aggregateTowers(games).find(
-      r =>
-        r.tower.side === "radiant" &&
-        r.tower.tier === 1 &&
-        r.tower.lane === "mid",
+      r => r.ownedByTeam && r.tier === 1 && r.laneRole === "mid",
     )
     expect(row?.medianTime).toBe(750)
   })
@@ -115,10 +112,7 @@ describe("aggregateTowers", () => {
     // The censoring guard: 2 of 3, never 2 of 2. A median over the two games
     // where the tower fell is biased fast, and only the denominator says so.
     const row = aggregateTowers(games).find(
-      r =>
-        r.tower.side === "radiant" &&
-        r.tower.tier === 1 &&
-        r.tower.lane === "mid",
+      r => r.ownedByTeam && r.tier === 1 && r.laneRole === "mid",
     )
     expect(row?.fell).toBe(2)
     expect(row?.games).toBe(3)
@@ -130,13 +124,136 @@ describe("aggregateTowers", () => {
     const rows = aggregateTowers(games)
     expect(rows).toHaveLength(18)
     const never = rows.find(
-      r =>
-        r.tower.side === "radiant" &&
-        r.tower.tier === 3 &&
-        r.tower.lane === "top",
+      r => r.ownedByTeam && r.tier === 3 && r.laneRole === "off",
     )
     expect(never?.fell).toBe(0)
     expect(never?.medianTime).toBeNull()
+  })
+})
+
+describe("aggregateTowers across both map sides", () => {
+  // The scouted team is Radiant in one game and Dire in the other, and the
+  // SAME building key falls in both. That makes Radiant's T1 mid theirs in
+  // game 1 and the opposition's in game 2 — the case that broke when records
+  // were keyed on the building instead of the team-relative slot.
+  const bothSides = [
+    match({
+      id: 1,
+      isRadiant: true,
+      objectives: [towerKill("npc_dota_goodguys_tower1_mid", 600)],
+    }),
+    match({
+      id: 2,
+      isRadiant: false,
+      objectives: [towerKill("npc_dota_goodguys_tower1_mid", 1200)],
+    }),
+  ]
+
+  it("does not mix their own falls in with the opposition's", () => {
+    const rows = aggregateTowers(bothSides)
+    const theirs = rows.find(
+      r => r.ownedByTeam && r.tier === 1 && r.laneRole === "mid",
+    )
+    const enemy = rows.find(
+      r => !r.ownedByTeam && r.tier === 1 && r.laneRole === "mid",
+    )
+
+    // 600 belongs to them, 1200 to the opposition. Keying on the building put
+    // both in one bucket and reported the average as a habit.
+    expect(theirs?.times).toEqual([600])
+    expect(enemy?.times).toEqual([1200])
+    expect(theirs?.medianTime).toBe(600)
+    expect(enemy?.medianTime).toBe(1200)
+  })
+
+  it("returns all eighteen slots, both splits complete", () => {
+    // The visible symptom of the old keying: when both buildings for a lane
+    // landed on the same ownership flag, one of the eighteen rows vanished and
+    // the Tempo table showed a partial grid.
+    const rows = aggregateTowers(bothSides)
+    expect(rows).toHaveLength(18)
+    expect(rows.filter(r => r.ownedByTeam)).toHaveLength(9)
+    expect(rows.filter(r => !r.ownedByTeam)).toHaveLength(9)
+
+    for (const owned of [true, false]) {
+      for (const tier of [1, 2, 3]) {
+        for (const laneRole of ["safe", "mid", "off"]) {
+          expect(
+            rows.filter(
+              r =>
+                r.ownedByTeam === owned &&
+                r.tier === tier &&
+                r.laneRole === laneRole,
+            ),
+          ).toHaveLength(1)
+        }
+      }
+    }
+  })
+})
+
+describe("aggregateTowers normalises lanes by role", () => {
+  // Both towers below are in the TOP lane and both belong to the scouted team,
+  // but they are not the same thing: top is the off lane when you are Radiant
+  // and the safe lane when you are Dire. Keying on "top" pools a safe-lane
+  // tower with an off-lane one and calls the mixture a tendency.
+  const bothSides = [
+    match({
+      id: 1,
+      isRadiant: true,
+      objectives: [towerKill("npc_dota_goodguys_tower1_top", 600)],
+    }),
+    match({
+      id: 2,
+      isRadiant: false,
+      objectives: [towerKill("npc_dota_badguys_tower1_top", 1500)],
+    }),
+  ]
+
+  it("files a top-lane tower under off or safe depending on who owned it", () => {
+    const rows = aggregateTowers(bothSides)
+    const off = rows.find(
+      r => r.ownedByTeam && r.tier === 1 && r.laneRole === "off",
+    )
+    const safe = rows.find(
+      r => r.ownedByTeam && r.tier === 1 && r.laneRole === "safe",
+    )
+
+    expect(off?.times).toEqual([600])
+    expect(safe?.times).toEqual([1500])
+  })
+
+  it("puts a lane's two buildings in the same slot when the roles agree", () => {
+    // Mid is mid for everyone, so the same role collects both sides.
+    const mids = [
+      match({
+        id: 1,
+        isRadiant: true,
+        objectives: [towerKill("npc_dota_goodguys_tower2_mid", 900)],
+      }),
+      match({
+        id: 2,
+        isRadiant: false,
+        objectives: [towerKill("npc_dota_badguys_tower2_mid", 1100)],
+      }),
+    ]
+    const row = aggregateTowers(mids).find(
+      r => r.ownedByTeam && r.tier === 2 && r.laneRole === "mid",
+    )
+    expect(row?.times).toEqual([900, 1100])
+    expect(row?.medianTime).toBe(1000)
+  })
+
+  it("names aggregate ticks by role but single-game ticks by place", () => {
+    // Across games there is no place to point at. Within one game there is, and
+    // it sits next to a map marker that says "Top".
+    expect(towerTicks(bothSides, false).map(t => t.label)).toEqual([
+      "T1 Off",
+      "T1 Safe",
+    ])
+    expect(towerTicks([bothSides[0]], true).map(t => t.label)).toEqual([
+      "T1 Top",
+    ])
   })
 })
 

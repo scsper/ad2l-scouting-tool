@@ -3,10 +3,12 @@ import type {
   ObjectiveMatch,
 } from "../objectives/objectives-api"
 import {
-  LANES,
-  LANE_LABEL,
+  LANE_ROLES,
+  LANE_ROLE_LABEL,
   RENDERED_TIERS,
-  type Lane,
+  laneForRole,
+  type LaneRole,
+  type MapSide,
   type RenderedTier,
 } from "../../utils/dota-map"
 import {
@@ -36,7 +38,7 @@ export type TempoSplit = "theirs" | "enemy"
  */
 export type TempoRow = {
   tier: RenderedTier
-  lane: Lane
+  laneRole: LaneRole
   label: string
   split: TempoSplit
   medianTime: number | null
@@ -57,19 +59,24 @@ function fallRate(fell: number, games: number): number | null {
 /**
  * Match the league baseline to a team row.
  *
- * Keyed on the absolute side the tower belonged to, not on "theirs"/"enemy":
- * Radiant and Dire towers do not fall at the same pace, so comparing a team's
- * Radiant T1 mid against a pooled figure would fold a map-side effect into what
- * reads as a team tendency.
+ * The view is keyed by map lane, so a role has to be translated back into the
+ * lane it occupies on each side before the rows can be found: a team's safe
+ * lane is bottom in their Radiant games and top in their Dire ones, and both
+ * sets belong in the same comparison.
+ *
+ * Sides are kept separate rather than pooled because Radiant and Dire towers do
+ * not fall at the same pace, so a pooled figure would fold a map-side effect
+ * into what reads as a team tendency.
  */
 function baselineFor(
   baseline: LeagueBuildingTiming[],
   tier: number,
-  lane: Lane,
-  sides: string[],
+  role: LaneRole,
+  sides: MapSide[],
 ): { median: number | null; rate: number | null } {
-  const rows = baseline.filter(
-    b => b.tier === tier && b.lane === lane && sides.includes(b.side),
+  const wanted = sides.map(side => ({ side, lane: laneForRole(side, role) }))
+  const rows = baseline.filter(b =>
+    wanted.some(w => b.tier === tier && b.lane === w.lane && b.side === w.side),
   )
   if (rows.length === 0) return { median: null, rate: null }
 
@@ -106,47 +113,41 @@ export function buildTempoRows(
   // Which absolute sides the scouted team actually occupied, so the league
   // comparison is drawn from the same map sides they played on.
   const ownSides = [
-    ...new Set(parsed.map(m => (m.isRadiant ? "radiant" : "dire"))),
+    ...new Set(parsed.map((m): MapSide => (m.isRadiant ? "radiant" : "dire"))),
   ]
   const enemySides = [
-    ...new Set(parsed.map(m => (m.isRadiant ? "dire" : "radiant"))),
+    ...new Set(parsed.map((m): MapSide => (m.isRadiant ? "dire" : "radiant"))),
   ]
 
   const rows: TempoRow[] = []
 
   for (const split of ["theirs", "enemy"] as TempoSplit[]) {
     for (const tier of RENDERED_TIERS) {
-      for (const lane of LANES) {
-        const matching = records.filter(
+      for (const laneRole of LANE_ROLES) {
+        // Exactly one record per slot now that aggregateTowers keys on the
+        // team-relative slot, so there is nothing to merge and no slot that can
+        // go missing — all eighteen rows are always present.
+        const record = records.find(
           r =>
-            r.tower.tier === tier &&
-            r.tower.lane === lane &&
+            r.tier === tier &&
+            r.laneRole === laneRole &&
             r.ownedByTeam === (split === "theirs"),
         )
-        if (matching.length === 0) continue
+        if (!record) continue
 
-        const times = matching.flatMap(r => r.times)
-        const fell = times.length
-        const sorted = [...times].sort((a, b) => a - b)
-        const mid = Math.floor(sorted.length / 2)
-        const medianTime =
-          sorted.length === 0
-            ? null
-            : sorted.length % 2 === 0
-              ? (sorted[mid - 1] + sorted[mid]) / 2
-              : sorted[mid]
+        const { fell, medianTime } = record
 
         const league = baselineFor(
           baseline,
           tier,
-          lane,
+          laneRole,
           split === "theirs" ? ownSides : enemySides,
         )
 
         rows.push({
           tier,
-          lane,
-          label: `T${String(tier)} ${LANE_LABEL[lane]}`,
+          laneRole,
+          label: `T${String(tier)} ${LANE_ROLE_LABEL[laneRole]}`,
           split,
           medianTime,
           fell,

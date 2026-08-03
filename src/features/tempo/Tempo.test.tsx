@@ -147,6 +147,36 @@ describe("Tempo", () => {
     expect(screen.getByText(/1 without/)).toBeInTheDocument()
   })
 
+  it("shows all nine towers in both tables, named by lane role", async () => {
+    // Rows are safe/mid/off rather than top/mid/bot, so a team that switched
+    // sides has its safe-lane games pooled with its safe-lane games rather than
+    // with whatever happened to be in the same corner of the map.
+    renderTempo({
+      matches: [
+        {
+          ...game(1, [towerKill("npc_dota_goodguys_tower3_top", 2000)]),
+          isRadiant: true,
+        },
+        {
+          ...game(2, [towerKill("npc_dota_goodguys_tower3_top", 2400)]),
+          isRadiant: false,
+        },
+      ],
+      leagueBaseline: OBJECTIVES.leagueBaseline,
+    })
+
+    for (const title of ["Their towers", "Towers they take"]) {
+      const table = (await screen.findByText(title)).closest("div")
+      for (const tier of [1, 2, 3]) {
+        for (const role of ["Safe", "Mid", "Off"]) {
+          expect(
+            within(table as HTMLElement).getByText(`T${String(tier)} ${role}`),
+          ).toBeInTheDocument()
+        }
+      }
+    }
+  })
+
   it("explains itself when there is no objective data at all", async () => {
     renderTempo({ matches: [], leagueBaseline: [] })
 
