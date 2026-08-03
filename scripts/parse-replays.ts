@@ -15,6 +15,10 @@
  * Requires odota/parser listening on :5600 —
  *   docker run -d --rm --name odparser -p 5600:5600 odota/parser:latest
  *
+ * Also requires both `bunzip2` and `zstd` on PATH. Valve serves either format
+ * under the same `.dem.bz2` name, so which one a given match needs is not
+ * knowable in advance — see `sniffDecompressor`.
+ *
  * Env: SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY,
  *      OPENDOTA_API_TOKEN (optional), REPLAY_ARCHIVE_DIR (optional)
  *
@@ -103,6 +107,47 @@ async function getReplayUrl(matchId: number): Promise<string | null> {
 }
 
 /**
+ * Pick a decompressor by sniffing the first bytes, NOT by trusting the URL.
+ *
+ * Valve serves some replays zstd-compressed while still naming them `.dem.bz2`.
+ * Observed 2026-08-03: the two newest S47 matches at the time (8921820516 and
+ * 8921763052, both ~3.6 days old) began `28 b5 2f fd` — the zstd magic — while a
+ * 10-day-old match from the same season began `BZh`. Older replays are bzip2, so
+ * the changeover appears to track recency and this will be the ordinary case
+ * going forward rather than an oddity.
+ *
+ * The failure it caused was worth a range request to prevent: `bunzip2` died on
+ * the stream, which broke the pipe, which surfaced as `curl: (23) Failure
+ * writing output to destination` — an error that reads like a disk or network
+ * fault and says nothing whatsoever about compression.
+ */
+async function sniffDecompressor(replayUrl: string): Promise<string> {
+  const response = await fetch(replayUrl, { headers: { Range: "bytes=0-3" } })
+  if (!response.ok) {
+    throw new Error(`replay range request ${String(response.status)}`)
+  }
+  const magic = new Uint8Array(await response.arrayBuffer())
+
+  // zstd: 0xFD2FB528, little-endian.
+  if (
+    magic[0] === 0x28 &&
+    magic[1] === 0xb5 &&
+    magic[2] === 0x2f &&
+    magic[3] === 0xfd
+  ) {
+    return "zstd -d -c"
+  }
+  // bzip2: "BZh".
+  if (magic[0] === 0x42 && magic[1] === 0x5a && magic[2] === 0x68) {
+    return "bunzip2 -c"
+  }
+  // Refuse rather than guess. Feeding the wrong decompressor produces the
+  // broken-pipe error above, which points nowhere near the real problem.
+  const hex = [...magic].map(b => b.toString(16).padStart(2, "0")).join(" ")
+  throw new Error(`unrecognised replay compression (magic ${hex})`)
+}
+
+/**
  * Download, decompress and parse in one pipeline, writing gzipped NDJSON.
  *
  * Streamed rather than staged through temp files: the intermediate .dem is
@@ -114,13 +159,15 @@ async function downloadAndParse(
   replayUrl: string,
   destination: string,
 ): Promise<void> {
+  const decompress = await sniffDecompressor(replayUrl)
+
   // Written to `.part` and renamed only on success, so a killed run cannot leave
   // a truncated archive that looks complete to the next one.
   const partial = `${destination}.part`
   const command = [
     "set -o pipefail",
     `curl -sSf --max-time 900 ${JSON.stringify(replayUrl)}` +
-      ` | bunzip2 -c` +
+      ` | ${decompress}` +
       ` | curl -sSf -X POST -T - --max-time 900 ${JSON.stringify(PARSER_URL)}` +
       ` | gzip -6 > ${JSON.stringify(partial)}`,
   ].join("\n")

@@ -340,10 +340,67 @@ intersection is now done in time and only then converted to indexes.
 **`match_event` is written by the same pass as `match_positions`** because the position join
 is what gives most events their coordinates; they cannot be derived independently.
 
+### Side was missed, and it was a bug
+
+The first version of the heatmap pooled Radiant and Dire games. It should not
+have — `ward-aggregation` already documented why sides cannot be combined, and
+that reasoning was not carried across to movement. Measured on S47 once the data
+existed:
+
+| comparison                                                 | cosine    | % of floor |
+| ---------------------------------------------------------- | --------- | ---------- |
+| same player, same side, alternating-halves (**the floor**) | **0.704** | 100%       |
+| same player, Dire mirrored onto Radiant                    | 0.535     | 76%        |
+| same player, both sides pooled (**what shipped**)          | 0.318     | 45%        |
+
+Centroids sat 22–40% of the map apart. Mirroring was tested rather than inherited
+from the wards decision, and still rejected: it recovers a lot, but blends two
+genuinely different pictures and draws a player on ground they never occupied.
+
+Side is now mandatory with no pooled option, defaulting to the team's
+majority side. Playback is exempt — it pools nothing.
+
+The general lesson, which applies to the deferred metrics too: **anything that
+aggregates across games has to state which side it is aggregating**, and the
+cheapest check is to compute the same statistic per side and compare.
+
+### Sample size after the split, and what "enough games" means
+
+Splitting halves every sample. Median games per (player, side) view is **4**.
+Split-half agreement as a function of sample size, measured:
+
+| games in view | agreement |
+| ------------- | --------- |
+| 2 (1v1)       | 0.324     |
+| 4 (2v2)       | 0.501     |
+| 6 (3v3)       | 0.605     |
+| 8 (4v4)       | 0.669     |
+| 10 (5v5)      | 0.716     |
+| 12 (6v6)      | 0.748     |
+
+A one-game heatmap scores the same as the pooling bug. That is why the binary
+"fewer than 5 games" warning — which would have fired on 52% of views — was
+replaced by a graded label calibrated to this curve. The curve has not plateaued
+by 12 games, so AD2L does not supply enough games for a stable picture of one
+player on one side; the label says so rather than implying otherwise.
+
+### Position blend: measured, deferred
+
+Blending different players who share a team, position and side agrees at **0.573
+— 81% of the floor**, with double the sample (median 8 games vs 4). That is far
+better than the side-pooling error and makes the blend a defensible fallback for
+thin players. Deferred rather than built, and explicitly not the default: a
+position played by eight people is still a picture of nobody when the question is
+what one human does.
+
 ### Not yet verified
 
-`migrations/add_movement.sql` **has not been applied** — PostgREST cannot execute DDL, so it
-needs running in the Supabase SQL editor. Until it is, the Supabase write path
-(`toPgHex` → `bytea` → `fromPgHex` → gunzip) is only covered by unit tests, not by a real
-round-trip through Postgres. Everything upstream of the database is verified end-to-end on a
-real replay.
+Nothing outstanding. `migrations/add_movement.sql` has been applied, and the write path
+(`toPgHex` → `bytea` → `fromPgHex` → gunzip) was verified byte-identical against a fresh
+extract from the archive. 59 of 61 S47 matches are parsed; the two missing are the
+hand-entered games OpenDota never ingested, which have no replay to fetch.
+
+One thing the first pass got wrong operationally: Valve now serves some replays
+zstd-compressed under a `.dem.bz2` name, and the hardcoded `bunzip2` failed with
+`curl: (23) Failure writing output`, an error that points nowhere near compression. The
+pipeline now sniffs the first four bytes.

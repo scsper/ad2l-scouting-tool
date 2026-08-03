@@ -3,8 +3,11 @@ import { encodePositions, type SlotSamples } from "../../shared/position-codec"
 import type { PositionMatch, PositionSlot } from "../../api/match-positions"
 import {
   binPlayer,
+  confidenceFor,
   decodeMatch,
   eventsNear,
+  filterBySide,
+  majoritySide,
   playersForTeam,
   positionBounds,
   slotsForPlayer,
@@ -31,6 +34,7 @@ function makeMatch({
   firstTime = 0,
   slots,
   deadFrom = null,
+  isRadiant = true,
 }: {
   id: number
   seconds?: number
@@ -38,6 +42,7 @@ function makeMatch({
   slots: Omit<PositionSlot, "slot">[]
   /** Sample index from which slot 0 counts as dead. */
   deadFrom?: number | null
+  isRadiant?: boolean
 }): PositionMatch {
   const samples: SlotSamples[] = slots.map((slot, i) => ({
     heroId: slot.heroId,
@@ -53,7 +58,7 @@ function makeMatch({
   return {
     id,
     start_date_time: 1769738631,
-    isRadiant: true,
+    isRadiant,
     opponentTeamId: ENEMY,
     winning_team_id: TEAM,
     encoding: "delta-i16-0.1grid-gz-v1",
@@ -104,7 +109,7 @@ describe("playersForTeam", () => {
       makeMatch({ id: 1, slots: ROSTER }),
       makeMatch({ id: 2, slots: ROSTER }),
     ]
-    const players = playersForTeam(matches, TEAM)
+    const players = playersForTeam(matches, TEAM, "radiant")
     expect(players.map(p => [p.playerId, p.games])).toEqual([
       [11, 2],
       [12, 2],
@@ -112,7 +117,11 @@ describe("playersForTeam", () => {
   })
 
   it("excludes the opposing team", () => {
-    const players = playersForTeam([makeMatch({ id: 1, slots: ROSTER })], TEAM)
+    const players = playersForTeam(
+      [makeMatch({ id: 1, slots: ROSTER })],
+      TEAM,
+      "radiant",
+    )
     expect(players.some(p => p.playerId === 21)).toBe(false)
   })
 
@@ -128,6 +137,7 @@ describe("playersForTeam", () => {
         makeMatch({ id: 2, slots: ROSTER }),
       ],
       TEAM,
+      "radiant",
     )
     const ana = players.find(p => p.playerId === 11)
     expect(ana?.games).toBe(2)
@@ -149,10 +159,75 @@ describe("playersForTeam", () => {
         makeMatch({ id: 2, slots: swapped }),
       ],
       TEAM,
+      "radiant",
     )
     expect(players.filter(p => p.position === "POSITION_5")).toHaveLength(2)
     expect(players.find(p => p.playerId === 12)?.games).toBe(1)
     expect(players.find(p => p.playerId === 13)?.games).toBe(1)
+  })
+})
+
+describe("filterBySide", () => {
+  it("keeps only the games the team played on that side", () => {
+    const games = [
+      makeMatch({ id: 1, slots: ROSTER, isRadiant: true }),
+      makeMatch({ id: 2, slots: ROSTER, isRadiant: false }),
+      makeMatch({ id: 3, slots: ROSTER, isRadiant: true }),
+    ]
+    expect(filterBySide(games, "radiant").map(m => m.id)).toEqual([1, 3])
+    expect(filterBySide(games, "dire").map(m => m.id)).toEqual([2])
+  })
+})
+
+describe("majoritySide", () => {
+  it("picks the side with more parsed games", () => {
+    expect(
+      majoritySide([
+        makeMatch({ id: 1, slots: ROSTER, isRadiant: false }),
+        makeMatch({ id: 2, slots: ROSTER, isRadiant: false }),
+        makeMatch({ id: 3, slots: ROSTER, isRadiant: true }),
+      ]),
+    ).toBe("dire")
+  })
+
+  it("breaks ties to radiant so the opening view is deterministic", () => {
+    expect(
+      majoritySide([
+        makeMatch({ id: 1, slots: ROSTER, isRadiant: true }),
+        makeMatch({ id: 2, slots: ROSTER, isRadiant: false }),
+      ]),
+    ).toBe("radiant")
+  })
+
+  it("has an answer for a team with no games", () => {
+    expect(majoritySide([])).toBe("radiant")
+  })
+})
+
+describe("confidenceFor", () => {
+  it("calls a single game what it is, not a quiet tendency", () => {
+    // A 1v1 split-half agrees at 0.324 — the same score as pooling both sides,
+    // which is the defect this tab was fixed for.
+    const c = confidenceFor(1)
+    expect(c.label).toBe("single game")
+    expect(c.detail).toMatch(/not a tendency/)
+  })
+
+  it("grades upward with sample size", () => {
+    expect(confidenceFor(4).label).toBe("low confidence")
+    expect(confidenceFor(7).label).toBe("moderate confidence")
+    expect(confidenceFor(12).label).toBe("good sample")
+  })
+
+  it("says nothing extra once the sample is as good as the league allows", () => {
+    // The detail line is the replacement for a binary warning; it must not read
+    // as an alarm on the views that are actually fine.
+    expect(confidenceFor(12).className).toMatch(/emerald/)
+  })
+
+  it("handles an empty selection without claiming a tendency", () => {
+    expect(confidenceFor(0).label).toBe("no games")
+    expect(confidenceFor(0).detail).toBe("")
   })
 })
 
@@ -161,6 +236,43 @@ describe("slotsForPlayer", () => {
     const match = makeMatch({ id: 1, slots: ROSTER })
     expect(slotsForPlayer(match, 12).map(s => s.slot)).toEqual([1])
     expect(slotsForPlayer(match, 999)).toEqual([])
+  })
+})
+
+describe("playersForTeam, by side", () => {
+  const bothSides = [
+    makeMatch({ id: 1, slots: ROSTER, isRadiant: true }),
+    makeMatch({ id: 2, slots: ROSTER, isRadiant: true }),
+    makeMatch({ id: 3, slots: ROSTER, isRadiant: false }),
+  ]
+
+  it("counts games on the requested side, not overall", () => {
+    // The caption's number is the whole reason side-splitting matters; a pooled
+    // count beside a side-filtered map is the same lie in miniature.
+    const rad = playersForTeam(bothSides, TEAM, "radiant")
+    const dire = playersForTeam(bothSides, TEAM, "dire")
+    expect(rad.find(p => p.playerId === 11)?.games).toBe(2)
+    expect(dire.find(p => p.playerId === 11)?.games).toBe(1)
+  })
+
+  it("reports both sides' counts so the thin side is visible", () => {
+    const ana = playersForTeam(bothSides, TEAM, "radiant").find(
+      p => p.playerId === 11,
+    )
+    expect(ana).toMatchObject({ radiantGames: 2, direGames: 1 })
+  })
+
+  it("still lists a player with no games on this side, at zero", () => {
+    // Dropping them would shrink the roster as you switch sides and hide that a
+    // better sample sits one click away. 9 of 69 S47 players hit this.
+    const radiantOnly = [makeMatch({ id: 1, slots: ROSTER, isRadiant: true })]
+    const dire = playersForTeam(radiantOnly, TEAM, "dire")
+    expect(dire.map(p => p.playerId)).toContain(11)
+    expect(dire.find(p => p.playerId === 11)).toMatchObject({
+      games: 0,
+      radiantGames: 1,
+      direGames: 0,
+    })
   })
 })
 

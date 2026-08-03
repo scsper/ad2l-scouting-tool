@@ -3,19 +3,19 @@ import { useSearchParams } from "react-router"
 import { DotaMap } from "../../components/DotaMap"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { getHero } from "../../utils/get-hero"
-import {
-  POSITION_LABELS,
-  formatGameTime,
-  positionColor,
-} from "../../utils/ward-aggregation"
+import { POSITION_LABELS, formatGameTime } from "../../utils/ward-aggregation"
 import { getMinimapForMatches } from "../../utils/ward-map"
 import {
   binPlayer,
+  confidenceFor,
   decodeMatch,
   eventsNear,
+  filterBySide,
+  majoritySide,
   playersForTeam,
   positionBounds,
   type DecodedMatch,
+  type MovementSide,
 } from "../../utils/movement"
 import { HeatmapLayer, HeatmapLegend } from "./HeatmapLayer"
 import {
@@ -48,6 +48,14 @@ function parseNumber(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+/**
+ * Anything unrecognised falls back to the team's majority side, which also
+ * quietly rescues links saved before the side control existed.
+ */
+function parseSide(value: string | null, fallback: MovementSide): MovementSide {
+  return value === "radiant" || value === "dire" ? value : fallback
+}
+
 export const Movement = ({
   leagueId,
   teamId,
@@ -66,6 +74,7 @@ export const Movement = ({
 
   const mode = parseMode(searchParams.get("mode"))
   const urlPlayer = parseNumber(searchParams.get("player"))
+  const urlSide = searchParams.get("side")
   const urlMatch = searchParams.get("match")
   const urlFrom = parseNumber(searchParams.get("from"))
   const urlTo = parseNumber(searchParams.get("to"))
@@ -128,20 +137,56 @@ export const Movement = ({
     [matches],
   )
 
-  const players = useMemo(
-    () => playersForTeam(matches, teamId),
-    [matches, teamId],
+  /**
+   * Side is resolved before anything else, because everything the heatmap shows
+   * is scoped to it — the games binned, the roster's counts, and the confidence
+   * those counts imply.
+   */
+  const defaultSide = useMemo(() => majoritySide(matches), [matches])
+  const side = parseSide(urlSide, defaultSide)
+
+  const sideMatches = useMemo(
+    () => filterBySide(matches, side),
+    [matches, side],
+  )
+  const sideDecoded = useMemo(
+    () =>
+      decoded.filter(d =>
+        side === "radiant" ? d.match.isRadiant : !d.match.isRadiant,
+      ),
+    [decoded, side],
   )
 
+  // Given ALL matches, not the side-filtered set: a player who never played this
+  // side still belongs in the picker, disabled, showing what the other side has.
+  const players = useMemo(
+    () => playersForTeam(matches, teamId, side),
+    [matches, teamId, side],
+  )
+
+  // Bounds stay across both sides so the range slider does not jump when you
+  // switch — the window you chose is a question about the game clock, not about
+  // which side they happened to be on.
   const bounds = useMemo(() => positionBounds(matches), [matches])
 
   /**
    * Default to the roster's most-played player rather than the first by
    * position, so the tab opens on the densest, most trustworthy heatmap it can.
    */
+  /**
+   * Prefer whoever has the most games on this side, but fall back to the first
+   * of the roster when nobody played it at all. Resolving to null instead would
+   * render neither a heatmap nor the message explaining why — a blank tab that
+   * looks broken rather than empty.
+   */
   const defaultPlayer = useMemo(
     () =>
-      [...players].sort((a, b) => b.games - a.games).at(0)?.playerId ?? null,
+      [...players]
+        .filter(p => p.games > 0)
+        .sort((a, b) => b.games - a.games)
+        .at(0)?.playerId ??
+      players.at(0)?.playerId ??
+      null,
     [players],
   )
   const selectedPlayer =
@@ -162,9 +207,11 @@ export const Movement = ({
     () =>
       selectedPlayer === null
         ? null
-        : binPlayer(decoded, selectedPlayer, range),
-    [decoded, selectedPlayer, range],
+        : binPlayer(sideDecoded, selectedPlayer, range),
+    [sideDecoded, selectedPlayer, range],
   )
+
+  const confidence = confidenceFor(heatmap?.games ?? 0)
 
   const selectedMatch =
     matches.find(m => String(m.id) === urlMatch) ?? matches.at(0)
@@ -256,25 +303,53 @@ export const Movement = ({
             <div className="text-sm text-slate-400 mt-0.5">
               {matches.length} game{matches.length === 1 ? "" : "s"} with
               per-second positions
+              {mode === "heatmap" &&
+                ` · ${String(sideMatches.length)} as ${side}`}
             </div>
           </div>
 
-          <div className="flex rounded overflow-hidden border border-slate-700">
-            {(["heatmap", "playback"] as const).map(m => (
-              <button
-                key={m}
-                onClick={() => {
-                  updateFilters({ mode: m === "heatmap" ? null : m })
-                }}
-                className={`px-3 py-1 text-sm capitalize ${
-                  mode === m
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-900 text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            {/*
+              Side only appears for the heatmap. Playback shows one game, which
+              has exactly one side and says so in the dropdown; gating that list
+              would hide half the season for no correctness gain.
+            */}
+            {mode === "heatmap" && (
+              <div className="flex rounded overflow-hidden border border-slate-700">
+                {(["radiant", "dire"] as const).map(s2 => (
+                  <button
+                    key={s2}
+                    onClick={() => {
+                      updateFilters({ side: s2 === defaultSide ? null : s2 })
+                    }}
+                    className={`px-3 py-1 text-sm capitalize ${
+                      side === s2
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-900 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    As {s2}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex rounded overflow-hidden border border-slate-700">
+              {(["heatmap", "playback"] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    updateFilters({ mode: m === "heatmap" ? null : m })
+                  }}
+                  className={`px-3 py-1 text-sm capitalize ${
+                    mode === m
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-900 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -290,12 +365,21 @@ export const Movement = ({
               className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200"
             >
               {players.map(p => (
-                <option key={p.playerId} value={String(p.playerId)}>
+                <option
+                  key={p.playerId}
+                  value={String(p.playerId)}
+                  // Listed but unselectable rather than hidden, following the
+                  // ward game chips: a roster that silently shrinks as you
+                  // switch sides hides the fact that a better sample is one
+                  // click away.
+                  disabled={p.games === 0}
+                >
                   {p.name} ·{" "}
                   {p.position
                     ? (POSITION_LABELS[p.position] ?? p.position)
                     : "?"}{" "}
-                  · {p.games} game{p.games === 1 ? "" : "s"}
+                  · {p.radiantGames}R / {p.direGames}D
+                  {p.games === 0 ? " — none as " + side : ""}
                 </option>
               ))}
             </select>
@@ -324,6 +408,24 @@ export const Movement = ({
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 ml-2" />
               Opponent
             </span>
+          </div>
+        )}
+
+        {/*
+          A player who never played this side keeps the selection and says so.
+          Silently re-selecting whoever does have games here would leave you
+          reading Bob's map while believing it is Ana's.
+        */}
+        {mode === "heatmap" && player?.games === 0 && (
+          <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-400">
+            {player.name} played no games as {side} —{" "}
+            {player.radiantGames + player.direGames === 0
+              ? "no parsed games at all."
+              : `their ${String(Math.max(player.radiantGames, player.direGames))} game${
+                  Math.max(player.radiantGames, player.direGames) === 1
+                    ? ""
+                    : "s"
+                } are on the other side.`}
           </div>
         )}
 
@@ -378,14 +480,10 @@ export const Movement = ({
               <span className="text-slate-400">
                 {player ? (
                   <>
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle"
-                      style={{
-                        backgroundColor: positionColor(player.position),
-                      }}
-                    />
-                    <span className="text-slate-100">{player.name}</span> ·{" "}
-                    {formatGameTime(range.from)} to {formatGameTime(range.to)}
+                    <span className="text-slate-100">{player.name}</span>
+                    {player.position !== null &&
+                      ` (${POSITION_LABELS[player.position] ?? player.position})`}{" "}
+                    · {formatGameTime(range.from)} to {formatGameTime(range.to)}
                   </>
                 ) : (
                   "No players"
@@ -397,11 +495,17 @@ export const Movement = ({
                 a season; a two-game heatmap and a twenty-game one look identical
                 once they are drawn, and only this number tells them apart.
               */}
-              <span className="text-slate-500">
-                {heatmap
-                  ? `${String(heatmap.games)} game${heatmap.games === 1 ? "" : "s"} · ${String(Math.round(heatmap.samples / 60))} min alive`
-                  : ""}
-              </span>
+              {heatmap && (
+                <span className="text-slate-500">
+                  {heatmap.games} game{heatmap.games === 1 ? "" : "s"} as {side}
+                  {" · "}
+                  <span className={confidence.className}>
+                    {confidence.label}
+                  </span>
+                  {heatmap.samples > 0 &&
+                    ` · ${String(Math.round(heatmap.samples / 60))} min alive`}
+                </span>
+              )}
             </div>
             <div className="space-y-1">
               <input
@@ -454,11 +558,11 @@ export const Movement = ({
                 </button>
               ))}
             </div>
-            {heatmap && heatmap.games < 5 && heatmap.games > 0 && (
-              <div className="mt-2 text-xs text-amber-400 text-center">
-                Only {heatmap.games} game{heatmap.games === 1 ? "" : "s"} — this
-                is one player&apos;s habits in a handful of games, not a
-                tendency.
+            {heatmap && confidence.detail !== "" && (
+              <div
+                className={`mt-2 text-xs text-center ${confidence.className}`}
+              >
+                {confidence.detail}
               </div>
             )}
           </div>
