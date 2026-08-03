@@ -10,12 +10,14 @@ import {
   type PitSide,
 } from "../../utils/dota-map"
 import { formatGameTime } from "../../utils/ward-aggregation"
+import {
+  ENEMY_COLOR,
+  HALO_COLOR,
+  ROSHAN_COLOR,
+  SCOUTED_COLOR,
+  TORMENTOR_COLOR,
+} from "../../utils/map-colors"
 import type { TowerFall } from "../../utils/objective-aggregation"
-
-/** Their buildings and the enemy's, on the colours the rest of the app uses for
- *  "this team" versus "the opposition". */
-export const OWN_TOWER_COLOR = "#f87171"
-export const ENEMY_TOWER_COLOR = "#60a5fa"
 
 export type HoveredObjective = {
   label: string
@@ -73,7 +75,7 @@ const TowerMark = ({
         width={(r + 1) * 2}
         height={(r + 1) * 2}
         fill="none"
-        stroke="#020617"
+        stroke={HALO_COLOR}
         strokeOpacity={0.85}
         strokeWidth={3}
       />
@@ -160,7 +162,7 @@ export const TowerLayer = ({
           x={x}
           y={y}
           size={size}
-          color={owned ? OWN_TOWER_COLOR : ENEMY_TOWER_COLOR}
+          color={owned ? SCOUTED_COLOR : ENEMY_COLOR}
           standing={standing}
           label={`${towerLabel(tower)} (${owned ? "theirs" : "enemy"})`}
           detail={
@@ -221,7 +223,7 @@ export const NeutralMark = ({
         cy={cy}
         r={9}
         fill="none"
-        stroke="#020617"
+        stroke={HALO_COLOR}
         strokeOpacity={0.85}
         strokeWidth={3.5}
       />
@@ -239,7 +241,5 @@ export const NeutralMark = ({
   )
 }
 
-export const ROSHAN_COLOR = "#fbbf24"
-export const TORMENTOR_COLOR = "#c084fc"
-
+export { ROSHAN_COLOR, TORMENTOR_COLOR }
 export { ROSHAN_PITS, TORMENTOR_SPOTS }

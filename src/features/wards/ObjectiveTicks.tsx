@@ -1,16 +1,16 @@
 import { formatGameTime } from "../../utils/ward-aggregation"
 import type { ObjectiveTick } from "../../utils/objective-aggregation"
 import {
-  ENEMY_TOWER_COLOR,
-  OWN_TOWER_COLOR,
+  ENEMY_COLOR,
   ROSHAN_COLOR,
+  SCOUTED_COLOR,
   TORMENTOR_COLOR,
-} from "./TowerLayer"
+} from "../../utils/map-colors"
 
 function tickColor(tick: ObjectiveTick): string {
   if (tick.kind === "roshan") return ROSHAN_COLOR
   if (tick.kind === "tormentor") return TORMENTOR_COLOR
-  return tick.ownedByTeam ? OWN_TOWER_COLOR : ENEMY_TOWER_COLOR
+  return tick.ownedByTeam ? SCOUTED_COLOR : ENEMY_COLOR
 }
 
 function tickTitle(tick: ObjectiveTick, aggregate: boolean): string {

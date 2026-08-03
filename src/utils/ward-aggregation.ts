@@ -225,8 +225,7 @@ export const POSITION_LABELS: Record<string, string> = {
  * independent toggles, telling the two apart is the job hue is best at, and
  * size alone is a weak discriminator once both are drawn.
  *
- * These are `amber-400` and `sky-400` — the same colours as the Tailwind
- * swatches beside the toggles in `Wards.tsx`. Change one, change the other.
+ * Re-exported from `map-colors`, which both map tabs now draw from, so the two
+ * views cannot drift apart on what a sentry looks like.
  */
-export const OBSERVER_COLOR = "#fbbf24"
-export const SENTRY_COLOR = "#38bdf8"
+export { OBSERVER_COLOR, SENTRY_COLOR } from "./map-colors"

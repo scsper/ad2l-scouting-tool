@@ -43,9 +43,7 @@ import type { PitSide } from "../../utils/dota-map"
 import { useGetMatchObjectivesQuery } from "../objectives/objectives-api"
 import { ObjectiveTicks } from "./ObjectiveTicks"
 import {
-  ENEMY_TOWER_COLOR,
   NeutralMark,
-  OWN_TOWER_COLOR,
   ROSHAN_COLOR,
   ROSHAN_PITS,
   TORMENTOR_COLOR,
@@ -53,6 +51,7 @@ import {
   TowerLayer,
   type HoveredObjective,
 } from "./TowerLayer"
+import { ENEMY_COLOR, SCOUTED_COLOR } from "../../utils/map-colors"
 import { useGetMatchWardsQuery, type WardMatch } from "./wards-api"
 import { DotaMap } from "../../components/DotaMap"
 
@@ -648,6 +647,10 @@ export const Wards = ({
       ) : (
         <div className={`${panel} p-4`}>
           <div className="flex flex-wrap items-center gap-4 mb-3">
+            {/* Swatches take their colour from the same constants the map draws
+                with, rather than restating them as Tailwind classes. The two
+                used to be kept in agreement by a comment, which is not a
+                mechanism. */}
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
@@ -655,9 +658,15 @@ export const Wards = ({
                 onChange={e => {
                   updateFilters({ obs: e.target.checked ? null : "0" })
                 }}
-                className="accent-amber-400"
+                style={{ accentColor: OBSERVER_COLOR }}
               />
-              <span className="inline-block w-3 h-3 rounded-full bg-amber-400/80 border border-amber-300" />
+              <span
+                className="inline-block w-3 h-3 rounded-full border"
+                style={{
+                  backgroundColor: `${OBSERVER_COLOR}cc`,
+                  borderColor: OBSERVER_COLOR,
+                }}
+              />
               Observers ({obsTotal})
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
@@ -667,9 +676,15 @@ export const Wards = ({
                 onChange={e => {
                   updateFilters({ sen: e.target.checked ? "1" : null })
                 }}
-                className="accent-sky-400"
+                style={{ accentColor: SENTRY_COLOR }}
               />
-              <span className="inline-block w-2 h-2 rounded-full bg-sky-400/80 border border-sky-300" />
+              <span
+                className="inline-block w-2 h-2 rounded-full border"
+                style={{
+                  backgroundColor: `${SENTRY_COLOR}cc`,
+                  borderColor: SENTRY_COLOR,
+                }}
+              />
               Sentries ({senTotal})
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
@@ -684,8 +699,8 @@ export const Wards = ({
               <span
                 className="inline-block w-2.5 h-2.5 border"
                 style={{
-                  borderColor: OWN_TOWER_COLOR,
-                  backgroundColor: `${OWN_TOWER_COLOR}66`,
+                  borderColor: SCOUTED_COLOR,
+                  backgroundColor: `${SCOUTED_COLOR}66`,
                 }}
               />
               Towers ({objectiveCount})
@@ -698,8 +713,8 @@ export const Wards = ({
                     <span
                       className="inline-block w-2.5 h-2.5 border"
                       style={{
-                        borderColor: OWN_TOWER_COLOR,
-                        backgroundColor: `${OWN_TOWER_COLOR}66`,
+                        borderColor: SCOUTED_COLOR,
+                        backgroundColor: `${SCOUTED_COLOR}66`,
                       }}
                     />
                     Their towers
@@ -708,8 +723,8 @@ export const Wards = ({
                     <span
                       className="inline-block w-2.5 h-2.5 border"
                       style={{
-                        borderColor: ENEMY_TOWER_COLOR,
-                        backgroundColor: `${ENEMY_TOWER_COLOR}66`,
+                        borderColor: ENEMY_COLOR,
+                        backgroundColor: `${ENEMY_COLOR}66`,
                       }}
                     />
                     Enemy towers
