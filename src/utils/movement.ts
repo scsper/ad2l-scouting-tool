@@ -58,16 +58,57 @@ export function decodeMatch(match: PositionMatch): DecodedMatch {
   }
 }
 
+/**
+ * Which side of the map the scouted team played on.
+ *
+ * There is no "both", by measurement rather than by taste. The minimap has a
+ * fixed orientation, so a team's own safelane triangle is the bottom-left corner
+ * as Radiant and the top-right as Dire, and the same habit lands in opposite
+ * places. Across AD2L S47 a player's Radiant heatmap and their Dire heatmap
+ * agree at cosine 0.318, against a floor of 0.704 for two halves of that same
+ * player's games on ONE side — so a pooled view retains 45% of the agreement a
+ * real one shows, and their centroids sit 22-40% of the map apart.
+ *
+ * Mirroring Dire onto Radiant terrain was measured too, and rejected: it lifts
+ * agreement to 0.535 (76% of the floor), which is better but still blends two
+ * genuinely different pictures, and it draws a player standing on ground they
+ * never occupied with no way for the map to say so.
+ */
+export type MovementSide = "radiant" | "dire"
+
+export function filterBySide(
+  matches: PositionMatch[],
+  side: MovementSide,
+): PositionMatch[] {
+  return matches.filter(m => (side === "radiant" ? m.isRadiant : !m.isRadiant))
+}
+
+/**
+ * The side this team has the most parsed games on, used as the opening view.
+ *
+ * Something has to be picked since there is no "both", and the larger sample is
+ * the stronger read. Ties break to Radiant so the choice is deterministic for a
+ * given team rather than dependent on match ordering.
+ */
+export function majoritySide(matches: PositionMatch[]): MovementSide {
+  const radiant = matches.filter(m => m.isRadiant).length
+  return matches.length - radiant > radiant ? "dire" : "radiant"
+}
+
 export type PlayerOption = {
   playerId: number
   name: string
   /** The position they most often played. Ties break toward the lower number. */
   position: string | null
+  /** Games on the side currently being shown. The heatmap's real denominator. */
   games: number
+  /** Both sides' counts, so the picker can show what the other side would give. */
+  radiantGames: number
+  direGames: number
 }
 
 /**
- * Everyone who played for `teamId` across these games, by `player_id`.
+ * Everyone who played for `teamId`, by `player_id`, with per-side game counts.
  *
  * Keyed by id rather than name because the same human appears under different
  * `player_name`s between matches, and keyed by person rather than by position
@@ -75,14 +116,28 @@ export type PlayerOption = {
  * (team, position) slots were played by more than one person — one team's
  * position 5 was eight different people across 23 games. A heatmap aggregated
  * on position there is a picture of nobody.
+ *
+ * Takes ALL of the team's matches, not the side-filtered subset, so that a
+ * player who never played the current side still appears — with a zero count
+ * that the picker can disable. Dropping them would make the roster silently
+ * disagree with itself as you switch sides, and hide the fact that a better
+ * sample exists one click away. 9 of 69 S47 players are in that position on
+ * their team's minority side.
  */
 export function playersForTeam(
   matches: PositionMatch[],
   teamId: number,
+  side: MovementSide,
 ): PlayerOption[] {
   const byPlayer = new Map<
     number,
-    { name: string; games: number; positions: Map<string, number> }
+    {
+      name: string
+      seen: number
+      radiant: number
+      dire: number
+      positions: Map<string, number>
+    }
   >()
 
   for (const match of matches) {
@@ -90,13 +145,17 @@ export function playersForTeam(
       if (slot.teamId !== teamId || slot.playerId === null) continue
       const entry = byPlayer.get(slot.playerId) ?? {
         name: slot.playerName ?? `Player ${String(slot.playerId)}`,
-        games: 0,
+        seen: 0,
+        radiant: 0,
+        dire: 0,
         positions: new Map<string, number>(),
       }
-      entry.games += 1
+      entry.seen += 1
+      if (match.isRadiant) entry.radiant += 1
+      else entry.dire += 1
       // The most recent name wins: matches arrive newest-first, so the first one
       // seen is the one they go by now.
-      if (entry.games === 1 && slot.playerName) entry.name = slot.playerName
+      if (entry.seen === 1 && slot.playerName) entry.name = slot.playerName
       if (slot.position) {
         entry.positions.set(
           slot.position,
@@ -111,7 +170,9 @@ export function playersForTeam(
     .map(([playerId, entry]) => ({
       playerId,
       name: entry.name,
-      games: entry.games,
+      games: side === "radiant" ? entry.radiant : entry.dire,
+      radiantGames: entry.radiant,
+      direGames: entry.dire,
       position:
         [...entry.positions.entries()]
           .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -122,6 +183,68 @@ export function playersForTeam(
         (a.position ?? "zz").localeCompare(b.position ?? "zz") ||
         b.games - a.games,
     )
+}
+
+export type Confidence = {
+  label: string
+  /** Tailwind text colour, cold to warm as the sample thins. */
+  className: string
+  /** Measured split-half agreement at roughly this sample size. */
+  detail: string
+}
+
+/**
+ * How much a heatmap of this many games can be trusted.
+ *
+ * The bands are calibrated against measured split-half agreement — bin a
+ * player's games on one side into alternating halves and compare the two
+ * heatmaps — rather than against a guessed threshold:
+ *
+ *     2 games (1v1)   0.324      10 games (5v5)  0.716
+ *     4 games (2v2)   0.501      12 games (6v6)  0.748
+ *     6 games (3v3)   0.605
+ *     8 games (4v4)   0.669
+ *
+ * The first row is the point of this function: a one-game heatmap agrees with
+ * another one-game heatmap of the same player at 0.324, which is the same score
+ * as pooling both sides — the bug this tab was fixed for. A single game is not a
+ * quiet version of a tendency, it is noise that happens to render.
+ *
+ * This replaced a binary "fewer than 5 games" warning. After side-splitting the
+ * median view is 4 games, so that warning fired on 52% of views, and a warning
+ * that fires on half of everything is read as decoration. A graded label is
+ * always on screen and always says something specific.
+ */
+export function confidenceFor(games: number): Confidence {
+  if (games <= 0) {
+    return { label: "no games", className: "text-slate-500", detail: "" }
+  }
+  if (games <= 2) {
+    return {
+      label: games === 1 ? "single game" : "2 games",
+      className: "text-red-400",
+      detail: "not a tendency — as unreliable as pooling both sides",
+    }
+  }
+  if (games <= 5) {
+    return {
+      label: "low confidence",
+      className: "text-amber-400",
+      detail: "halves of this sample agree about 50-60% of the time",
+    }
+  }
+  if (games <= 9) {
+    return {
+      label: "moderate confidence",
+      className: "text-sky-400",
+      detail: "halves of this sample agree about 60-67% of the time",
+    }
+  }
+  return {
+    label: "good sample",
+    className: "text-emerald-400",
+    detail: "about as stable as this league gets",
+  }
 }
 
 /** The slots in one match belonging to a player. Usually one; never assume. */
