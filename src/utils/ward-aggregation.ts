@@ -2,7 +2,7 @@ import type { WardRecord } from "../../types/db"
 import type { WardMatch } from "../features/wards/wards-api"
 import { isAliveAt } from "./ward-map"
 
-export type SideFilter = "all" | "radiant" | "dire"
+export type SideFilter = "radiant" | "dire"
 
 export type PlacedWard = {
   ward: WardRecord
@@ -20,26 +20,38 @@ export type WardCoverage = {
   total: number
   /** Of those, how many actually have ward data. */
   withData: number
-  radiant: number
-  dire: number
 }
 
 /**
  * Matches for the current side filter.
  *
- * Side matters because the minimap has a fixed orientation: a team's "own
- * safelane triangle" is the bottom-left corner as Radiant and the top-right as
- * Dire. The same habit lands in opposite corners, so an unfiltered aggregate
- * shows two mirrored smears. We filter rather than mirror-normalise — the Dota
- * map is not 180-degree symmetric, so rotating Dire games onto Radiant terrain
- * would place wards on ground that may not even be wardable.
+ * There is deliberately no "both sides" option. The minimap has a fixed
+ * orientation: a team's "own safelane triangle" is the bottom-left corner as
+ * Radiant and the top-right as Dire. The same habit lands in opposite corners,
+ * so a combined aggregate is two mirrored smears that describe no single game.
+ * We filter rather than mirror-normalise — the Dota map is not 180-degree
+ * symmetric, so rotating Dire games onto Radiant terrain would place wards on
+ * ground that may not even be wardable.
  */
 export function filterBySide(
   matches: WardMatch[],
   side: SideFilter,
 ): WardMatch[] {
-  if (side === "all") return matches
   return matches.filter(m => (side === "radiant" ? m.isRadiant : !m.isRadiant))
+}
+
+/**
+ * The side this team has the most games on, used as the opening view.
+ *
+ * Since there is no "both" option, something has to be picked, and the larger
+ * sample is the stronger read. Ward data is what counts — opening on a side
+ * whose only games were never parsed would show an empty map. Ties break to
+ * Radiant so the choice stays deterministic for a given team.
+ */
+export function majoritySide(matches: WardMatch[]): SideFilter {
+  const withData = matches.filter(m => m.hasWardData)
+  const dire = withData.filter(m => !m.isRadiant).length
+  return dire > withData.length - dire ? "dire" : "radiant"
 }
 
 /**
@@ -51,13 +63,45 @@ export function filterBySide(
  * would understate every tendency.
  */
 export function getCoverage(matches: WardMatch[]): WardCoverage {
-  const withData = matches.filter(m => m.hasWardData)
   return {
     total: matches.length,
-    withData: withData.length,
-    radiant: withData.filter(m => m.isRadiant).length,
-    dire: withData.filter(m => !m.isRadiant).length,
+    withData: matches.filter(m => m.hasWardData).length,
   }
+}
+
+/**
+ * Match labels keyed by id, with same-day rematches numbered by game order.
+ *
+ * A Bo2 against one opponent on one day is the normal league week, so "7/12 vs
+ * Random Gaming" routinely names two different games — and two identical chips
+ * are useless in a row whose whole job is telling games apart. Only colliding
+ * labels get a number, so the ordinary single game stays uncluttered, and the
+ * number follows start time so g1 really is the one they played first.
+ */
+export function labelMatches(
+  matches: WardMatch[],
+  base: (match: WardMatch) => string,
+): Map<number, string> {
+  const groups = new Map<string, WardMatch[]>()
+  for (const match of matches) {
+    const key = base(match)
+    groups.set(key, [...(groups.get(key) ?? []), match])
+  }
+
+  const labels = new Map<number, string>()
+  for (const [key, group] of groups) {
+    if (group.length === 1) {
+      labels.set(group[0].id, key)
+      continue
+    }
+    const byStart = [...group].sort(
+      (a, b) => a.start_date_time - b.start_date_time,
+    )
+    byStart.forEach((match, i) => {
+      labels.set(match.id, `${key} (g${String(i + 1)})`)
+    })
+  }
+  return labels
 }
 
 /** Every ward placed across the given matches, flattened with its context. */
