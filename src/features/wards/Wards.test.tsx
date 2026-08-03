@@ -177,7 +177,10 @@ describe("Wards", () => {
 
     // Placed 100 seconds in.
     expect(screen.getByText("Observer placed at 1:40")).toBeInTheDocument()
-    expect(screen.getByText("Scott - Crystal Maiden")).toBeInTheDocument()
+    // The role only lives here now that the dot's colour means ward type.
+    expect(
+      screen.getByText("Scott (Hard Support) - Crystal Maiden"),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
         `${new Date(START * 1000).toLocaleDateString()} - vs Sharkhorse`,
@@ -188,6 +191,25 @@ describe("Wards", () => {
     // Keyed on the tooltip's own heading rather than the opponent, which the
     // game chips also name.
     expect(screen.queryByText(/Observer placed at/)).not.toBeInTheDocument()
+  })
+
+  it("omits the role when the placer's position was never deduced", async () => {
+    renderWards("/", {
+      matches: [
+        {
+          ...WARDS.matches[0],
+          players: [{ ...WARDS.matches[0].players[0], position: null }],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+
+    const map = await screen.findByLabelText("Ward placement map")
+    await user.hover(map.querySelector("g") as Element)
+
+    // No parenthetical, and no stand-in for the missing role: an unattributed
+    // ward is drawn like any other now, so the tooltip stays quiet too.
+    expect(screen.getByText("Scott - Crystal Maiden")).toBeInTheDocument()
   })
 
   it("writes a filter to the query string so the view can be linked to", async () => {

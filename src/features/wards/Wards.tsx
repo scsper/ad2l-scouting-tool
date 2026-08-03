@@ -15,7 +15,9 @@ import {
   wasDewarded,
 } from "../../utils/ward-map"
 import {
-  POSITION_LEGEND,
+  OBSERVER_COLOR,
+  POSITION_LABELS,
+  SENTRY_COLOR,
   collectWards,
   filterBySide,
   formatGameTime,
@@ -24,7 +26,6 @@ import {
   getTimeBounds,
   labelMatches,
   majoritySide,
-  positionColor,
   wardsAliveAt,
   type PlacedWard,
   type SideFilter,
@@ -113,7 +114,7 @@ const WardDot = ({
   const isObs = placed.ward.type === "obs"
   const r = isObs ? 6 : 3.5
   const dewarded = wasDewarded(placed.ward)
-  const color = positionColor(placed.position)
+  const color = isObs ? OBSERVER_COLOR : SENTRY_COLOR
 
   return (
     <g
@@ -142,7 +143,7 @@ const WardDot = ({
         cy={y * size}
         r={r}
         fill={color}
-        fillOpacity={isObs ? 0.8 : 0.55}
+        fillOpacity={0.8}
         stroke="#f8fafc"
         strokeOpacity={0.9}
         strokeWidth={isObs ? 1.5 : 1}
@@ -176,6 +177,8 @@ const WardTooltip = ({
 }) => {
   const { x, y } = wardToFraction(placed.ward)
   const isObs = placed.ward.type === "obs"
+  const role =
+    placed.position === null ? undefined : POSITION_LABELS[placed.position]
   // Flip near the edges so the card never spills off the map.
   const flipX = x > 0.6
   const flipY = y < 0.25
@@ -195,8 +198,11 @@ const WardTooltip = ({
         {isObs ? "Observer" : "Sentry"} placed at{" "}
         {formatGameTime(placed.ward.placed)}
       </div>
+      {/* The role used to be the dot's colour; now that hue means ward type,
+          hover is the only place it lives. */}
       <div>
-        {placed.playerName ?? "Unknown"} - {getHero(placed.heroId)}
+        {placed.playerName ?? "Unknown"}
+        {role !== undefined && ` (${role})`} - {getHero(placed.heroId)}
       </div>
       <div>
         {new Date(placed.startDateTime * 1000).toLocaleDateString()} - vs{" "}
@@ -650,7 +656,7 @@ export const Wards = ({
                 }}
                 className="accent-amber-400"
               />
-              <span className="inline-block w-3 h-3 rounded-full bg-amber-400/60 border border-amber-300" />
+              <span className="inline-block w-3 h-3 rounded-full bg-amber-400/80 border border-amber-300" />
               Observers ({obsTotal})
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
@@ -662,7 +668,7 @@ export const Wards = ({
                 }}
                 className="accent-sky-400"
               />
-              <span className="inline-block w-2 h-2 rounded-full bg-sky-400/60 border border-sky-300" />
+              <span className="inline-block w-2 h-2 rounded-full bg-sky-400/80 border border-sky-300" />
               Sentries ({senTotal})
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
@@ -709,15 +715,6 @@ export const Wards = ({
                   </span>
                 </>
               )}
-              {POSITION_LEGEND.map(({ label, color }) => (
-                <span key={label} className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
-                  {label}
-                </span>
-              ))}
             </div>
           </div>
 
