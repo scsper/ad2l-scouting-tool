@@ -3,11 +3,7 @@ import { useSearchParams } from "react-router"
 import { DotaMap } from "../../components/DotaMap"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { getHero } from "../../utils/get-hero"
-import {
-  POSITION_LABELS,
-  formatGameTime,
-  positionColor,
-} from "../../utils/ward-aggregation"
+import { POSITION_LABELS, formatGameTime } from "../../utils/ward-aggregation"
 import { getMinimapForMatches } from "../../utils/ward-map"
 import {
   binPlayer,
@@ -378,14 +374,10 @@ export const Movement = ({
               <span className="text-slate-400">
                 {player ? (
                   <>
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle"
-                      style={{
-                        backgroundColor: positionColor(player.position),
-                      }}
-                    />
-                    <span className="text-slate-100">{player.name}</span> ·{" "}
-                    {formatGameTime(range.from)} to {formatGameTime(range.to)}
+                    <span className="text-slate-100">{player.name}</span>
+                    {player.position !== null &&
+                      ` (${POSITION_LABELS[player.position] ?? player.position})`}{" "}
+                    · {formatGameTime(range.from)} to {formatGameTime(range.to)}
                   </>
                 ) : (
                   "No players"
