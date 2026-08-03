@@ -17,11 +17,25 @@ import {
   type DecodedMatch,
   type MovementSide,
 } from "../../utils/movement"
+import {
+  activeNeutralsAt,
+  eventsToWards,
+  neutralKillsFromEvents,
+  towerFallsFromEvents,
+} from "../../utils/playback-objects"
+import {
+  ENEMY_COLOR,
+  OBSERVER_COLOR,
+  SCOUTED_COLOR,
+  SENTRY_COLOR,
+} from "../../utils/map-colors"
+import { TowerLayer } from "../wards/TowerLayer"
 import { HeatmapLayer, HeatmapLegend } from "./HeatmapLayer"
 import {
   PlaybackEventList,
   PlaybackLayer,
-  type HoveredHero,
+  towerHoverAdapter,
+  type HoveredMark,
 } from "./PlaybackLayer"
 import { useGetTeamPositionsQuery } from "./positions-api"
 
@@ -70,9 +84,23 @@ export const Movement = ({
   const { data: teamsData } = useGetTeamsByLeagueQuery({ leagueId })
 
   const [searchParams, setSearchParams] = useSearchParams()
-  const [hovered, setHovered] = useState<HoveredHero | null>(null)
+  const [hovered, setHovered] = useState<HoveredMark | null>(null)
 
   const mode = parseMode(searchParams.get("mode"))
+  /*
+   * Same URL keys and same defaults-omitted encoding as the Wards tab, with one
+   * deliberate difference: sentries default ON here.
+   *
+   * There they are off because the map is an aggregate, where sixty sentries
+   * across eight games is texture. Playback draws only what is standing at the
+   * playhead — two to four sentries — and the deward interaction it exposes,
+   * their support walking to a spot because a sentry died there twenty seconds
+   * earlier, is the best thing this map can show. Defaulting it off would hide
+   * the payoff.
+   */
+  const showObs = searchParams.get("obs") !== "0"
+  const showSen = searchParams.get("sen") !== "0"
+  const showTowers = searchParams.get("towers") !== "0"
   const urlPlayer = parseNumber(searchParams.get("player"))
   const urlSide = searchParams.get("side")
   const urlMatch = searchParams.get("match")
@@ -234,6 +262,54 @@ export const Movement = ({
         ? eventsNear(events, selectedMatch.id, time, EVENT_WINDOW_SECONDS)
         : [],
     [events, selectedMatch, time],
+  )
+
+  /*
+   * The whole game's events, unlike `visibleEvents`.
+   *
+   * Wards, towers and objectives are state rather than moments: whether a ward
+   * is standing at 20:00 depends on a placement at 17:30 and a removal at
+   * 21:00, both far outside the twenty-second marker window. `eventsNear` also
+   * drops rows without coordinates, which is every building kill.
+   */
+  const matchEvents = useMemo(
+    () =>
+      selectedMatch ? events.filter(e => e.matchId === selectedMatch.id) : [],
+    [events, selectedMatch],
+  )
+
+  const wards = useMemo(
+    () =>
+      selectedMatch ? eventsToWards(matchEvents, selectedMatch.isRadiant) : [],
+    [matchEvents, selectedMatch],
+  )
+  const visibleWards = useMemo(
+    () => wards.filter(w => (w.ward.type === "obs" ? showObs : showSen)),
+    [wards, showObs, showSen],
+  )
+
+  const towerFalls = useMemo(
+    () =>
+      selectedMatch
+        ? towerFallsFromEvents(
+            matchEvents,
+            selectedMatch.id,
+            selectedMatch.isRadiant,
+          )
+        : [],
+    [matchEvents, selectedMatch],
+  )
+
+  const neutralKills = useMemo(
+    () =>
+      selectedMatch
+        ? neutralKillsFromEvents(matchEvents, selectedMatch.isRadiant)
+        : [],
+    [matchEvents, selectedMatch],
+  )
+  const activeNeutrals = useMemo(
+    () => (showTowers ? activeNeutralsAt(neutralKills, time) : []),
+    [neutralKills, time, showTowers],
   )
 
   if (isLoading) {
@@ -402,11 +478,83 @@ export const Movement = ({
                 </option>
               ))}
             </select>
-            <span className="flex items-center gap-1.5 text-xs text-slate-400">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-400" />
-              {teamName}
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 ml-2" />
-              Opponent
+            <label className="flex items-center gap-1.5 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showObs}
+                onChange={e => {
+                  updateFilters({ obs: e.target.checked ? null : "0" })
+                }}
+                style={{ accentColor: OBSERVER_COLOR }}
+              />
+              <span
+                className="inline-block w-3 h-3 rounded-full border"
+                style={{
+                  backgroundColor: `${OBSERVER_COLOR}cc`,
+                  borderColor: OBSERVER_COLOR,
+                }}
+              />
+              Obs
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showSen}
+                onChange={e => {
+                  updateFilters({ sen: e.target.checked ? null : "0" })
+                }}
+                style={{ accentColor: SENTRY_COLOR }}
+              />
+              <span
+                className="inline-block w-2 h-2 rounded-full border"
+                style={{
+                  backgroundColor: `${SENTRY_COLOR}cc`,
+                  borderColor: SENTRY_COLOR,
+                }}
+              />
+              Sen
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showTowers}
+                onChange={e => {
+                  updateFilters({ towers: e.target.checked ? null : "0" })
+                }}
+                style={{ accentColor: SCOUTED_COLOR }}
+              />
+              <span
+                className="inline-block w-2.5 h-2.5 border"
+                style={{
+                  borderColor: SCOUTED_COLOR,
+                  backgroundColor: `${SCOUTED_COLOR}66`,
+                }}
+              />
+              Towers
+            </label>
+
+            {/* Swatches read the constants the map draws with. Stated as
+                Tailwind classes, this legend once survived a colour flip
+                unchanged and confidently labelled the map with the old key. */}
+            <span className="flex items-center gap-3 text-xs text-slate-400 ml-auto">
+              <span className="flex items-center gap-1.5">
+                <span
+                  role="img"
+                  aria-label={`${teamName} outline`}
+                  className="inline-block w-2.5 h-2.5 rounded-full border-2"
+                  style={{ borderColor: SCOUTED_COLOR }}
+                />
+                {teamName}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  role="img"
+                  aria-label="Opponent outline"
+                  className="inline-block w-2.5 h-2.5 rounded-full border-2"
+                  style={{ borderColor: ENEMY_COLOR }}
+                />
+                Opponent
+              </span>
             </span>
           </div>
         )}
@@ -461,15 +609,29 @@ export const Movement = ({
             {mode === "heatmap" && heatmap && (
               <HeatmapLayer heatmap={heatmap} size={SIZE} />
             )}
-            {mode === "playback" && decodedMatch && (
-              <PlaybackLayer
-                decoded={decodedMatch}
-                teamId={teamId}
-                time={time}
-                events={visibleEvents}
-                size={SIZE}
-                setHovered={setHovered}
-              />
+            {mode === "playback" && decodedMatch && selectedMatch && (
+              <>
+                {showTowers && (
+                  <TowerLayer
+                    falls={towerFalls}
+                    time={time}
+                    size={SIZE}
+                    teamSide={selectedMatch.isRadiant ? "radiant" : "dire"}
+                    onHover={towerHoverAdapter(setHovered)}
+                  />
+                )}
+                <PlaybackLayer
+                  decoded={decodedMatch}
+                  isRadiant={selectedMatch.isRadiant}
+                  time={time}
+                  events={visibleEvents}
+                  wards={visibleWards}
+                  neutrals={activeNeutrals}
+                  size={SIZE}
+                  hovered={hovered}
+                  setHovered={setHovered}
+                />
+              </>
             )}
           </DotaMap>
         </div>

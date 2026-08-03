@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Provider } from "react-redux"
 import { MemoryRouter, useLocation } from "react-router"
@@ -26,6 +26,18 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
+/**
+ * Ten slots, because a match has ten and the slot number carries meaning:
+ * 0-4 are Radiant and 5-9 are Dire, always. The fixture used to have three,
+ * with the opponent at slot 2 — a state that cannot occur, and one that hid
+ * whether allegiance was being read correctly.
+ *
+ * The unnamed slots deliberately carry `teamId: null`, which is what a match
+ * whose `match_player` rows were only partly written actually looks like. They
+ * still have to render on the right side, from the slot number alone.
+ */
+const FILLER_HERO_IDS = [11, 13, 15, 17, 19, 21, 23]
+
 const SLOTS: Omit<PositionSlot, "slot">[] = [
   {
     heroId: 5, // Crystal Maiden
@@ -41,20 +53,35 @@ const SLOTS: Omit<PositionSlot, "slot">[] = [
     position: "POSITION_1",
     teamId: SCOUTED_TEAM,
   },
+  ...FILLER_HERO_IDS.slice(0, 3).map(heroId => ({
+    heroId,
+    playerId: null,
+    playerName: null,
+    position: null,
+    teamId: null,
+  })),
   {
-    heroId: 8, // Juggernaut
+    heroId: 8, // Juggernaut — Dire side, so slot 5
     playerId: 21,
     playerName: "Cy",
     position: "POSITION_1",
     teamId: OPPONENT_TEAM,
   },
+  ...FILLER_HERO_IDS.slice(3).map(heroId => ({
+    heroId,
+    playerId: null,
+    playerName: null,
+    position: null,
+    teamId: null,
+  })),
 ]
 
 function match(id: number, seconds = 600, isRadiant = true) {
   const samples: SlotSamples[] = SLOTS.map((slot, i) => ({
     heroId: slot.heroId,
-    x: Array.from({ length: seconds }, () => 80 + i * 20),
-    y: Array.from({ length: seconds }, () => 80 + i * 20),
+    // Kept inside the 64..191 grid so nothing is silently clamped onto an edge.
+    x: Array.from({ length: seconds }, () => 80 + i * 10),
+    y: Array.from({ length: seconds }, () => 80 + i * 10),
     dead: Array.from({ length: seconds }, () => false),
   }))
   const encoded = encodePositions(samples)
@@ -96,6 +123,86 @@ const POSITIONS: MatchPositionsApiResponse = {
       key: null,
       x: 100,
       y: 100,
+    },
+  ],
+}
+
+/**
+ * A game with the furniture on it: both teams warding, a deward, a tower down
+ * and a Roshan. Kept separate from POSITIONS so the older tests keep their
+ * quiet fixture.
+ *
+ * Times are chosen to sit outside the twenty-second marker window at t=300, so
+ * these exercise the standing-state layers rather than the transient ones.
+ */
+const RICH: MatchPositionsApiResponse = {
+  // Twenty minutes, so Roshan's eleven-minute respawn window is reachable on
+  // the slider. At the default ten it is not, and the marker can only ever be
+  // observed in its first state.
+  matches: [match(111, 1200)],
+  events: [
+    // Scouted side (slot 0) places an observer that is still up at t=300.
+    {
+      matchId: 111,
+      time: 100,
+      type: "obs",
+      slot: 0,
+      target_slot: null,
+      key: "npc_dota_hero_crystal_maiden",
+      x: 120,
+      y: 80,
+    },
+    // Enemy side (slot 5) places a sentry, also still up.
+    {
+      matchId: 111,
+      time: 120,
+      type: "sen",
+      slot: 5,
+      target_slot: null,
+      key: "npc_dota_hero_juggernaut",
+      x: 140,
+      y: 90,
+    },
+    // An observer that was dewarded before t=300, so it must NOT be drawn.
+    {
+      matchId: 111,
+      time: 110,
+      type: "obs",
+      slot: 1,
+      target_slot: null,
+      key: null,
+      x: 160,
+      y: 100,
+    },
+    {
+      matchId: 111,
+      time: 200,
+      type: "obs_left",
+      slot: 5,
+      target_slot: null,
+      key: "npc_dota_hero_juggernaut",
+      x: 160,
+      y: 100,
+    },
+    {
+      matchId: 111,
+      time: 180,
+      type: "building_kill",
+      slot: null,
+      target_slot: null,
+      key: "npc_dota_goodguys_tower1_mid",
+      x: null,
+      y: null,
+    },
+    {
+      matchId: 111,
+      time: 250,
+      type: "roshan",
+      slot: 0,
+      target_slot: null,
+      key: "team=2",
+      x: 150,
+      y: 140,
     },
   ],
 }
@@ -215,13 +322,169 @@ describe("Movement", () => {
     stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
     renderMovement("/?mode=playback&t=300")
 
-    const map = await screen.findByRole("img", {
-      name: "Hero position playback",
+    await screen.findByRole("img", { name: "Hero position playback" })
+
+    // Named, not counted. The old assertion counted every <g> on the map, which
+    // said nothing about whose heroes were drawn and broke the moment the map
+    // gained a second kind of mark.
+    expect(screen.getByRole("img", { name: "Crystal Maiden" })).toBeVisible()
+    expect(screen.getByRole("img", { name: "Anti-Mage" })).toBeVisible()
+    expect(screen.getByRole("img", { name: "Juggernaut" })).toBeVisible()
+  })
+
+  it("outlines the scouted team in blue and the opponent in red", async () => {
+    // The convention, asserted on the map itself. It was the other way round
+    // until this layer was rebuilt, and a team you are studying reading as the
+    // threat colour is backwards.
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    const ana = await screen.findByRole("img", { name: "Crystal Maiden" })
+    const enemy = screen.getByRole("img", { name: "Juggernaut" })
+
+    expect(ana.querySelector('circle[stroke="#60a5fa"]')).not.toBeNull()
+    expect(enemy.querySelector('circle[stroke="#f87171"]')).not.toBeNull()
+  })
+
+  it("keeps the legend on the same colours the map is drawn with", async () => {
+    // The regression this exists for: the swatches were Tailwind classes while
+    // the map read constants, so a colour flip left the legend confidently
+    // labelling the map with the old key. Nothing failed; it just lied.
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    expect(
+      await screen.findByRole("img", { name: "Blink Squad outline" }),
+    ).toHaveStyle({ borderColor: "#60a5fa" })
+    expect(screen.getByRole("img", { name: "Opponent outline" })).toHaveStyle({
+      borderColor: "#f87171",
     })
-    // Three hero markers, each with halo + body + hit area.
-    expect(map.querySelectorAll("g")).toHaveLength(
-      3 /* heroes */ + 2 /* positioned events */,
-    )
+  })
+
+  it("draws both teams' wards, which no other tab can show", async () => {
+    // The Wards tab reads `match_player.wards`, populated only for the scouted
+    // team. Enemy vision has never been visible anywhere in this app.
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    expect(
+      await screen.findByRole("img", { name: "Observer · theirs" }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("img", { name: "Sentry · enemy" }),
+    ).toBeInTheDocument()
+  })
+
+  it("takes a dewarded ward off the map at the moment it died", async () => {
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    const { unmount } = renderMovement("/?mode=playback&t=150")
+
+    // Up at 2:30, with both the surviving observer and the doomed one.
+    expect(
+      await screen.findAllByRole("img", { name: "Observer · theirs" }),
+    ).toHaveLength(2)
+
+    unmount()
+    renderMovement("/?mode=playback&t=300")
+    expect(
+      await screen.findAllByRole("img", { name: "Observer · theirs" }),
+    ).toHaveLength(1)
+  })
+
+  it("marks Roshan where he actually died, not at a deduced pit", async () => {
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    expect(
+      await screen.findByRole("img", { name: "Roshan killed" }),
+    ).toBeInTheDocument()
+  })
+
+  it("fades the Roshan marker through the window where he may be back", async () => {
+    // Killed at 250, so 8:00 later — 730 — the claim "he is down" stops being
+    // one we can make. Snapping the marker off at a single moment would assert
+    // a precision the game does not have.
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=800")
+
+    const rosh = await screen.findByRole("img", { name: "Roshan killed" })
+    expect(rosh.querySelector("circle[stroke-dasharray]")).not.toBeNull()
+  })
+
+  it("clears the Roshan marker once he has certainly respawned", async () => {
+    // Otherwise a long game ends up carrying stale markers, each asserting
+    // something that stopped being true many minutes earlier.
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=920")
+
+    await screen.findByRole("img", { name: "Crystal Maiden" })
+    expect(
+      screen.queryByRole("img", { name: "Roshan killed" }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("shows a tower as destroyed once its building kill has passed", async () => {
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    const { unmount } = renderMovement("/?mode=playback&t=100")
+
+    expect(
+      await screen.findByRole("img", { name: "T1 Mid (theirs) · standing" }),
+    ).toBeInTheDocument()
+
+    unmount()
+    renderMovement("/?mode=playback&t=300")
+    expect(
+      await screen.findByRole("img", { name: "T1 Mid (theirs) · destroyed" }),
+    ).toBeInTheDocument()
+  })
+
+  it("defaults sentries on, unlike the aggregate ward map", async () => {
+    // Live state means two to four sentries on screen, not sixty across eight
+    // games — and the deward read is the best thing this map offers.
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    expect(
+      await screen.findByRole("img", { name: "Sentry · enemy" }),
+    ).toBeInTheDocument()
+  })
+
+  it("hides a ward layer when its toggle is off in the URL", async () => {
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300&sen=0")
+
+    await screen.findByRole("img", { name: "Observer · theirs" })
+    expect(
+      screen.queryByRole("img", { name: "Sentry · enemy" }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("writes a layer toggle to the query string, omitting the default", async () => {
+    stubFetch({ "api/match-positions": RICH, "api/team": TEAMS })
+    const user = userEvent.setup()
+    renderMovement("/?mode=playback&t=300")
+
+    await user.click(await screen.findByRole("checkbox", { name: /Sen/ }))
+    expect(screen.getByTestId("search")).toHaveTextContent("sen=0")
+
+    await user.click(screen.getByRole("checkbox", { name: /Sen/ }))
+    expect(screen.getByTestId("search")).not.toHaveTextContent("sen=")
+  })
+
+  it("falls back to a plain dot when a hero has no icon file", async () => {
+    // A hero shipped after the last run of `fetch-hero-icons` has no PNG. The
+    // mark has to degrade rather than leave a hole where a hero is standing.
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    const ana = await screen.findByRole("img", { name: "Crystal Maiden" })
+    const icon = ana.querySelector("image")
+    expect(icon).not.toBeNull()
+
+    fireEvent.error(icon as Element)
+
+    expect(ana.querySelector("image")).toBeNull()
+    expect(ana.querySelector('circle[fill="#60a5fa"]')).not.toBeNull()
   })
 
   it("lists recent events under the playback map", async () => {
