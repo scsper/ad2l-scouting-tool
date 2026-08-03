@@ -212,18 +212,6 @@ export function formatGameTime(seconds: number): string {
   return `${sign}${String(m)}:${String(s).padStart(2, "0")}`
 }
 
-/**
- * Colours by role rather than by position: the cores share one colour so
- * "a core warded here" reads at a glance, and each support gets its own.
- */
-export const POSITION_COLORS: Record<string, string> = {
-  POSITION_1: "#a78bfa",
-  POSITION_2: "#a78bfa",
-  POSITION_3: "#a78bfa",
-  POSITION_4: "#34d399",
-  POSITION_5: "#fbbf24",
-}
-
 export const POSITION_LABELS: Record<string, string> = {
   POSITION_1: "Carry",
   POSITION_2: "Mid",
@@ -232,16 +220,13 @@ export const POSITION_LABELS: Record<string, string> = {
   POSITION_5: "Hard Support",
 }
 
-/** Legend rows — the three cores share a colour, so they share one row. */
-export const POSITION_LEGEND: { label: string; color: string }[] = [
-  { label: "Cores", color: POSITION_COLORS.POSITION_1 },
-  { label: POSITION_LABELS.POSITION_4, color: POSITION_COLORS.POSITION_4 },
-  { label: POSITION_LABELS.POSITION_5, color: POSITION_COLORS.POSITION_5 },
-]
-
-const UNKNOWN_POSITION_COLOR = "#94a3b8"
-
-export function positionColor(position: string | null): string {
-  if (position === null) return UNKNOWN_POSITION_COLOR
-  return POSITION_COLORS[position] ?? UNKNOWN_POSITION_COLOR
-}
+/**
+ * Colours by ward type, not by who placed it: with observers and sentries on
+ * independent toggles, telling the two apart is the job hue is best at, and
+ * size alone is a weak discriminator once both are drawn.
+ *
+ * These are `amber-400` and `sky-400` — the same colours as the Tailwind
+ * swatches beside the toggles in `Wards.tsx`. Change one, change the other.
+ */
+export const OBSERVER_COLOR = "#fbbf24"
+export const SENTRY_COLOR = "#38bdf8"
