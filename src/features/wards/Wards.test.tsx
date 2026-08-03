@@ -44,6 +44,49 @@ const WARDS: MatchWardsApiResponse = {
   ],
 }
 
+/**
+ * A second Radiant game and a Dire one.
+ *
+ * Most tests want the single-game fixture, but anything about the chip row —
+ * or about aggregating — needs more than one game on a side, because a lone
+ * selected game is now single-game mode.
+ */
+const MULTI_WARDS: MatchWardsApiResponse = {
+  matches: [
+    WARDS.matches[0],
+    {
+      ...WARDS.matches[0],
+      id: 222,
+      start_date_time: START + 86400,
+      winning_team_id: OPPONENT_TEAM,
+      players: [
+        {
+          ...WARDS.matches[0].players[0],
+          wards: [
+            { type: "obs", x: 170, y: 150, placed: 100, left: 460, by: null },
+          ],
+        },
+      ],
+    },
+    {
+      ...WARDS.matches[0],
+      id: 333,
+      start_date_time: START + 172800,
+      radiant_team_id: OPPONENT_TEAM,
+      dire_team_id: SCOUTED_TEAM,
+      isRadiant: false,
+    },
+    // Never parsed, so it can only ever be a disabled chip.
+    {
+      ...WARDS.matches[0],
+      id: 444,
+      start_date_time: START + 259200,
+      hasWardData: false,
+      players: [{ ...WARDS.matches[0].players[0], wards: null }],
+    },
+  ],
+}
+
 function towerKill(key: string, time: number) {
   return {
     time,
@@ -95,9 +138,9 @@ const LocationProbe = () => {
   return <span data-testid="search">{search}</span>
 }
 
-function renderWards(initialEntry = "/") {
+function renderWards(initialEntry = "/", wards: MatchWardsApiResponse = WARDS) {
   stubFetch({
-    "api/match-wards": WARDS,
+    "api/match-wards": wards,
     "api/match-objectives": OBJECTIVES,
     "api/team": {
       [LEAGUE_ID]: {
@@ -123,7 +166,7 @@ afterEach(() => {
 
 describe("Wards", () => {
   it("names the game, the opponent and the placer when a ward is hovered", async () => {
-    const { container } = renderWards()
+    renderWards()
     const user = userEvent.setup()
 
     const map = await screen.findByLabelText("Ward placement map")
@@ -142,7 +185,9 @@ describe("Wards", () => {
     ).toBeInTheDocument()
 
     await user.unhover(dot as Element)
-    expect(container.textContent).not.toContain("vs Sharkhorse")
+    // Keyed on the tooltip's own heading rather than the opponent, which the
+    // game chips also name.
+    expect(screen.queryByText(/Observer placed at/)).not.toBeInTheDocument()
   })
 
   it("writes a filter to the query string so the view can be linked to", async () => {
@@ -263,17 +308,138 @@ describe("Wards", () => {
   })
 
   it("collapses to medians and drops the map layer across games", async () => {
-    renderWards()
+    renderWards("/", MULTI_WARDS)
 
     await screen.findByLabelText("Ward placement map")
 
-    // One game in the fixture, so the median is that game's time — the point is
-    // the label carries the denominator rather than showing a bare figure.
+    // Only one of the two selected games has objective data, so the median is
+    // that game's time — the point is the label carries the denominator rather
+    // than showing a bare figure.
     expect(
       screen.getByLabelText("T1 Mid (theirs) · median 10:00 · fell in 1 of 1"),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/Select a single game to see them on the map/),
+      screen.getByText(/Narrow to a single game to see them on the map/),
+    ).toBeInTheDocument()
+  })
+
+  it("aggregates every game named in the query string", async () => {
+    renderWards("/?match=111,222", MULTI_WARDS)
+
+    const map = await screen.findByLabelText("Ward placement map")
+
+    expect(screen.getByTitle("Match 111")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
+    expect(screen.getByTitle("Match 222")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
+    // Both games' wards are up at the shared default time, and no tower layer
+    // is drawn, so every group on the map is a ward.
+    expect(map.querySelectorAll("g")).toHaveLength(2)
+  })
+
+  it("drops a game from the aggregate when its chip is switched off", async () => {
+    renderWards("/?match=111,222", MULTI_WARDS)
+    const user = userEvent.setup()
+
+    const map = await screen.findByLabelText("Ward placement map")
+    await user.click(screen.getByTitle("Match 222"))
+
+    expect(screen.getByTestId("search")).toHaveTextContent("match=111")
+    expect(screen.getByTitle("Match 222")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    )
+    // Down to one game, so the tower layer returns alongside the single ward.
+    expect(map.querySelector("g")).not.toBeNull()
+    expect(
+      screen.getByLabelText("T1 Mid (theirs) · standing"),
+    ).toBeInTheDocument()
+  })
+
+  it("holds the clock still when a game is toggled", async () => {
+    // The whole point of toggling is comparing the same moment across two sets;
+    // snapping back to each set's own laning peak would answer a different
+    // question every click.
+    renderWards("/?match=111,222&t=300", MULTI_WARDS)
+    const user = userEvent.setup()
+
+    await screen.findByLabelText("Ward placement map")
+    expect(screen.getByText("5:00")).toBeInTheDocument()
+
+    await user.click(screen.getByTitle("Match 222"))
+
+    expect(screen.getByTestId("search")).toHaveTextContent("t=300")
+    expect(screen.getByText("5:00")).toBeInTheDocument()
+  })
+
+  it("holds the clock still when the side is flipped", async () => {
+    renderWards("/?t=300", MULTI_WARDS)
+    const user = userEvent.setup()
+
+    await screen.findByLabelText("Ward placement map")
+    await user.click(screen.getByRole("button", { name: "As dire" }))
+
+    expect(screen.getByTestId("search")).toHaveTextContent("t=300")
+    expect(screen.getByText("5:00")).toBeInTheDocument()
+    // The selection resets across the flip: Radiant and Dire games are
+    // disjoint, so nothing carries over.
+    expect(screen.getByTitle("Match 333")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
+    expect(screen.queryByTitle("Match 111")).not.toBeInTheDocument()
+  })
+
+  it("opens on the side with the most parsed games", async () => {
+    // Two Radiant games with ward data against one Dire.
+    renderWards("/", MULTI_WARDS)
+
+    await screen.findByLabelText("Ward placement map")
+
+    expect(screen.getByTitle("Match 111")).toBeInTheDocument()
+    expect(screen.queryByTitle("Match 333")).not.toBeInTheDocument()
+  })
+
+  it("falls back to that side for a link saved when 'all' existed", async () => {
+    renderWards("/?side=all", MULTI_WARDS)
+
+    await screen.findByLabelText("Ward placement map")
+
+    expect(screen.getByTitle("Match 111")).toBeInTheDocument()
+    expect(screen.queryByTitle("Match 333")).not.toBeInTheDocument()
+  })
+
+  it("shows an unparsed game as a chip that cannot be switched on", async () => {
+    // Hiding it would make the count here disagree with the match list, and
+    // leave you unsure whether the sample is small or just incomplete.
+    renderWards("/", MULTI_WARDS)
+
+    await screen.findByLabelText("Ward placement map")
+
+    const chip = screen.getByTitle(/Match 444/)
+    expect(chip).toHaveTextContent("no data")
+    expect(chip.tagName).toBe("SPAN")
+  })
+
+  it("empties the map when the selection is cleared", async () => {
+    renderWards("/", MULTI_WARDS)
+    const user = userEvent.setup()
+
+    await screen.findByLabelText("Ward placement map")
+    await user.click(screen.getByRole("button", { name: "Clear" }))
+
+    expect(screen.getByText("No games selected")).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText("Ward placement map"),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Select all" }))
+    expect(
+      await screen.findByLabelText("Ward placement map"),
     ).toBeInTheDocument()
   })
 
