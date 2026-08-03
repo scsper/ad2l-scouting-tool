@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc -b && vite build",
     "dev": "vite",
+    "dev:api": "vercel dev --listen ${VERCEL_DEV_PORT:-3001}",
+    "dev-login": "tsx scripts/dev-login.ts",
     "start": "vercel dev",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
