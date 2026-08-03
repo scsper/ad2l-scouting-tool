@@ -8,6 +8,8 @@ import {
   getCoverage,
   getDefaultTime,
   getTimeBounds,
+  labelMatches,
+  majoritySide,
   wardsAliveAt,
 } from "./ward-aggregation"
 
@@ -44,19 +46,81 @@ const match = (over: Partial<WardMatch> = {}): WardMatch => ({
 })
 
 describe("filterBySide", () => {
-  const matches = [
-    match({ id: 1, isRadiant: true }),
-    match({ id: 2, isRadiant: false }),
-    match({ id: 3, isRadiant: true }),
-  ]
-
-  it("returns everything for 'all'", () => {
-    expect(filterBySide(matches, "all")).toHaveLength(3)
-  })
-
   it("splits by side", () => {
+    const matches = [
+      match({ id: 1, isRadiant: true }),
+      match({ id: 2, isRadiant: false }),
+      match({ id: 3, isRadiant: true }),
+    ]
     expect(filterBySide(matches, "radiant").map(m => m.id)).toEqual([1, 3])
     expect(filterBySide(matches, "dire").map(m => m.id)).toEqual([2])
+  })
+})
+
+describe("majoritySide", () => {
+  it("opens on the side with the bigger sample", () => {
+    expect(
+      majoritySide([
+        match({ id: 1, isRadiant: false }),
+        match({ id: 2, isRadiant: false }),
+        match({ id: 3, isRadiant: true }),
+      ]),
+    ).toBe("dire")
+  })
+
+  it("counts only games that have ward data", () => {
+    // Four Dire games would win on raw count, but three were never parsed, so
+    // opening on Dire would open on an empty map.
+    expect(
+      majoritySide([
+        match({ id: 1, isRadiant: false, hasWardData: true }),
+        match({ id: 2, isRadiant: false, hasWardData: false }),
+        match({ id: 3, isRadiant: false, hasWardData: false }),
+        match({ id: 4, isRadiant: false, hasWardData: false }),
+        match({ id: 5, isRadiant: true, hasWardData: true }),
+        match({ id: 6, isRadiant: true, hasWardData: true }),
+      ]),
+    ).toBe("radiant")
+  })
+
+  it("breaks ties toward radiant so the opening view is stable", () => {
+    expect(
+      majoritySide([
+        match({ id: 1, isRadiant: true }),
+        match({ id: 2, isRadiant: false }),
+      ]),
+    ).toBe("radiant")
+    expect(majoritySide([])).toBe("radiant")
+  })
+})
+
+describe("labelMatches", () => {
+  const base = (m: WardMatch) => `day ${String(m.winning_team_id)}`
+
+  it("numbers same-day rematches by the order they were played", () => {
+    // A Bo2 against one opponent on one day is the normal league week, and two
+    // identical chips are useless in a row meant for telling games apart.
+    const labels = labelMatches(
+      [
+        match({ id: 2, start_date_time: 200, winning_team_id: 10 }),
+        match({ id: 1, start_date_time: 100, winning_team_id: 10 }),
+      ],
+      base,
+    )
+    expect(labels.get(1)).toBe("day 10 (g1)")
+    expect(labels.get(2)).toBe("day 10 (g2)")
+  })
+
+  it("leaves an unambiguous label alone", () => {
+    const labels = labelMatches(
+      [
+        match({ id: 1, winning_team_id: 10 }),
+        match({ id: 2, winning_team_id: 20 }),
+      ],
+      base,
+    )
+    expect(labels.get(1)).toBe("day 10")
+    expect(labels.get(2)).toBe("day 20")
   })
 })
 
@@ -65,20 +129,15 @@ describe("getCoverage", () => {
     // The hand-entered Sharkhorse games can never have wards; counting them as
     // "zero wards placed" would understate every tendency.
     const coverage = getCoverage([
-      match({ id: 1, isRadiant: true, hasWardData: true }),
-      match({ id: 2, isRadiant: false, hasWardData: true }),
-      match({ id: 3, isRadiant: true, hasWardData: false }),
+      match({ id: 1, hasWardData: true }),
+      match({ id: 2, hasWardData: true }),
+      match({ id: 3, hasWardData: false }),
     ])
-    expect(coverage).toEqual({ total: 3, withData: 2, radiant: 1, dire: 1 })
+    expect(coverage).toEqual({ total: 3, withData: 2 })
   })
 
   it("reports zeroes for an empty set rather than throwing", () => {
-    expect(getCoverage([])).toEqual({
-      total: 0,
-      withData: 0,
-      radiant: 0,
-      dire: 0,
-    })
+    expect(getCoverage([])).toEqual({ total: 0, withData: 0 })
   })
 })
 

@@ -22,6 +22,8 @@ import {
   getCoverage,
   getDefaultTime,
   getTimeBounds,
+  labelMatches,
+  majoritySide,
   positionColor,
   wardsAliveAt,
   type PlacedWard,
@@ -50,16 +52,44 @@ import {
   TowerLayer,
   type HoveredObjective,
 } from "./TowerLayer"
-import { useGetMatchWardsQuery } from "./wards-api"
+import { useGetMatchWardsQuery, type WardMatch } from "./wards-api"
 import { DotaMap } from "../../components/DotaMap"
-
-const ALL_GAMES = "all"
 
 /** How long a drag has to settle before the URL is rewritten. */
 const TIME_WRITE_DELAY_MS = 250
 
-function parseSide(value: string | null): SideFilter {
-  return value === "radiant" || value === "dire" ? value : "all"
+/**
+ * Anything unrecognised falls back to the team's majority side, which quietly
+ * rescues links saved back when `side=all` existed.
+ */
+function parseSide(value: string | null, fallback: SideFilter): SideFilter {
+  return value === "radiant" || value === "dire" ? value : fallback
+}
+
+/**
+ * The games to aggregate, as a comma-separated id list.
+ *
+ * An absent param means every game on this side, so the common case stays a
+ * clean URL; an empty one means none, which is a reachable state via Clear.
+ * Ids are intersected with what is actually on this side rather than trusted,
+ * so a stale link — or one carried across a side switch — degrades to the
+ * games it can still show instead of an empty map.
+ */
+function parseMatchIds(value: string | null, available: WardMatch[]): number[] {
+  const ids = available.map(m => m.id)
+  if (value === null) return ids
+  const wanted = new Set(
+    value
+      .split(",")
+      .map(part => Number(part.trim()))
+      .filter(n => Number.isFinite(n)),
+  )
+  return ids.filter(id => wanted.has(id))
+}
+
+/** Null when every game is on, which `updateFilters` drops from the URL. */
+function serializeMatchIds(selected: number[], available: WardMatch[]) {
+  return selected.length === available.length ? null : selected.join(",")
 }
 
 function parseTime(value: string | null): number | null {
@@ -177,6 +207,57 @@ const WardTooltip = ({
   )
 }
 
+/**
+ * One game in the selection row.
+ *
+ * Games OpenDota never ward-parsed are shown disabled rather than hidden. A
+ * missing chip would make the count here silently disagree with the match list,
+ * and when the whole point is comparing subsets, it matters whether a sample is
+ * small because they played four games or because two failed to parse.
+ */
+const GameChip = ({
+  match,
+  label,
+  isWin,
+  selected,
+  onToggle,
+}: {
+  match: WardMatch
+  label: string
+  isWin: boolean
+  selected: boolean
+  onToggle: () => void
+}) => {
+  if (!match.hasWardData) {
+    return (
+      <span
+        className="rounded border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-slate-500 opacity-50 cursor-not-allowed"
+        title={`Match ${String(match.id)} — replay never parsed, no ward data`}
+      >
+        {label} · no data
+      </span>
+    )
+  }
+
+  return (
+    <button
+      onClick={onToggle}
+      aria-pressed={selected}
+      title={`Match ${String(match.id)}`}
+      className={`rounded border px-2 py-1 text-xs ${
+        selected
+          ? "bg-blue-600 border-blue-500 text-white"
+          : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+      }`}
+    >
+      {label} ·{" "}
+      <span className={isWin ? "text-emerald-300" : "text-rose-300"}>
+        {isWin ? "W" : "L"}
+      </span>
+    </button>
+  )
+}
+
 export const Wards = ({
   leagueId,
   teamId,
@@ -203,8 +284,21 @@ export const Wards = ({
   const [hoveredObjective, setHoveredObjective] =
     useState<HoveredObjective | null>(null)
 
-  const side = parseSide(searchParams.get("side"))
-  const selectedMatch = searchParams.get("match") ?? ALL_GAMES
+  const allMatches = useMemo(() => data?.matches ?? [], [data])
+
+  // Side is resolved before anything else: with no "both" option it decides
+  // which games even exist to be toggled.
+  const defaultSide = useMemo(() => majoritySide(allMatches), [allMatches])
+  const side = parseSide(searchParams.get("side"), defaultSide)
+  const sideMatches = useMemo(
+    () => filterBySide(allMatches, side),
+    [allMatches, side],
+  )
+  const selectedIds = useMemo(
+    () => parseMatchIds(searchParams.get("match"), sideMatches),
+    [searchParams, sideMatches],
+  )
+
   const showObs = searchParams.get("obs") !== "0"
   const showSen = searchParams.get("sen") === "1"
   const showTowers = searchParams.get("towers") !== "0"
@@ -259,19 +353,26 @@ export const Wards = ({
 
   const time = draftTime ?? urlTime
 
-  const allMatches = useMemo(() => data?.matches ?? [], [data])
+  const visibleMatches = useMemo(() => {
+    const wanted = new Set(selectedIds)
+    return sideMatches.filter(m => wanted.has(m.id))
+  }, [sideMatches, selectedIds])
 
-  // Side filter first, then the game selector, so "All games" honours the side.
-  const sideMatches = useMemo(
-    () => filterBySide(allMatches, side),
-    [allMatches, side],
-  )
-  const visibleMatches = useMemo(
+  const chipLabels = useMemo(
     () =>
-      selectedMatch === ALL_GAMES
-        ? sideMatches
-        : sideMatches.filter(m => String(m.id) === selectedMatch),
-    [sideMatches, selectedMatch],
+      labelMatches(sideMatches, m => {
+        const opponentId = m.isRadiant ? m.dire_team_id : m.radiant_team_id
+        const opponent =
+          (opponentId !== null
+            ? teamsData?.[leagueId]?.[opponentId]?.name
+            : null) ?? "Unknown"
+        const date = new Date(m.start_date_time * 1000).toLocaleDateString(
+          undefined,
+          { month: "numeric", day: "numeric" },
+        )
+        return `${date} vs ${opponent}`
+      }),
+    [sideMatches, teamsData, leagueId],
   )
 
   const coverage = useMemo(() => getCoverage(visibleMatches), [visibleMatches])
@@ -297,19 +398,20 @@ export const Wards = ({
   const obsTotal = wards.filter(w => w.ward.type === "obs").length
   const senTotal = wards.filter(w => w.ward.type === "sen").length
 
-  const isSingleGame = selectedMatch !== ALL_GAMES
+  // A tower cannot be drawn both standing and destroyed, so the map layer and
+  // the neutral ticks stay gated on there being exactly one game to describe —
+  // which is now reached by toggling chips off rather than picking from a list.
+  const isSingleGame = selectedIds.length === 1
 
   // Objective matches are filtered by the same two stages as the wards, so the
   // tower marks always describe the games on screen.
   const visibleObjectiveMatches = useMemo(() => {
-    const all = objectivesData?.matches ?? []
-    const bySide = all.filter(m =>
-      side === "all" ? true : side === "radiant" ? m.isRadiant : !m.isRadiant,
+    const wanted = new Set(selectedIds)
+    return (objectivesData?.matches ?? []).filter(
+      m =>
+        (side === "radiant" ? m.isRadiant : !m.isRadiant) && wanted.has(m.id),
     )
-    return isSingleGame
-      ? bySide.filter(m => String(m.id) === selectedMatch)
-      : bySide
-  }, [objectivesData, side, selectedMatch, isSingleGame])
+  }, [objectivesData, side, selectedIds])
 
   const objectiveTicks = useMemo(() => {
     if (!showTowers) return []
@@ -377,6 +479,32 @@ export const Wards = ({
     updateFilters({ t: String(next) })
   }
 
+  /**
+   * Changing which games are on holds the clock still.
+   *
+   * The point of toggling games is to compare the same moment across two sets,
+   * and letting the slider snap back to each set's own laning peak would answer
+   * a different question every click. The current time is written explicitly
+   * rather than left implicit, so an untouched slider stops drifting as soon as
+   * the first comparison starts. Out-of-range values are clamped on render.
+   */
+  const selectGames = (ids: number[]) => {
+    updateFilters({
+      match: serializeMatchIds(ids, sideMatches),
+      t: String(clampedTime),
+    })
+  }
+
+  /** Radiant and Dire games are disjoint sets, so the selection resets — but
+   *  the clock does not: the same minute on either side is the sharpest A/B. */
+  const selectSide = (next: SideFilter) => {
+    updateFilters({
+      side: next === defaultSide ? null : next,
+      match: null,
+      t: String(clampedTime),
+    })
+  }
+
   if (isLoading || isLoadingTeams) {
     return (
       <div className={`${panel} p-6`}>
@@ -429,7 +557,7 @@ export const Wards = ({
             </h2>
             <div className="text-sm text-slate-400 mt-0.5">
               {coverage.withData} game{coverage.withData === 1 ? "" : "s"} with
-              ward data ({coverage.radiant} Radiant / {coverage.dire} Dire)
+              ward data
               {missingWardData > 0 && (
                 <span className="text-amber-400">
                   {" "}
@@ -439,58 +567,76 @@ export const Wards = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={selectedMatch}
-              onChange={e => {
-                updateFilters({
-                  match: e.target.value === ALL_GAMES ? null : e.target.value,
-                  t: null,
-                })
-              }}
-              className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200"
-            >
-              <option value={ALL_GAMES}>
-                All games ({sideMatches.length})
-              </option>
-              {sideMatches.map(m => (
-                <option key={m.id} value={String(m.id)}>
-                  {new Date(m.start_date_time * 1000).toLocaleDateString()} ·{" "}
-                  {m.isRadiant ? "Radiant" : "Dire"} ·{" "}
-                  {m.winning_team_id === teamId ? "W" : "L"} · {m.id}
-                </option>
-              ))}
-            </select>
-
-            <div className="flex rounded overflow-hidden border border-slate-700">
-              {(["all", "radiant", "dire"] as const).map(s => (
-                <button
-                  key={s}
-                  onClick={() => {
-                    updateFilters({ side: s === "all" ? null : s, match: null })
-                  }}
-                  className={`px-3 py-1 text-sm capitalize ${
-                    side === s
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-900 text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  {s === "all" ? "All" : `As ${s}`}
-                </button>
-              ))}
-            </div>
+          <div className="flex rounded overflow-hidden border border-slate-700">
+            {(["radiant", "dire"] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => {
+                  selectSide(s)
+                }}
+                className={`px-3 py-1 text-sm capitalize ${
+                  side === s
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-900 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                As {s}
+              </button>
+            ))}
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-700">
+          <button
+            onClick={() => {
+              selectGames(sideMatches.map(m => m.id))
+            }}
+            className="text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2"
+          >
+            Select all
+          </button>
+          <button
+            onClick={() => {
+              selectGames([])
+            }}
+            className="text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2 mr-1"
+          >
+            Clear
+          </button>
+          {sideMatches.map(m => (
+            <GameChip
+              key={m.id}
+              match={m}
+              label={chipLabels.get(m.id) ?? String(m.id)}
+              isWin={m.winning_team_id === teamId}
+              selected={selectedIds.includes(m.id)}
+              onToggle={() => {
+                selectGames(
+                  selectedIds.includes(m.id)
+                    ? selectedIds.filter(id => id !== m.id)
+                    : [...selectedIds, m.id],
+                )
+              }}
+            />
+          ))}
         </div>
       </div>
 
       {coverage.withData === 0 ? (
         <div className={`${panel} p-12 text-center`}>
           <div className="text-slate-400 text-lg font-medium">
-            No ward data for these games
+            {sideMatches.length === 0
+              ? `No games as ${side}`
+              : selectedIds.length === 0
+                ? "No games selected"
+                : "No ward data for these games"}
           </div>
           <div className="text-slate-500 text-sm mt-2">
-            Ward placements come from OpenDota&apos;s parsed replays. Matches
-            entered by hand, or whose replay was never parsed, have none.
+            {sideMatches.length === 0
+              ? "This team has not played this side in the games on record."
+              : selectedIds.length === 0
+                ? "Pick a game above, or Select all to see them together."
+                : "Ward placements come from OpenDota's parsed replays. Matches entered by hand, or whose replay was never parsed, have none."}
           </div>
         </div>
       ) : (
@@ -712,7 +858,7 @@ export const Wards = ({
 
           {showTowers && !isSingleGame && objectiveTicks.length > 0 && (
             <div className="mt-2 text-xs text-slate-500 text-center">
-              Tower marks show median fall times across these games. Select a
+              Tower marks show median fall times across these games. Narrow to a
               single game to see them on the map.
             </div>
           )}
