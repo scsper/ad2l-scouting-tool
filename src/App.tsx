@@ -7,6 +7,7 @@ import { RootLayout } from "./routes/RootLayout"
 import { TeamLayout } from "./routes/TeamLayout"
 import {
   LanesTab,
+  MovementTab,
   PlayersTab,
   PubStatsTab,
   TeamTab,
@@ -106,6 +107,7 @@ export const App = () => (
           <Route path="pub-stats" element={<PubStatsTab />} />
           <Route path="lanes" element={<LanesTab />} />
           <Route path="wards" element={<WardsTab />} />
+          <Route path="movement" element={<MovementTab />} />
           <Route path="tempo" element={<TempoTab />} />
           <Route path="*" element={<RedirectToDefaultTab />} />
         </Route>

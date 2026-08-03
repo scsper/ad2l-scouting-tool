@@ -4,6 +4,7 @@ import { AggregateContestRate } from "../features/matches/aggregate-contest-rate
 import { AggregateHeroesPlayedByPosition } from "../features/matches/aggregate-heroes-played-by-position"
 import { Lanes } from "../features/lanes/Lanes"
 import { Matches } from "../features/matches/matches"
+import { Movement } from "../features/movement/Movement"
 import { Players } from "../features/players/players"
 import { PlayerStats } from "../features/player-stats/PlayerStats"
 import { Tempo } from "../features/tempo/Tempo"
@@ -44,6 +45,11 @@ export const LanesTab = () => {
 export const WardsTab = () => {
   const { leagueId, teamId } = useTeamScope()
   return <Wards leagueId={leagueId} teamId={teamId} />
+}
+
+export const MovementTab = () => {
+  const { leagueId, teamId } = useTeamScope()
+  return <Movement leagueId={leagueId} teamId={teamId} />
 }
 
 export const TempoTab = () => {
