@@ -50,7 +50,7 @@ const SLOTS: Omit<PositionSlot, "slot">[] = [
   },
 ]
 
-function match(id: number, seconds = 600) {
+function match(id: number, seconds = 600, isRadiant = true) {
   const samples: SlotSamples[] = SLOTS.map((slot, i) => ({
     heroId: slot.heroId,
     x: Array.from({ length: seconds }, () => 80 + i * 20),
@@ -61,7 +61,7 @@ function match(id: number, seconds = 600) {
   return {
     id,
     start_date_time: START,
-    isRadiant: true,
+    isRadiant,
     opponentTeamId: OPPONENT_TEAM,
     winning_team_id: SCOUTED_TEAM,
     encoding: "delta-i16-0.1grid-gz-v1",
@@ -74,7 +74,8 @@ function match(id: number, seconds = 600) {
 }
 
 const POSITIONS: MatchPositionsApiResponse = {
-  matches: [match(111), match(222)],
+  // Two Radiant, one Dire: majority is Radiant, and the Dire sample is thin.
+  matches: [match(111), match(222), match(333, 600, false)],
   events: [
     {
       matchId: 111,
@@ -162,7 +163,7 @@ describe("Movement", () => {
     })
     renderMovement()
 
-    expect(await screen.findByText(/2 games ·/)).toBeInTheDocument()
+    expect(await screen.findByText(/2 games as radiant/)).toBeInTheDocument()
   })
 
   it("offers each player by name, position and game count", async () => {
@@ -171,11 +172,11 @@ describe("Movement", () => {
 
     expect(
       await screen.findByRole("option", {
-        name: /Ana · Hard Support · 2 games/,
+        name: /Ana · Hard Support · 2R \/ 1D/,
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole("option", { name: /Bo · Carry · 2 games/ }),
+      screen.getByRole("option", { name: /Bo · Carry · 2R \/ 1D/ }),
     ).toBeInTheDocument()
   })
 
@@ -238,6 +239,88 @@ describe("Movement", () => {
     expect(
       await screen.findByText("Nothing in the last 20s"),
     ).toBeInTheDocument()
+  })
+
+  it("opens on the team's majority side rather than pooling both", async () => {
+    // Pooling was the defect: a player's radiant and dire heatmaps agree at
+    // cosine 0.318 against a same-side floor of 0.704, so a combined view keeps
+    // 45% of the agreement a real one shows.
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement()
+
+    expect(await screen.findByText(/2 as radiant/)).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "As radiant" }),
+    ).toBeInTheDocument()
+    // The side control offers exactly two choices; there is no pooled third.
+    expect(
+      screen
+        .getAllByRole("button")
+        .filter(b => b.textContent.startsWith("As "))
+        .map(b => b.textContent),
+    ).toEqual(["As radiant", "As dire"])
+  })
+
+  it("counts only the selected side's games in the caption", async () => {
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    const user = userEvent.setup()
+    renderMovement()
+
+    expect(await screen.findByText(/2 games as radiant/)).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "As dire" }))
+    expect(await screen.findByText(/1 game as dire/)).toBeInTheDocument()
+  })
+
+  it("grades the sample instead of warning at an arbitrary threshold", async () => {
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement()
+
+    // Two games is the band that reads as "no better than the bug".
+    expect(await screen.findByText("2 games")).toBeInTheDocument()
+    expect(
+      screen.getByText(/as unreliable as pooling both sides/),
+    ).toBeInTheDocument()
+  })
+
+  it("keeps side out of playback, which pools nothing", async () => {
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement("/?mode=playback")
+
+    await screen.findByRole("img", { name: "Hero position playback" })
+    expect(screen.queryByRole("button", { name: "As radiant" })).toBeNull()
+    // All three games stay reachable regardless of side.
+    expect(screen.getAllByRole("option").length).toBe(3)
+  })
+
+  it("shows a player with no games on this side rather than hiding them", async () => {
+    stubFetch({
+      "api/match-positions": { matches: [match(111)], events: [] },
+      "api/team": TEAMS,
+    })
+    const user = userEvent.setup()
+    renderMovement()
+
+    await user.click(await screen.findByRole("button", { name: "As dire" }))
+    const option = screen.getByRole("option", { name: /Ana/ })
+    expect(option).toHaveTextContent("1R / 0D")
+    expect(option).toBeDisabled()
+  })
+
+  it("empties the map rather than silently swapping who you are looking at", async () => {
+    // Re-selecting whoever does have games here would leave you reading one
+    // player's map while believing it is another's.
+    stubFetch({
+      "api/match-positions": { matches: [match(111)], events: [] },
+      "api/team": TEAMS,
+    })
+    const user = userEvent.setup()
+    renderMovement()
+
+    await user.click(await screen.findByRole("button", { name: "As dire" }))
+    expect(
+      await screen.findByText(/played no games as dire/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/on the other side/)).toBeInTheDocument()
   })
 
   it("names the opponent for the selected game", async () => {
