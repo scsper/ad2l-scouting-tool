@@ -168,6 +168,67 @@ type PlayerPubMatchStatsRow = {
   last_match_date_time: string | null
 }
 
+/**
+ * All ten players' per-second positions for one match, from our own replay
+ * parse. Not available from OpenDota at any resolution — see
+ * migrations/add_movement.sql.
+ *
+ * The blobs are BYTEA in Postgres. What a caller holds depends on where it sits:
+ * the parse script writes `Uint8Array`, PostgREST hands the API route a hex
+ * string, and the browser receives base64 of the *decompressed* bytes.
+ */
+type MatchPositionsRow = {
+  match_id: number
+  /** See `POSITION_ENCODING` in shared/position-codec.ts. */
+  encoding: string
+  /** Game time of sample 0. Reliably negative — heroes exist from about -90s. */
+  first_time: number
+  /** Samples per slot. 1 Hz with no gaps, so also the sampled length in seconds. */
+  sample_count: number
+  /**
+   * Slot index (0-9) to hero id. The join key back to `match_player`, which has
+   * no player_slot column: heroes are unique within a Captains Mode game, so
+   * hero id identifies the row.
+   */
+  slot_hero_ids: number[]
+}
+
+/**
+ * One replay event worth drawing on a map.
+ *
+ * A narrow selection, not the whole stream: the parser emits ~249,000 events per
+ * match across 59 types and only ~410 of them survive. The rest stay in the
+ * gzipped NDJSON archive on disk, so widening this is a re-derivation from local
+ * files rather than a re-download from Valve.
+ */
+type MatchEventRow = {
+  match_id: number
+  /** Seconds relative to the horn; negative before it. */
+  time: number
+  /**
+   * Our vocabulary, not the parser's: 'hero_death', 'smoke', 'obs', 'sen',
+   * 'obs_left', 'sen_left', 'building_kill', 'rune_pickup', 'scan', 'glyph',
+   * 'buyback', 'roshan', 'tormentor', 'aegis', 'firstblood', 'courier_lost'.
+   * Normalised because upstream mixes three naming families, and because smoke
+   * has no upstream name at all — it is an item-use row identified by inflictor.
+   */
+  type: string
+  /** The acting player, or null where the event has no attributable actor. */
+  slot: number | null
+  /** The player acted upon: a death's killer, a first blood's victim. */
+  target_slot: number | null
+  /** Free text detail: building name, rune type, killer hero, or `team=N`. */
+  key: string | null
+  /**
+   * Grid-space coordinates, the same space as `WardRecord`. Usually JOINED from
+   * the position stream at `time` rather than read off the event — only the ward
+   * events carry coordinates of their own. Null when there is no actor to borrow
+   * a position from.
+   */
+  x: number | null
+  y: number | null
+}
+
 export type {
   MatchRow,
   WardRecord,
@@ -175,6 +236,8 @@ export type {
   MatchObjectiveRow,
   MatchPlayerRow,
   MatchDraftRow,
+  MatchPositionsRow,
+  MatchEventRow,
   PlayerRow,
   RosterMemberRow,
   RosterEntry,

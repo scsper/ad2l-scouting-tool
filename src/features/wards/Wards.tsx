@@ -53,6 +53,7 @@ import {
   type HoveredObjective,
 } from "./TowerLayer"
 import { useGetMatchWardsQuery, type WardMatch } from "./wards-api"
+import { DotaMap } from "../../components/DotaMap"
 
 /** How long a drag has to settle before the URL is rewritten. */
 const TIME_WRITE_DELAY_MS = 250
@@ -722,95 +723,93 @@ export const Wards = ({
           </div>
 
           <div className="flex justify-center">
-            <div className="relative" style={{ width: size, maxWidth: "100%" }}>
-              <svg
-                viewBox={`0 0 ${String(size)} ${String(size)}`}
-                width="100%"
-                className="rounded border border-slate-700 bg-slate-900"
-                role="img"
-                aria-label="Ward placement map"
-              >
-                <image
-                  href={minimap.src}
-                  x={0}
-                  y={0}
-                  width={size}
-                  height={size}
-                />
-                {visibleWards.map((placed, i) => (
-                  <WardDot
-                    key={`${String(placed.matchId)}-${String(placed.ward.placed)}-${placed.ward.type}-${String(i)}`}
-                    placed={placed}
-                    size={size}
-                    setHovered={setHovered}
-                  />
-                ))}
-                {showTowers && singleObjectiveMatch && (
-                  <>
-                    <TowerLayer
-                      falls={towerFalls}
-                      time={clampedTime}
-                      size={size}
-                      teamSide={
-                        singleObjectiveMatch.isRadiant ? "radiant" : "dire"
+            <DotaMap
+              src={minimap.src}
+              size={size}
+              label="Ward placement map"
+              overlay={
+                <>
+                  {hoveredObjective && (
+                    <div
+                      className="absolute z-20 pointer-events-none w-max max-w-[15rem] rounded border border-slate-600 bg-slate-900/95 px-2.5 py-1.5 text-xs text-slate-300 shadow-lg"
+                      style={{
+                        left: `${String(hoveredObjective.x * 100)}%`,
+                        top: `${String(hoveredObjective.y * 100)}%`,
+                        transform: `translate(${
+                          hoveredObjective.x > 0.6
+                            ? "calc(-100% - 10px)"
+                            : "10px"
+                        }, ${
+                          hoveredObjective.y < 0.25
+                            ? "10px"
+                            : "calc(-100% - 10px)"
+                        })`,
+                      }}
+                    >
+                      <div className="font-medium text-slate-100">
+                        {hoveredObjective.label}
+                      </div>
+                      <div>{hoveredObjective.detail}</div>
+                    </div>
+                  )}
+                  {hovered && (
+                    <WardTooltip
+                      placed={hovered}
+                      opponentName={
+                        (hovered.opponentTeamId !== null
+                          ? teamsData?.[leagueId]?.[hovered.opponentTeamId]
+                              ?.name
+                          : null) ?? "Unknown team"
                       }
+                    />
+                  )}
+                </>
+              }
+            >
+              {visibleWards.map((placed, i) => (
+                <WardDot
+                  key={`${String(placed.matchId)}-${String(placed.ward.placed)}-${placed.ward.type}-${String(i)}`}
+                  placed={placed}
+                  size={size}
+                  setHovered={setHovered}
+                />
+              ))}
+              {showTowers && singleObjectiveMatch && (
+                <>
+                  <TowerLayer
+                    falls={towerFalls}
+                    time={clampedTime}
+                    size={size}
+                    teamSide={
+                      singleObjectiveMatch.isRadiant ? "radiant" : "dire"
+                    }
+                    onHover={setHoveredObjective}
+                  />
+                  {lastNeutral.roshan && (
+                    <NeutralMark
+                      pit={lastNeutral.roshan.pit}
+                      spots={ROSHAN_PITS}
+                      size={size}
+                      color={ROSHAN_COLOR}
+                      label="Roshan"
+                      detail={lastNeutral.roshan.detail}
                       onHover={setHoveredObjective}
                     />
-                    {lastNeutral.roshan && (
-                      <NeutralMark
-                        pit={lastNeutral.roshan.pit}
-                        spots={ROSHAN_PITS}
-                        size={size}
-                        color={ROSHAN_COLOR}
-                        label="Roshan"
-                        detail={lastNeutral.roshan.detail}
-                        onHover={setHoveredObjective}
-                      />
-                    )}
-                    {lastNeutral.tormentor && (
-                      <NeutralMark
-                        pit={lastNeutral.tormentor.pit}
-                        spots={TORMENTOR_SPOTS}
-                        size={size}
-                        color={TORMENTOR_COLOR}
-                        label="Tormentor"
-                        detail={lastNeutral.tormentor.detail}
-                        onHover={setHoveredObjective}
-                      />
-                    )}
-                  </>
-                )}
-              </svg>
-              {hoveredObjective && (
-                <div
-                  className="absolute z-20 pointer-events-none w-max max-w-[15rem] rounded border border-slate-600 bg-slate-900/95 px-2.5 py-1.5 text-xs text-slate-300 shadow-lg"
-                  style={{
-                    left: `${String(hoveredObjective.x * 100)}%`,
-                    top: `${String(hoveredObjective.y * 100)}%`,
-                    transform: `translate(${
-                      hoveredObjective.x > 0.6 ? "calc(-100% - 10px)" : "10px"
-                    }, ${
-                      hoveredObjective.y < 0.25 ? "10px" : "calc(-100% - 10px)"
-                    })`,
-                  }}
-                >
-                  <div className="font-medium text-slate-100">
-                    {hoveredObjective.label}
-                  </div>
-                  <div>{hoveredObjective.detail}</div>
-                </div>
+                  )}
+                  {lastNeutral.tormentor && (
+                    <NeutralMark
+                      pit={lastNeutral.tormentor.pit}
+                      spots={TORMENTOR_SPOTS}
+                      size={size}
+                      color={TORMENTOR_COLOR}
+                      label="Tormentor"
+                      detail={lastNeutral.tormentor.detail}
+                      onHover={setHoveredObjective}
+                    />
+                  )}
+                </>
               )}
-              {hovered && (
-                <WardTooltip
-                  placed={hovered}
-                  opponentName={
-                    (hovered.opponentTeamId !== null
-                      ? teamsData?.[leagueId]?.[hovered.opponentTeamId]?.name
-                      : null) ?? "Unknown team"
-                  }
-                />
-              )}
-            </div>
+            </DotaMap>
           </div>
 
           <div className="mt-4 px-2">
