@@ -9,6 +9,22 @@ export default defineConfig({
 
   server: {
     open: true,
+
+    // `npm start` runs the whole thing through `vercel dev`, which is the only
+    // way to execute `api/`. But its rewrite in vercel.json — everything that
+    // isn't /api goes to index.html — also swallows Vite's own dev requests for
+    // /@vite/client and /src/main.tsx, so the page loads and then never boots.
+    //
+    // `npm run dev` sidesteps that by serving the app itself and forwarding only
+    // /api to a `vercel dev` on VERCEL_DEV_PORT. Nothing is proxied if that
+    // server isn't running, which is fine: you get the UI and failed API calls,
+    // exactly what you had before.
+    proxy: {
+      "/api": {
+        target: `http://localhost:${process.env.VERCEL_DEV_PORT ?? "3001"}`,
+        changeOrigin: true,
+      },
+    },
   },
 
   test: {

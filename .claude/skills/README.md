@@ -8,6 +8,7 @@ Invoke with `/<name>`.
 | `/grill-with-docs` | Same, but writes the outcome into `CONTEXT.md` (glossary) and `docs/adr/` as it goes. |
 | `/grilling` | The underlying interview loop. `grill-me` and `grill-with-docs` both delegate to it. |
 | `/domain-modeling` | Maintains the glossary + ADRs. Used by `grill-with-docs`. |
+| `/dev-login` | Signs an agent-driven browser past the Clerk gate so the local app can actually be clicked through. |
 
 `grilling` and `domain-modeling` are dependencies — `grill-me` and `grill-with-docs`
 are one-liners that invoke them. Don't delete them.
