@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { requireScope, respondToAccessError } from "../server/access.js"
 import type { PlayerRow } from "../types/db.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
@@ -31,10 +32,21 @@ async function getPlayerById(playerId: number): Promise<PlayerRow | null> {
   return result.data as PlayerRow | null
 }
 
+/**
+ * Signed in is enough here — no division check.
+ *
+ * This route is keyed on a Steam account id and has no league or team context
+ * to derive a division from, and what it returns is a name against a public
+ * account id. The thing worth protecting is the parsed league data, and none of
+ * it flows through here. The accepted cost: someone who already knows an
+ * account id learns whether we have registered that player, which is a small
+ * signal about who we are preparing for.
+ */
 export default async function handler(
   req: {
     method: string
     query: { playerId?: string }
+    headers: Record<string, string | string[] | undefined>
   },
   res: {
     status: (code: number) => { json: (data: unknown) => void }
@@ -49,6 +61,7 @@ export default async function handler(
     }
 
     try {
+      await requireScope(req.headers.authorization)
       const player = await getPlayerById(playerId)
 
       if (!player) {
@@ -58,6 +71,7 @@ export default async function handler(
 
       res.status(200).json(player)
     } catch (error) {
+      if (respondToAccessError(error, res)) return
       console.error("Error in handler:", error)
       res.status(500).json({ error: "Failed to fetch player" })
     }

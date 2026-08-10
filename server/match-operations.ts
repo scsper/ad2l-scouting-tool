@@ -700,9 +700,23 @@ async function getLeagueMembershipWarnings(match: Match): Promise<string[]> {
 export async function parseMatch({
   matchId,
   overwrite = false,
+  authorize,
 }: {
   matchId: number
   overwrite?: boolean
+  /**
+   * Called once the match is in hand and before anything is written.
+   *
+   * A match id carries no league or team, so who may parse it is unknowable
+   * until OpenDota has answered — the check cannot move any earlier. Throwing
+   * from here aborts before the first insert. The unavoidable cost is that a
+   * caller who is refused has already spent an OpenDota request.
+   */
+  authorize?: (match: {
+    leagueId: number | null
+    radiantTeamId: number | null
+    direTeamId: number | null
+  }) => Promise<void> | void
 }): Promise<ParseMatchResult> {
   if (!Number.isInteger(matchId) || matchId <= 0) {
     throw new ParseError("INVALID_ID", `"${String(matchId)}" is not a valid match ID.`)
@@ -726,6 +740,12 @@ export async function parseMatch({
       `OpenDota has not parsed match ${String(matchId)} yet. Try again in a few minutes.`,
     )
   }
+
+  await authorize?.({
+    leagueId: match.leagueId,
+    radiantTeamId: match.radiantTeam?.id ?? null,
+    direTeamId: match.direTeam?.id ?? null,
+  })
 
   try {
     if (exists) {

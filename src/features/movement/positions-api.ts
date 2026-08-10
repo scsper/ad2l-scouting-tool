@@ -1,4 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
+import { createApi } from "@reduxjs/toolkit/query/react"
+import { authedBaseQuery } from "../../app/authed-base-query"
 import type { MatchPositionsApiResponse } from "../../../api/match-positions"
 export type {
   PositionMatch,
@@ -16,7 +17,7 @@ export type {
  * megabyte.
  */
 export const positionsApiSlice = createApi({
-  baseQuery: fetchBaseQuery({ baseUrl: "/" }),
+  baseQuery: authedBaseQuery,
   reducerPath: "positions",
   tagTypes: ["Positions"],
   keepUnusedDataFor: 600,

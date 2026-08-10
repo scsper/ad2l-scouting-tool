@@ -1,4 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
+import { createApi } from "@reduxjs/toolkit/query/react"
+import { authedBaseQuery } from "../../app/authed-base-query"
 import type { MatchWardsApiResponse } from "../../../api/match-wards"
 export type { WardMatch, WardMatchPlayer } from "../../../api/match-wards"
 
@@ -6,7 +7,7 @@ export type { WardMatch, WardMatchPlayer } from "../../../api/match-wards"
 // match and only this tab needs it, so it loads when the tab is opened rather
 // than on every Team/Lanes/Players fetch.
 export const wardsApiSlice = createApi({
-  baseQuery: fetchBaseQuery({ baseUrl: "/" }),
+  baseQuery: authedBaseQuery,
   reducerPath: "wards",
   tagTypes: ["Wards"],
   endpoints: build => ({

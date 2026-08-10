@@ -89,13 +89,12 @@ export const ParseMatchesModal = ({ isOpen, onClose }: ParseMatchesModalProps) =
       );
 
       try {
-        // Re-read the token every iteration rather than hoisting it out of the
-        // loop: Clerk session tokens live about a minute, and a season backfill
-        // runs longer than that, so a hoisted token 401s partway through.
-        const token = await getToken();
-        if (!token) throw new Error("Session expired");
-
-        const result = await parseMatch({ matchId, overwrite, token }).unwrap();
+        // The token used to be re-read here every iteration, because Clerk
+        // sessions live about a minute and a season backfill runs longer than
+        // that, so a hoisted one 401s partway through. `authedBaseQuery` now
+        // fetches it per request, which gets the same result for every call in
+        // the app rather than only this loop.
+        const result = await parseMatch({ matchId, overwrite }).unwrap();
         anySucceeded = true;
         setRows(current =>
           current.map((row, i) =>

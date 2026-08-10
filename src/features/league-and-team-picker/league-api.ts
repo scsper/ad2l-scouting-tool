@@ -1,8 +1,9 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { authedBaseQuery } from "../../app/authed-base-query"
 import type { League } from "../../../api/league";
 
 export const leagueApiSlice = createApi({
-  baseQuery: fetchBaseQuery({ baseUrl: "/" }),
+  baseQuery: authedBaseQuery,
   reducerPath: "league",
   // Tag types are used for caching and invalidation.
   tagTypes: ["League"],

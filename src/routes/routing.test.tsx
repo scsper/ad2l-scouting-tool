@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { MemoryRouter, useLocation } from "react-router"
 import { makeStore } from "../app/store"
@@ -36,6 +36,9 @@ const PathProbe = () => {
 
 function renderAt(path: string) {
   stubFetch({
+    // The shell now blocks on this before rendering any route: it decides
+    // whether the account is provisioned, and where `/` lands.
+    "api/me": { isAdmin: true, grants: [], hasAccess: true },
     // Ahead of "api/league", which is a prefix of it and would answer first.
     "api/league-matches": {
       picksByPosition: {},
@@ -76,6 +79,11 @@ afterEach(() => {
 /** Where the router settled, read off the probe the shell renders. */
 const currentPath = () => screen.getByTestId("path").textContent
 
+// A redirect now lands a tick after the screen it starts from paints: the
+// shell blocks on `api/me` before mounting any route, so the app no longer
+// mounts in a single commit. Hence `waitFor` around the path assertions below
+// rather than reading it straight after the link appears.
+
 /** The query string a redirect kept or dropped. */
 const currentSearch = () => screen.getByTestId("search").textContent
 
@@ -107,14 +115,18 @@ describe("routes", () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/teams/${String(TEAM_ID)}`)
 
     await screen.findByRole("link", { name: "Team" })
-    expect(activeTab()).toBe("Team")
+    await waitFor(() => {
+      expect(activeTab()).toBe("Team")
+    })
   })
 
   it("falls back to the team tab when the URL names one we don't have", async () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/teams/${String(TEAM_ID)}/heroes`)
 
     await screen.findByRole("link", { name: "Team" })
-    expect(activeTab()).toBe("Team")
+    await waitFor(() => {
+      expect(activeTab()).toBe("Team")
+    })
   })
 
   // `/leagues/:id/stats` was the whole screen before it grew a second
@@ -123,14 +135,18 @@ describe("routes", () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/stats`)
 
     await screen.findByRole("link", { name: "Heroes" })
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+    await waitFor(() => {
+      expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+    })
   })
 
   it("sends a stats board we don't have to the hero board", async () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/stats/wards`)
 
     await screen.findByRole("link", { name: "Heroes" })
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+    await waitFor(() => {
+      expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+    })
   })
 
   // The screen was `/aggregate` until it was renamed, and those links are
@@ -139,7 +155,9 @@ describe("routes", () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate/players?division=Voyager`)
 
     await screen.findByRole("link", { name: "Players" })
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/players`)
+    await waitFor(() => {
+      expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/players`)
+    })
     expect(currentSearch()).toBe("?division=Voyager")
   })
 
@@ -147,7 +165,9 @@ describe("routes", () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/aggregate`)
 
     await screen.findByRole("link", { name: "Heroes" })
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+    await waitFor(() => {
+      expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}/stats/heroes`)
+    })
   })
 
   it("opens the player board a deep link names", async () => {

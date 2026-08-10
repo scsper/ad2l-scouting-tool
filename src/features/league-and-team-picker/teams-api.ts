@@ -1,10 +1,11 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { authedBaseQuery } from "../../app/authed-base-query"
 import type { AddTeamToLeagueRequest, LeagueTeamEntry, LeagueTeamsResponse } from "../../../api/team";
 import { divisionsIn } from "../../../shared/divisions";
 export type { LeagueTeamEntry } from "../../../api/team";
 
 export const teamsApiSlice = createApi({
-  baseQuery: fetchBaseQuery({ baseUrl: "/" }),
+  baseQuery: authedBaseQuery,
   reducerPath: "teams",
   // Tag types are used for caching and invalidation.
   tagTypes: ["Teams"],
@@ -17,15 +18,11 @@ export const teamsApiSlice = createApi({
     // are added lazily, one scrim opponent at a time. Invalidating Teams gets
     // the new team into the picker without the page reload that seeding by
     // script used to require.
-    addTeamToLeague: build.mutation<
-      LeagueTeamEntry,
-      AddTeamToLeagueRequest & { token: string | null }
-    >({
-      query: ({ token, ...body }) => ({
+    addTeamToLeague: build.mutation<LeagueTeamEntry, AddTeamToLeagueRequest>({
+      query: body => ({
         url: "api/team",
         method: "POST",
         body,
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       }),
       invalidatesTags: ["Teams"],
     }),

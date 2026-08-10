@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router"
 import { ContentArea } from "../components/ContentArea"
 import { AddTeamModal } from "../features/league-and-team-picker/AddTeamModal"
 import { useLeagueDivisions } from "../features/league-and-team-picker/teams-api"
+import { useGetMeQuery } from "../features/access/access-api"
 import { ParseMatchesModal } from "../features/parse-matches/ParseMatchesModal"
 import { divisionSearch } from "./routing"
 
@@ -20,6 +21,7 @@ export const LeaguePicker = () => {
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false)
 
   const leagueId = Number(leagueIdParam)
+  const { data: me } = useGetMeQuery()
   const divisions = useLeagueDivisions(leagueId)
   const statsLabel = divisions.length > 0 ? "Division" : "League"
   const search = divisionSearch(searchParams.get("division") ?? undefined)
@@ -43,14 +45,21 @@ export const LeaguePicker = () => {
           >
             Parse matches
           </button>
-          <button
-            onClick={() => {
-              setIsAddTeamModalOpen(true)
-            }}
-            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
-          >
-            Add team
-          </button>
+          {/* Admin-only, matching the route. `api/team`'s POST upserts a
+              team's division, and a division is what a grant is keyed on — so
+              this is the one write that could be used to grant yourself sight
+              of another division's data. Hiding it is cosmetic; the route
+              refuses regardless. */}
+          {me?.isAdmin === true && (
+            <button
+              onClick={() => {
+                setIsAddTeamModalOpen(true)
+              }}
+              className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors border border-slate-600"
+            >
+              Add team
+            </button>
+          )}
         </div>
       </div>
 
