@@ -47,7 +47,16 @@ function groupTeamsByDivision(teams: Record<number, LeagueTeamEntry>) {
     ([, team]) => !divisions.some(division => division === team.division),
   );
   if (unassigned.length > 0) {
-    groups.push({ label: UNASSIGNED_DIVISION, teams: unassigned });
+    // Only an admin can ever see this group: `api/team` filters unassigned
+    // teams out for everyone else, because NULL is not a division anyone was
+    // granted. That makes a team you forgot to assign invisible to exactly the
+    // people who need it, while looking fine from here — so the label reads as
+    // a to-do rather than a category, since this is the only place the problem
+    // is visible at all.
+    groups.push({
+      label: `${UNASSIGNED_DIVISION} — not visible to scoped users`,
+      teams: unassigned,
+    });
   }
 
   return { divisions, groups };

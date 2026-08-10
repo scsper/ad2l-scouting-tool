@@ -1,5 +1,6 @@
 // Need to use the React-specific entry point to import `createApi`
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
+import { createApi } from "@reduxjs/toolkit/query/react"
+import { authedBaseQuery } from "../../app/authed-base-query"
 import type { MatchApiResponse } from "../../../types/api"
 
 export type HeroStats = {
@@ -40,8 +41,6 @@ export type TransformedMatchesApiResponse = {
 export type ParseMatchRequest = {
   matchId: number;
   overwrite: boolean;
-  /** Clerk session token. This is the only authenticated route in `api/`. */
-  token: string;
 }
 
 export type ParseMatchResponse = {
@@ -55,7 +54,7 @@ export type ParseMatchResponse = {
 
 // Define a service using a base URL and expected endpoints
 export const matchesApiSlice = createApi({
-  baseQuery: fetchBaseQuery({ baseUrl: "/" }),
+  baseQuery: authedBaseQuery,
   reducerPath: "matches",
   // Tag types are used for caching and invalidation.
   tagTypes: ["Matches"],
@@ -64,10 +63,9 @@ export const matchesApiSlice = createApi({
     // a pasted list one match at a time, and per-match invalidation would refetch
     // this query once per match; the modal invalidates once when the batch ends.
     parseMatch: build.mutation<ParseMatchResponse, ParseMatchRequest>({
-      query: ({ matchId, overwrite, token }) => ({
+      query: ({ matchId, overwrite }) => ({
         url: "api/parse-match",
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: { matchId, overwrite },
       }),
     }),

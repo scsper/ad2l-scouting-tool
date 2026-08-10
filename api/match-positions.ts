@@ -2,6 +2,12 @@ import zlib from "zlib"
 import { createClient } from "@supabase/supabase-js"
 import { fromPgHex } from "../server/pg-bytea.js"
 import { selectAll } from "../server/select-all.js"
+import {
+  requireMatchAccess,
+  requireScope,
+  requireTeamAccess,
+  respondToAccessError,
+} from "../server/access.js"
 import type {
   MatchEventRow,
   MatchPlayerRow,
@@ -212,18 +218,28 @@ async function getByTeam(
 }
 
 export default async function handler(
-  req: { query: { leagueId?: string; teamId?: string; matchId?: string } },
+  req: {
+    query: { leagueId?: string; teamId?: string; matchId?: string }
+    headers: Record<string, string | string[] | undefined>
+  },
   res: { status: (code: number) => { json: (data: unknown) => void } },
 ) {
   const { leagueId, teamId, matchId } = req.query
 
   try {
+    const scope = await requireScope(req.headers.authorization)
+
     if (matchId) {
       const id = parseInt(matchId, 10)
       if (Number.isNaN(id)) {
         res.status(400).json({ error: "matchId must be a number" })
         return
       }
+      // The one read in the API keyed on nothing but a match id, so the league
+      // and teams have to be looked up before answering rather than taken from
+      // the request. Without this, the movement map would be the way around
+      // every other check on this page.
+      await requireMatchAccess(scope, id)
       res.status(200).json(await build([id], null))
       return
     }
@@ -235,12 +251,14 @@ export default async function handler(
         res.status(400).json({ error: "leagueId and teamId must be numbers" })
         return
       }
+      await requireTeamAccess(scope, league, team)
       res.status(200).json(await getByTeam(league, team))
       return
     }
 
     res.status(400).json({ error: "matchId, or leagueId and teamId, required" })
   } catch (error) {
+    if (respondToAccessError(error, res)) return
     console.error("Error in handler:", error)
     res.status(500).json({ error: "Failed to fetch position data" })
   }

@@ -1,6 +1,11 @@
 import { ParseError, parseMatch } from "../server/match-operations.js"
 import type { ParseErrorCode } from "../server/match-operations.js"
-import { UnauthorizedError, requireAuth } from "../server/require-auth.js"
+import {
+  requireParsedMatchAccess,
+  requireScope,
+  respondToAccessError,
+} from "../server/access.js"
+import type { AccessScope } from "../server/access-scope.js"
 
 /**
  * Parse a single match from OpenDota into the database.
@@ -34,16 +39,11 @@ export default async function handler(
     return
   }
 
-  const authorization = req.headers.authorization
+  let scope: AccessScope
   try {
-    await requireAuth(
-      Array.isArray(authorization) ? authorization[0] : authorization,
-    )
+    scope = await requireScope(req.headers.authorization)
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      res.status(401).json({ error: error.message })
-      return
-    }
+    if (respondToAccessError(error, res)) return
     console.error("Error verifying session:", error)
     res.status(500).json({ error: "Failed to verify session" })
     return
@@ -62,9 +62,15 @@ export default async function handler(
     const result = await parseMatch({
       matchId,
       overwrite: req.body?.overwrite === true,
+      // A match id names no league and no team, so the decision can only be
+      // made once OpenDota has answered — hence a callback rather than a check
+      // up here. A scoped user who is refused has still spent one OpenDota
+      // request, which is the accepted cost of letting them parse at all.
+      authorize: match => requireParsedMatchAccess(scope, match),
     })
     res.status(200).json(result)
   } catch (error) {
+    if (respondToAccessError(error, res)) return
     if (error instanceof ParseError) {
       res
         .status(STATUS_BY_CODE[error.code])

@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { useAuth } from "@clerk/react"
 import { Modal } from "../../components/Modal"
 import { DIVISIONS } from "../../../shared/divisions"
 import { useAddTeamToLeagueMutation, useGetTeamsByLeagueQuery } from "./teams-api"
@@ -41,7 +40,6 @@ export const AddTeamModal = ({ isOpen, onClose, leagueId }: AddTeamModalProps) =
   const [name, setName] = useState("")
   const [division, setDivision] = useState("")
 
-  const { getToken } = useAuth()
   const [addTeamToLeague, { isLoading, error }] = useAddTeamToLeagueMutation()
   const { data: teamsData } = useGetTeamsByLeagueQuery({ leagueId })
   const { data: leagues } = useGetLeaguesQuery()
@@ -73,7 +71,6 @@ export const AddTeamModal = ({ isOpen, onClose, leagueId }: AddTeamModalProps) =
         team_id: parsedTeamId,
         division,
         name: existing ? undefined : name,
-        token: await getToken(),
       }).unwrap()
 
       resetForm()

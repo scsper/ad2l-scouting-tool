@@ -2,6 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import type { MatchDraftRow, MatchPlayerRow, MatchRow } from "../types/db.js";
 import { selectAll } from "../server/select-all.js";
 import { matchesWithinDivision } from "../server/division-scope.js";
+import {
+  requireAggregateAccess,
+  requireScope,
+  respondToAccessError,
+} from "../server/access.js";
 import { buildDivisionPlayerRows, type DivisionPlayerRow } from "../server/division-players.js";
 import {
   buildLeagueHeroStats,
@@ -209,14 +214,26 @@ async function getMatchesByLeague(
 }
 
 export default async function handler(
-  req: { query: { leagueId: string; division?: string } },
+  req: {
+    query: { leagueId: string; division?: string }
+    headers: Record<string, string | string[] | undefined>
+  },
   res: { status: (code: number) => { json: (data: unknown) => void } },
 ) {
   const { leagueId, division } = req.query;
+  const requested = division === "" ? undefined : division;
   try {
-    const data = await getMatchesByLeague(leagueId, division === "" ? undefined : division);
+    // This route has always taken `division` from the client; the only change
+    // is that it is now a claim rather than a preference. A scoped user must
+    // name a division they hold — omitting it used to mean "the whole league",
+    // which for them is both the leak and the mixed-skill-tier average that
+    // matchesWithinDivision exists to prevent.
+    const scope = await requireScope(req.headers.authorization);
+    requireAggregateAccess(scope, parseInt(leagueId, 10), requested);
+    const data = await getMatchesByLeague(leagueId, requested);
     res.status(200).json(data);
   } catch (error) {
+    if (respondToAccessError(error, res)) return;
     console.error("Error in handler:", error);
     res.status(500).json({ error: "Failed to fetch league match data" });
   }

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { requireScope, respondToAccessError } from "../server/access.js"
 import type { PlayerPubMatchStatsRow } from "../types/db.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
@@ -428,17 +429,33 @@ async function getPlayerStats(
   }
 }
 
-// Main Handler
+/**
+ * Main handler. Signed in is enough — no division check, for the same reason as
+ * `api/player`: this is keyed on a Steam account id with no league context, and
+ * pub match stats are public Dota data that anyone can pull from OpenDota or
+ * Stratz themselves. What a scoped user could learn from it is which players we
+ * have bothered to cache, not anything about our league matches.
+ */
 export default async function handler(
   req: {
     method: string
     body: FetchPlayerPubMatchesRequest
     query: { playerId: string }
+    headers: Record<string, string | string[] | undefined>
   },
   res: {
     status: (code: number) => { json: (data: unknown) => void }
   },
 ) {
+  try {
+    await requireScope(req.headers.authorization)
+  } catch (error) {
+    if (respondToAccessError(error, res)) return
+    console.error("Error verifying session:", error)
+    res.status(500).json({ error: "Failed to verify session" })
+    return
+  }
+
   if (req.method === "GET") {
     const { playerId } = req.query
 

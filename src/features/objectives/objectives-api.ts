@@ -1,4 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react"
+import { createApi } from "@reduxjs/toolkit/query/react"
+import { authedBaseQuery } from "../../app/authed-base-query"
 import type { MatchObjectivesApiResponse } from "../../../api/match-objectives"
 export type {
   ObjectiveMatch,
@@ -15,7 +16,7 @@ export type {
  * put wards on their own slice to begin with.
  */
 export const objectivesApiSlice = createApi({
-  baseQuery: fetchBaseQuery({ baseUrl: "/" }),
+  baseQuery: authedBaseQuery,
   reducerPath: "objectives",
   tagTypes: ["Objectives"],
   endpoints: build => ({

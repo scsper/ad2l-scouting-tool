@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js"
 import { selectAll } from "../server/select-all.js"
+import {
+  requireScope,
+  requireTeamAccess,
+  respondToAccessError,
+} from "../server/access.js"
 import type { MatchObjectiveRow, MatchRow } from "../types/db.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
@@ -128,7 +133,10 @@ async function getObjectivesByLeagueAndTeam(
 }
 
 export default async function handler(
-  req: { query: { leagueId: string; teamId: string } },
+  req: {
+    query: { leagueId: string; teamId: string }
+    headers: Record<string, string | string[] | undefined>
+  },
   res: { status: (code: number) => { json: (data: unknown) => void } },
 ) {
   const { leagueId, teamId } = req.query
@@ -139,9 +147,12 @@ export default async function handler(
   }
 
   try {
+    const scope = await requireScope(req.headers.authorization)
+    await requireTeamAccess(scope, parseInt(leagueId, 10), parseInt(teamId, 10))
     const data = await getObjectivesByLeagueAndTeam(leagueId, teamId)
     res.status(200).json(data)
   } catch (error) {
+    if (respondToAccessError(error, res)) return
     console.error("Error in handler:", error)
     res.status(500).json({ error: "Failed to fetch objective data" })
   }

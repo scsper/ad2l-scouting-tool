@@ -1,6 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { isDivision } from "../shared/divisions.js";
-import { UnauthorizedError, requireAuth } from "../server/require-auth.js";
+import {
+  requireAdmin,
+  requireLeagueAccess,
+  requireScope,
+  respondToAccessError,
+} from "../server/access.js";
+import { teamsVisibleTo } from "../server/access-scope.js";
+import type { AccessScope } from "../server/access-scope.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -40,7 +47,24 @@ export type AddTeamToLeagueRequest = {
   name?: string;
 }
 
-async function getTeamsByLeagueId(leagueId: string): Promise<LeagueTeamsResponse> {
+/**
+ * The teams of one league, narrowed to what the caller may see.
+ *
+ * This is the load-bearing filter for the whole UI, not just this route's own
+ * response: the header derives its division dropdown from whatever teams come
+ * back (`groupTeamsByDivision` → `divisionsIn`), so filtering here is what makes
+ * a Warrior-scoped user see a one-entry division picker and only Warrior teams,
+ * with no change to the components at all.
+ *
+ * It also overrides the grouping comment in league-and-team-header.tsx — "you
+ * routinely want your own team's tabs open while reading another division's
+ * aggregate". That stays true for an admin. For a scoped user, removing exactly
+ * that flexibility is the point.
+ */
+async function getTeamsByLeagueId(
+  leagueId: string,
+  scope: AccessScope,
+): Promise<LeagueTeamsResponse> {
   const leagueIdNum = parseInt(leagueId, 10);
 
   const result = await supabase
@@ -53,7 +77,11 @@ async function getTeamsByLeagueId(leagueId: string): Promise<LeagueTeamsResponse
     throw result.error;
   }
 
-  const leagueTeams = result.data as unknown as LeagueTeam[];
+  const leagueTeams = teamsVisibleTo(
+    scope,
+    leagueIdNum,
+    result.data as unknown as LeagueTeam[],
+  );
 
   // Transform to requested format: { league_id: { team_id: { name, division } } }
   const response: LeagueTeamsResponse = {
@@ -145,14 +173,21 @@ export default async function handler(
   },
 ) {
   if (req.method === "POST") {
-    const authorization = req.headers.authorization;
+    // Admin-only, and this is the route where that matters most. The upsert
+    // below SETS `division`, and a division is exactly what a grant is keyed
+    // on — so a scoped user allowed to call this could move another division's
+    // team into their own and then read everything we have on it, or register
+    // an unknown team id into their own division to the same effect. Every
+    // narrower rule leaks through the "no league_teams row yet" case, which is
+    // the normal path here: teams are added lazily, one scrim opponent at a
+    // time. Adding a team is season setup, not scouting.
     try {
-      await requireAuth(Array.isArray(authorization) ? authorization[0] : authorization);
+      requireAdmin(
+        await requireScope(req.headers.authorization),
+        "add a team to a league",
+      );
     } catch (error) {
-      if (error instanceof UnauthorizedError) {
-        res.status(401).json({ error: error.message });
-        return;
-      }
+      if (respondToAccessError(error, res)) return;
       console.error("Error verifying session:", error);
       res.status(500).json({ error: "Failed to verify session" });
       return;
@@ -205,9 +240,12 @@ export default async function handler(
   }
 
   try {
-    const data = await getTeamsByLeagueId(leagueId);
+    const scope = await requireScope(req.headers.authorization);
+    requireLeagueAccess(scope, parseInt(leagueId, 10));
+    const data = await getTeamsByLeagueId(leagueId, scope);
     res.status(200).json(data);
   } catch (error) {
+    if (respondToAccessError(error, res)) return;
     console.error("Error in handler:", error);
     res.status(500).json({ error: "Failed to fetch teams data" });
   }

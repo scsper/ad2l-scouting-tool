@@ -2,6 +2,11 @@ import { createClient } from "@supabase/supabase-js"
 import type { RosterEntry } from "../types/db.js"
 import { fetchAndStorePlayerStats } from "./player-pub-matches.js"
 import { roleToPositions } from "../shared/roles.js"
+import {
+  requireScope,
+  requireTeamAccess,
+  respondToAccessError,
+} from "../server/access.js"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? ""
@@ -265,6 +270,7 @@ export default async function handler(
     method: string
     body: CreateRosterMemberRequest & Partial<CopyRosterRequest>
     query: { leagueId?: string; teamId?: string; playerId?: string }
+    headers: Record<string, string | string[] | undefined>
   },
   res: {
     status: (code: number) => { json: (data: unknown) => void }
@@ -280,8 +286,11 @@ export default async function handler(
     }
 
     try {
+      const scope = await requireScope(req.headers.authorization)
+      await requireTeamAccess(scope, leagueId, teamId)
       res.status(200).json(await getRoster(leagueId, teamId))
     } catch (error) {
+      if (respondToAccessError(error, res)) return
       console.error("Error in handler:", error)
       res.status(500).json({ error: "Failed to fetch roster" })
     }
@@ -306,9 +315,16 @@ export default async function handler(
       }
 
       try {
+        const scope = await requireScope(req.headers.authorization)
+        // Both ends, because this route reads one league and writes another.
+        // Checking only the destination would make it a way to read any team's
+        // roster from a season the caller cannot otherwise open.
+        await requireTeamAccess(scope, from_league_id, team_id)
+        await requireTeamAccess(scope, league_id, team_id)
         const data = await copyRoster({ from_league_id, league_id, team_id })
         res.status(201).json(data)
       } catch (error) {
+        if (respondToAccessError(error, res)) return
         if (error instanceof Error && error.message === "TEAM_NOT_IN_LEAGUE") {
           res.status(400).json({ error: "That team is not in this league" })
           return
@@ -329,9 +345,12 @@ export default async function handler(
     }
 
     try {
+      const scope = await requireScope(req.headers.authorization)
+      await requireTeamAccess(scope, league_id, team_id)
       const data = await createRosterMember(body)
       res.status(201).json(data)
     } catch (error) {
+      if (respondToAccessError(error, res)) return
       if (error instanceof Error && error.message === "TEAM_NOT_IN_LEAGUE") {
         res.status(400).json({ error: "That team is not in this league" })
         return
@@ -355,9 +374,12 @@ export default async function handler(
     }
 
     try {
+      const scope = await requireScope(req.headers.authorization)
+      await requireTeamAccess(scope, leagueId, teamId)
       await deleteRosterMember(leagueId, teamId, playerId)
       res.status(200).json({ success: true })
     } catch (error) {
+      if (respondToAccessError(error, res)) return
       console.error("Error in handler:", error)
       res.status(500).json({ error: "Failed to remove roster member" })
     }

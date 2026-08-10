@@ -2,6 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import type { MatchApiResponse } from "../types/api.js";
 import type { MatchRow, MatchDraftRow, MatchPlayerRow } from "../types/db.js";
 import { selectAll } from "../server/select-all.js";
+import {
+  requireScope,
+  requireTeamAccess,
+  respondToAccessError,
+} from "../server/access.js";
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? "";
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? "";
@@ -89,7 +94,10 @@ async function getMatchesByLeagueAndTeam(
 }
 
 export default async function handler(
-  req: { query: { leagueId: string; teamId: string } },
+  req: {
+    query: { leagueId: string; teamId: string }
+    headers: Record<string, string | string[] | undefined>
+  },
   res: {
     status: (code: number) => { json: (data: unknown) => void }
   },
@@ -97,9 +105,12 @@ export default async function handler(
   const { leagueId, teamId } = req.query
 
   try {
+    const scope = await requireScope(req.headers.authorization);
+    await requireTeamAccess(scope, parseInt(leagueId, 10), parseInt(teamId, 10));
     const data = await getMatchesByLeagueAndTeam(leagueId, teamId);
     res.status(200).json(data);
   } catch (error) {
+    if (respondToAccessError(error, res)) return;
     console.error("Error in handler:", error);
     res.status(500).json({ error: "Failed to fetch match data" });
   }

@@ -1,4 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { authedBaseQuery } from "../../app/authed-base-query"
 import type { LeagueMatchesApiResponse } from "../../../api/league-matches";
 export type { LeagueHeroDraftMap, LeaguePicksByPosition } from "../../../api/league-matches";
 export type { DivisionPlayerRow } from "../../../server/division-players";
@@ -11,7 +12,7 @@ export type { DivisionPlayerRow } from "../../../server/division-players";
 export type LeagueStatsData = LeagueMatchesApiResponse;
 
 export const leagueStatsApiSlice = createApi({
-  baseQuery: fetchBaseQuery({ baseUrl: "/" }),
+  baseQuery: authedBaseQuery,
   reducerPath: "leagueStats",
   tagTypes: ["LeagueStats"],
   endpoints: build => ({

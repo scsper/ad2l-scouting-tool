@@ -4,6 +4,7 @@ import { Provider } from "react-redux"
 import { ClerkProvider } from "@clerk/react"
 import { BrowserRouter } from "react-router"
 import { App } from "./App"
+import { ClerkTokenBridge } from "./app/ClerkTokenBridge"
 import { store } from "./app/store"
 import "./index.css"
 
@@ -24,6 +25,10 @@ if (container) {
           auth state, and `afterSignOutUrl` stays "/" on purpose: signing out
           should not leave you parked on a deep link you can no longer read. */}
       <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
+        {/* First child on purpose: it publishes Clerk's `getToken` during its
+            own render, which happens before `App` renders and therefore before
+            any query can fire without an Authorization header. */}
+        <ClerkTokenBridge />
         <Provider store={store}>
           <BrowserRouter>
             <App />
