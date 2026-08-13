@@ -42,6 +42,19 @@ import { useGetTeamPositionsQuery } from "./positions-api"
 const panel =
   "bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg"
 
+/**
+ * The windows a scouting question is actually asked in.
+ *
+ * `to: null` means "to the end of the game", which is clamped against the real
+ * bounds at render — a 22-minute stomp has no late game to show.
+ */
+const PHASES: { label: string; from: number; to: number | null }[] = [
+  { label: "Laning", from: 0, to: 600 },
+  { label: "Mid", from: 600, to: 1200 },
+  { label: "Late", from: 1200, to: null },
+  { label: "Full", from: 0, to: null },
+]
+
 /** How long a drag has to settle before the URL is rewritten. */
 const TIME_WRITE_DELAY_MS = 250
 
@@ -131,6 +144,13 @@ export const Movement = ({
   // The sliders track the drag; the URL lags behind. Browsers rate-limit history
   // writes, and one sweep of a 50-minute game would spend the whole allowance.
   const [draftTime, setDraftTime] = useState<number | null>(null)
+
+  /**
+   * Whether the two range handles are on show. Opened by the Custom chip, and
+   * left closed by default — a link carrying a hand-picked window still renders
+   * that window, it just doesn't open the sliders to say so.
+   */
+  const [isCustomRange, setIsCustomRange] = useState(false)
   const [draftRange, setDraftRange] = useState<{
     from: number
     to: number
@@ -368,6 +388,70 @@ export const Movement = ({
     }, TIME_WRITE_DELAY_MS)
   }
 
+  /**
+   * Move the playhead, clamped to the game.
+   *
+   * Extracted because the slider is no longer the only thing that moves it: a
+   * 40-minute game on a 350px track is about seven seconds per pixel, so
+   * stepping is the only way to land on a specific moment with a thumb. The
+   * track's width is the constraint, and no amount of slider polish changes it.
+   */
+  const seek = (next: number) => {
+    const clamped = Math.min(matchBounds.to, Math.max(matchBounds.from, next))
+    setDraftTime(clamped)
+    clearTimeout(pendingWrite.current)
+    pendingWrite.current = setTimeout(() => {
+      updateFilters({ t: String(clamped) })
+    }, TIME_WRITE_DELAY_MS)
+  }
+
+  const STEPS = [-30, -10, 10, 30]
+
+  /**
+   * The transport, built once and rendered twice — under the map on the page,
+   * and again inside the full-screen inspector. Zooming into a fight and then
+   * having to close the overlay to advance five seconds means never zooming
+   * during playback at all, which is exactly when it is most useful.
+   */
+  const playbackControls = (
+    <div className="flex items-center gap-2">
+      {STEPS.slice(0, 2).map(step => (
+        <button
+          key={step}
+          onClick={() => {
+            seek(time + step)
+          }}
+          className="shrink-0 px-2 py-1.5 rounded bg-slate-800 border border-slate-700 text-xs text-slate-300 tabular-nums"
+        >
+          {String(step)}s
+        </button>
+      ))}
+      <input
+        type="range"
+        min={matchBounds.from}
+        max={matchBounds.to}
+        step={1}
+        value={time}
+        onChange={e => {
+          seek(Number(e.target.value))
+        }}
+        className="w-full accent-blue-500"
+        aria-label="Game time"
+      />
+      {STEPS.slice(2).map(step => (
+        <button
+          key={step}
+          onClick={() => {
+            seek(time + step)
+          }}
+          className="shrink-0 px-2 py-1.5 rounded bg-slate-800 border border-slate-700 text-xs text-slate-300 tabular-nums"
+        >
+          +{String(step)}s
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       <div className={`${panel} p-4`}>
@@ -586,6 +670,10 @@ export const Movement = ({
                 ? "Player position heatmap"
                 : "Hero position playback"
             }
+            controls={mode === "playback" ? playbackControls : undefined}
+            onBackgroundTap={() => {
+              setHovered(null)
+            }}
             overlay={
               hovered && (
                 <div
@@ -669,7 +757,55 @@ export const Movement = ({
                 </span>
               )}
             </div>
-            <div className="space-y-1">
+            {/*
+              Phases first, sliders second.
+
+              Two range inputs stacked four pixels apart share one problem: when
+              both handles sit near the same time there is no way to tell which
+              one a finger grabbed, and no way to separate them again once it
+              grabs the wrong one. The presets sidestep that, and they are also
+              closer to the question actually being asked — "where do they stand
+              in laning", "do they hold Rosh after 20" — than two timestamps
+              anyone was dragging to approximate. They ship on desktop too for
+              the same reason.
+            */}
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {PHASES.map(phase => {
+                const from = Math.max(bounds.from, phase.from)
+                const to = Math.min(bounds.to, phase.to ?? bounds.to)
+                const isActive = range.from === from && range.to === to
+                return (
+                  <button
+                    key={phase.label}
+                    onClick={() => {
+                      setIsCustomRange(false)
+                      writeRangeSoon({ from, to })
+                    }}
+                    className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                      isActive && !isCustomRange
+                        ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                        : "bg-slate-800 text-slate-400 border-slate-700"
+                    }`}
+                  >
+                    {phase.label}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => {
+                  setIsCustomRange(current => !current)
+                }}
+                className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                  isCustomRange
+                    ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                    : "bg-slate-800 text-slate-400 border-slate-700"
+                }`}
+              >
+                Custom
+              </button>
+            </div>
+
+            <div className={`space-y-1 ${isCustomRange ? "" : "hidden"}`}>
               <input
                 type="range"
                 min={bounds.from}
@@ -748,23 +884,7 @@ export const Movement = ({
                   : ""}
               </span>
             </div>
-            <input
-              type="range"
-              min={matchBounds.from}
-              max={matchBounds.to}
-              step={1}
-              value={time}
-              onChange={e => {
-                const next = Number(e.target.value)
-                setDraftTime(next)
-                clearTimeout(pendingWrite.current)
-                pendingWrite.current = setTimeout(() => {
-                  updateFilters({ t: String(next) })
-                }, TIME_WRITE_DELAY_MS)
-              }}
-              className="w-full accent-blue-500"
-              aria-label="Game time"
-            />
+            {playbackControls}
             <div className="flex justify-between text-xs text-slate-500 mt-0.5">
               <span>{formatGameTime(matchBounds.from)}</span>
               <span>{formatGameTime(matchBounds.to)}</span>

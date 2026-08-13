@@ -65,6 +65,9 @@ const TowerMark = ({
       onMouseEnter={() => {
         onHover({ label, detail, x, y })
       }}
+      onClick={() => {
+        onHover({ label, detail, x, y })
+      }}
       onMouseLeave={() => {
         onHover(prev => (prev?.label === label ? null : prev))
       }}
@@ -212,6 +215,9 @@ export const NeutralMark = ({
       role="img"
       aria-label={`${label} · ${pit} pit`}
       onMouseEnter={() => {
+        onHover({ label, detail, x, y })
+      }}
+      onClick={() => {
         onHover({ label, detail, x, y })
       }}
       onMouseLeave={() => {
