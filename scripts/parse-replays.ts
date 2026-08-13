@@ -23,12 +23,14 @@
  *
  * Also requires both `bunzip2` and `zstd` on PATH. Valve serves either format
  * under the same `.dem.bz2` name, so which one a given match needs is not
- * knowable in advance — see `sniffDecompressor`.
+ * knowable in advance — see `decompressorFor`.
  *
  * Downloads are guarded and retried rather than merely time-limited: Valve's
  * Chinese replay CDN hands out connections that establish and then deliver
  * nothing, which a bare `--max-time` turns into a quarter-hour of silence. See
- * `SOURCE_CURL_LIMITS`.
+ * `SOURCE_CURL_LIMITS`. Much of the time it also answers with addresses on
+ * networks this side of the firewall cannot reach at all, which is why each
+ * attempt picks its own edge and pins to it — see `findEdge`.
  *
  * Env: SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY,
  *      OPENDOTA_API_TOKEN (optional), REPLAY_ARCHIVE_DIR (optional)
@@ -41,6 +43,7 @@
  * the flag you will actually use once definitions start changing.
  */
 
+import dns from "dns/promises"
 import fs from "fs"
 import os from "os"
 import path from "path"
@@ -88,10 +91,58 @@ const OPEN_DOTA_DELAY_MS = 1200
  */
 const SOURCE_CURL_LIMITS =
   "--connect-timeout 20 --speed-limit 1024 --speed-time 30 --max-time 900"
-/** Attempts per match. A dead edge is per-connection, so a retry re-rolls it. */
-const DOWNLOAD_ATTEMPTS = 3
+
+/**
+ * Choose the edge address ourselves instead of letting every connection re-roll
+ * it, because the roll is mostly a losing one.
+ *
+ * The A records behind `replay*.dota2.com.cn` come as a block — usually eight,
+ * sometimes as few as two — and from here a block is reachable or it is not:
+ * all of them or none, since the CDN answers with whichever Chinese carrier's
+ * network it feels like and only some of them route to us at all. Measured
+ * 2026-08-13 against match 8943097729: nine of twelve consecutive four-byte
+ * range requests failed, every one of them a connect timeout that had tried
+ * every address of the block DNS was serving at the time; the three that landed
+ * on a live block answered 206 in under a second. That is the `fetch failed`
+ * that ended three TI 2026 matches — not a stalled transfer, a block this host
+ * cannot reach.
+ *
+ * So an attempt probes the whole current block in parallel, takes the first
+ * address that answers, and pins the download to it with `--resolve`. A dead
+ * block costs one connect timeout rather than eight in series, and the transfer
+ * cannot drift onto a different block between the sniff and the download, which
+ * a second unpinned request seconds later is free to do.
+ *
+ * The probe timeout is deliberately short: a live CN edge answers in well under
+ * a second, so waiting longer only buys a slower way to learn the same thing.
+ */
+const EDGE_CONNECT_TIMEOUT_S = 5
+const EDGE_PROBE_MAX_TIME_S = 15
+
+/**
+ * Back off between attempts, because retrying promptly retries nothing.
+ *
+ * The record's TTL is 3s, which suggests a re-resolve draws a fresh block, and
+ * it does not: six attempts across 47s were handed 101.246.176.236-243 every
+ * single time. Which block you get is sticky for far longer than the TTL — a
+ * rotation was observed within 10s in one run and not at all within a minute in
+ * another. Retrying on a fixed 3s heartbeat therefore asks the same dead block
+ * the same question six times and calls it six chances.
+ *
+ * Doubling instead spreads six attempts over ~75s of waiting rather than 15s,
+ * which is the timescale rotations actually happen on, and the spread is what
+ * does the work: on the run that settled this, attempts 1-3 were all handed
+ * 222.192.186.119-120, attempts 4-5 got 43.248.231.20-31, and the sixth landed
+ * on a live block and pulled the replay down in 123s. Six prompt attempts would
+ * have spent all of them inside the first dead block.
+ *
+ * The cap keeps the tail from running away: a match nobody can reach should
+ * fail in about two minutes, not sit there.
+ */
+const DOWNLOAD_ATTEMPTS = 6
 const RETRY_DELAY_MS = 3000
-/** Cap on the two small metadata fetches, which hit the same flaky hosts. */
+const MAX_RETRY_DELAY_MS = 30000
+/** Cap on the OpenDota metadata fetch, the one request still made over fetch. */
 const FETCH_TIMEOUT_MS = 30000
 const EVENT_INSERT_CHUNK = 500
 /** IDs per `.in()` filter when asking which matches are already written. */
@@ -103,6 +154,20 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
 
 function archivePath(matchId: number): string {
   return path.join(ARCHIVE_DIR, `${String(matchId)}.ndjson.gz`)
+}
+
+/**
+ * Unwrap `cause`, because that is where anything useful lives.
+ *
+ * `fetch` rejects with a bare `TypeError: fetch failed` for every network-level
+ * failure there is — refused, reset, unroutable, DNS — and hangs the actual
+ * reason off `cause`. Reporting only `message` turns "these eight addresses all
+ * timed out connecting" into a line that says nothing at all.
+ */
+function errorMessage(e: unknown): string {
+  if (!(e instanceof Error)) return String(e)
+  const { cause } = e
+  return cause instanceof Error ? `${e.message}: ${cause.message}` : e.message
 }
 
 async function assertParserRunning(): Promise<void> {
@@ -146,7 +211,7 @@ async function getReplayUrl(matchId: number): Promise<string | null> {
 }
 
 /**
- * Pick a decompressor by sniffing the first bytes, NOT by trusting the URL.
+ * Pick a decompressor from the first bytes, NOT by trusting the URL.
  *
  * Valve serves some replays zstd-compressed while still naming them `.dem.bz2`.
  * Observed 2026-08-03: the two newest S47 matches at the time (8921820516 and
@@ -160,16 +225,7 @@ async function getReplayUrl(matchId: number): Promise<string | null> {
  * writing output to destination` — an error that reads like a disk or network
  * fault and says nothing whatsoever about compression.
  */
-async function sniffDecompressor(replayUrl: string): Promise<string> {
-  const response = await fetch(replayUrl, {
-    headers: { Range: "bytes=0-3" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
-  if (!response.ok) {
-    throw new Error(`replay range request ${String(response.status)}`)
-  }
-  const magic = new Uint8Array(await response.arrayBuffer())
-
+function decompressorFor(magic: Uint8Array): string {
   // zstd: 0xFD2FB528, little-endian.
   if (
     magic[0] === 0x28 &&
@@ -189,6 +245,170 @@ async function sniffDecompressor(replayUrl: string): Promise<string> {
   throw new Error(`unrecognised replay compression (magic ${hex})`)
 }
 
+/** A CDN address that has been shown to answer, and what it is serving. */
+type Edge = { address: string | null; decompress: string }
+
+/**
+ * Host to the last address of it that served us, for the length of a run.
+ *
+ * A live edge stays live for a good while — long enough to have carried a 57 MB
+ * replay end to end — and every match in a league comes from the same host. So
+ * the first match pays for the roulette and the rest go straight to the winner,
+ * which for a 29-match league is the difference between one bad block and
+ * twenty-nine of them. It is a hint, not a promise: if the remembered address
+ * has since gone, the probe falls back to the full block.
+ */
+const liveEdges = new Map<string, string>()
+
+/** `--resolve` pinning `url` to `address`, or nothing if we have no address. */
+function resolveArgs(url: URL, address: string | null): string[] {
+  if (address === null) return []
+  const port =
+    url.port === "" ? (url.protocol === "https:" ? "443" : "80") : url.port
+  return ["--resolve", `${url.hostname}:${port}:${address}`]
+}
+
+/**
+ * Ask one address for the replay's first four bytes.
+ *
+ * Done with curl rather than `fetch` for the one thing curl can do here and
+ * `fetch` cannot: aim a request at a chosen address while keeping the Host
+ * header. `fetch` only takes a URL, so it re-resolves and may answer from a
+ * different edge than the one being tested, which is the whole point of the
+ * probe.
+ *
+ * The child is killed the moment four bytes arrive. A server that ignored the
+ * Range header would otherwise keep sending the remaining 57 MB.
+ */
+async function probeEdge(
+  url: URL,
+  address: string | null,
+): Promise<Uint8Array> {
+  const args = [
+    "-sSf",
+    "--connect-timeout",
+    String(EDGE_CONNECT_TIMEOUT_S),
+    "--max-time",
+    String(EDGE_PROBE_MAX_TIME_S),
+    ...resolveArgs(url, address),
+    "-r",
+    "0-3",
+    url.href,
+  ]
+
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const child = spawn("curl", args, { stdio: ["ignore", "pipe", "pipe"] })
+    const chunks: Buffer[] = []
+    let length = 0
+    let settled = false
+    let stderr = ""
+
+    child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()))
+    child.stdout.on("data", (chunk: Buffer) => {
+      chunks.push(chunk)
+      length += chunk.length
+      if (length < 4 || settled) return
+      settled = true
+      child.kill()
+      resolve(new Uint8Array(Buffer.concat(chunks).subarray(0, 4)))
+    })
+    child.on("error", reject)
+    child.on("close", () => {
+      if (settled) return
+      settled = true
+      // Reason only — which address it was is `findEdge`'s to say, since it is
+      // the one that can see they all failed the same way.
+      reject(
+        new Error(
+          stderr.trim() === ""
+            ? `sent ${String(length)} of 4 bytes`
+            : stderr.trim(),
+        ),
+      )
+    })
+  })
+}
+
+/**
+ * Find an address that will actually serve this replay, and sniff it while there.
+ *
+ * Every address of the current block is probed at once and the first to answer
+ * wins, so a block this host cannot reach costs one connect timeout instead of
+ * one per address in series. Doing the lookup here rather than leaving it to
+ * curl is what makes the rest possible: it is the only way to know which
+ * addresses were tried, and the only way to hand the download the one that
+ * worked instead of hoping it draws the same one.
+ *
+ * If the name will not resolve at all we hand back a null address and let curl
+ * do its own lookup — a host that is not this CDN has no block problem to solve,
+ * and pinning is not worth failing over.
+ */
+async function findEdge(replayUrl: string): Promise<Edge> {
+  const url = new URL(replayUrl)
+
+  // The remembered edge is asked alone rather than raced against the block, so
+  // the ordinary case costs one request instead of eight. It answers in under a
+  // second when it is still good, and one probe timeout when it is not.
+  const remembered = liveEdges.get(url.hostname)
+  if (remembered !== undefined) {
+    const magic = await probeEdge(url, remembered).catch(() => null)
+    if (magic !== null) {
+      return { address: remembered, decompress: decompressorFor(magic) }
+    }
+    liveEdges.delete(url.hostname)
+  }
+
+  const addresses = await dns.resolve4(url.hostname).catch(() => [])
+  const candidates: (string | null)[] =
+    addresses.length === 0 ? [null] : addresses
+
+  const probes = candidates.map(address =>
+    probeEdge(url, address).then(magic => ({ address, magic })),
+  )
+  const winner = await Promise.any(probes).catch((e: unknown) => {
+    throw new Error(
+      `no reachable edge for ${url.hostname}: ` +
+        describeProbeFailures(candidates, e),
+    )
+  })
+
+  if (winner.address !== null) liveEdges.set(url.hostname, winner.address)
+  return { address: winner.address, decompress: decompressorFor(winner.magic) }
+}
+
+/**
+ * Say once what eight addresses failing the same way means.
+ *
+ * A block fails as a block, so one reason per address is eight copies of the
+ * same sentence — 1400 characters of retry line for one fact. `AggregateError`
+ * keeps `errors` in the order of the promises it was handed, which is the order
+ * of `candidates`, so the two zip and the addresses can be gathered under the
+ * reason they share.
+ */
+function describeProbeFailures(
+  candidates: (string | null)[],
+  e: unknown,
+): string {
+  const errors: unknown[] = e instanceof AggregateError ? e.errors : [e]
+  const byReason = new Map<string, string[]>()
+
+  errors.forEach((error, i) => {
+    // curl reports the exact milliseconds it waited, which differ by a handful
+    // between addresses and would otherwise defeat the grouping entirely.
+    const reason = errorMessage(error).replace(
+      /after \d+ ms/,
+      `after ~${String(EDGE_CONNECT_TIMEOUT_S)}s`,
+    )
+    const addresses = byReason.get(reason) ?? []
+    addresses.push(candidates[i] ?? "unpinned")
+    byReason.set(reason, addresses)
+  })
+
+  return [...byReason]
+    .map(([reason, addresses]) => `${addresses.join(", ")} — ${reason}`)
+    .join("; ")
+}
+
 /**
  * One download-decompress-parse attempt, writing gzipped NDJSON to `partial`.
  *
@@ -201,18 +421,27 @@ async function sniffDecompressor(replayUrl: string): Promise<string> {
  * localhost upload whose rate is bounded by how fast the source feeds it, so a
  * threshold there would only ever fire second, on a stall the source already
  * caught.
+ *
+ * The transfer is pinned to the address `findEdge` proved reachable. Left to
+ * resolve on its own it would be a fresh roll of the same bad dice: the probe
+ * establishes that one address works, and nothing carries that over to a second
+ * lookup seconds later, which is free to come back with a block that was never
+ * asked anything.
  */
 async function runPipeline(
   replayUrl: string,
-  decompress: string,
+  edge: Edge,
   partial: string,
 ): Promise<void> {
+  const pin = resolveArgs(new URL(replayUrl), edge.address)
+    .map(arg => JSON.stringify(arg))
+    .join(" ")
   // `>` truncates, so an attempt always starts from an empty file rather than
   // appending to the corpse of the previous one.
   const command = [
     "set -o pipefail",
-    `curl -sSf ${SOURCE_CURL_LIMITS} ${JSON.stringify(replayUrl)}` +
-      ` | ${decompress}` +
+    `curl -sSf ${SOURCE_CURL_LIMITS} ${pin} ${JSON.stringify(replayUrl)}` +
+      ` | ${edge.decompress}` +
       ` | curl -sSf -X POST -T - --max-time 900 ${JSON.stringify(PARSER_URL)}` +
       ` | gzip -6 > ${JSON.stringify(partial)}`,
   ].join("\n")
@@ -246,8 +475,9 @@ async function runPipeline(
  * corrupt the .dem. Re-running the whole pipeline is the only retry that leaves
  * the archive honest.
  *
- * The sniff is inside the loop for the same reason the retry exists: it hits the
- * same CDN, and re-requesting re-resolves DNS and lands on a different edge.
+ * Edge selection is inside the loop for the same reason the retry exists: an
+ * attempt that failed did so because of which addresses DNS was handing out at
+ * the time, and the only way to get different ones is to ask again.
  */
 async function downloadAndParse(
   replayUrl: string,
@@ -260,19 +490,27 @@ async function downloadAndParse(
 
   for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
     try {
-      const decompress = await sniffDecompressor(replayUrl)
-      await runPipeline(replayUrl, decompress, partial)
+      const edge = await findEdge(replayUrl)
+      await runPipeline(replayUrl, edge, partial)
       fs.renameSync(partial, destination)
       return
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e))
       if (fs.existsSync(partial)) fs.unlinkSync(partial)
+      // Whatever went wrong, it went wrong on the address we were holding, so
+      // stop holding it. A four-byte probe cannot tell a healthy edge from one
+      // that will stall halfway through 57 MB; a failed transfer can.
+      liveEdges.delete(new URL(replayUrl).hostname)
       if (attempt === DOWNLOAD_ATTEMPTS) break
+      const delay = Math.min(
+        RETRY_DELAY_MS * 2 ** (attempt - 1),
+        MAX_RETRY_DELAY_MS,
+      )
       console.log(
         `    attempt ${String(attempt)}/${String(DOWNLOAD_ATTEMPTS)} failed ` +
-          `(${lastError.message}) — retrying`,
+          `(${errorMessage(lastError)}) — retrying in ${String(Math.round(delay / 1000))}s`,
       )
-      await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
+      await new Promise(r => setTimeout(r, delay))
     }
   }
 
@@ -546,10 +784,7 @@ async function main() {
       )
     } catch (e) {
       failed.push(matchId)
-      console.error(
-        `${label} ${String(matchId)} failed:`,
-        e instanceof Error ? e.message : e,
-      )
+      console.error(`${label} ${String(matchId)} failed:`, errorMessage(e))
     }
   }
 
