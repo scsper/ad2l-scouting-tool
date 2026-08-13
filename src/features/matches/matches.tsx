@@ -1,6 +1,17 @@
+import { useState } from "react"
 import { useGetMatchesQuery } from "./matches-api"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { getHero } from "../../utils/get-hero"
+
+/**
+ * How many games the phone shows before asking.
+ *
+ * On desktop this list sits in a column beside the ban and hero aggregates, so
+ * its length costs nothing — you read across, not down. Stacked on a phone each
+ * card is about 500px, so a full season is several thousand pixels of raw games
+ * sitting between you and every summary on the tab.
+ */
+const PHONE_LIMIT = 3
 
 export const Matches = ({
   leagueId,
@@ -21,6 +32,10 @@ export const Matches = ({
     isError: isErrorTeams,
   } = useGetTeamsByLeagueQuery({ leagueId })
 
+  // Hidden with CSS rather than by slicing the list, so that "collapsed" is a
+  // phone state only and this cannot change what desktop renders.
+  const [isPhoneCollapsed, setIsPhoneCollapsed] = useState(true)
+
   if (isLoadingMatches || isLoadingTeams || isFetchingMatches) {
     return (
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
@@ -39,11 +54,14 @@ export const Matches = ({
     )
   }
 
+  const matches = matchesData?.matches ?? []
+  const isTruncated = isPhoneCollapsed && matches.length > PHONE_LIMIT
+
   return (
     <div className="space-y-4">
       {matchesData && teamsData && (
         <div className="space-y-4">
-          {matchesData.matches.map(match => {
+          {matches.map((match, index) => {
             const scoutedTeam = match.players.filter(
               player => player.team_id === teamId,
             )
@@ -81,7 +99,9 @@ export const Matches = ({
             return (
               <div
                 key={match.id}
-                className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg overflow-hidden hover:border-slate-600 transition-all"
+                className={`bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg overflow-hidden hover:border-slate-600 transition-all ${
+                  isTruncated && index >= PHONE_LIMIT ? "max-md:hidden" : ""
+                }`}
               >
                 <div className="bg-slate-700/30 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
                   <p className="text-sm text-slate-400 font-medium">
@@ -232,6 +252,17 @@ export const Matches = ({
               </div>
             )
           })}
+
+          {isTruncated && (
+            <button
+              onClick={() => {
+                setIsPhoneCollapsed(false)
+              }}
+              className="md:hidden w-full py-2.5 rounded-lg border border-slate-700 bg-slate-800/50 text-sm font-medium text-slate-300"
+            >
+              Show all {matches.length} games
+            </button>
+          )}
         </div>
       )}
     </div>

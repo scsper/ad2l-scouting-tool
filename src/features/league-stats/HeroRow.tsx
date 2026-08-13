@@ -25,7 +25,7 @@ const HoverCard = ({ text, x, y }: { text: string; x: number; y: number }) => {
   return createPortal(
     <div
       role="tooltip"
-      className="fixed z-50 pointer-events-none w-max max-w-[24rem] max-h-[calc(100vh-2rem)] overflow-hidden whitespace-pre rounded border border-slate-600 bg-slate-900/95 px-3 py-2 text-xs leading-relaxed text-slate-300 shadow-lg"
+      className="fixed z-50 pointer-events-none w-max max-w-[calc(100vw-1.5rem)] sm:max-w-[24rem] max-h-[calc(100dvh-2rem)] overflow-hidden whitespace-pre rounded border border-slate-600 bg-slate-900/95 px-3 py-2 text-xs leading-relaxed text-slate-300 shadow-lg"
       style={{
         left: x,
         top: y,
@@ -64,6 +64,14 @@ export const HeroRow = ({
       }}
       onMouseLeave={() => {
         setCursor(null)
+      }}
+      // Touch has no hover, and this card is the only place the per-game
+      // breakdown behind a contest rate exists — without a tap it is simply not
+      // readable on a phone. Toggling, because there is no pointer to move away.
+      onClick={event => {
+        setCursor(current =>
+          current ? null : { x: event.clientX, y: event.clientY },
+        )
       }}
     >
       {children}

@@ -14,9 +14,26 @@ import { useTeamScope } from "./routing"
 export const TeamTab = () => {
   const { leagueId, teamId } = useTeamScope()
 
+  /*
+   * Four columns, then two, then one — and in one column the match list goes
+   * last.
+   *
+   * Side by side, the layout is doing the summarising for you: the bans and the
+   * heroes-by-position sit next to the games they were drawn from, and your eye
+   * joins them. Stacking destroys that, and with the match list first it also
+   * buries every aggregate on the tab under a few thousand pixels of raw games.
+   * Ordering is the only replacement available in one column.
+   *
+   * `order` rather than moving the JSX, so `xl` renders in exactly the sequence
+   * it always did.
+   */
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-6">
-      <Matches leagueId={leagueId} teamId={teamId} />
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-4 sm:gap-6">
+      {/* Wrapped so the order can be set on the grid item without `Matches`
+          needing to know it is in a grid. */}
+      <div className="max-md:order-last">
+        <Matches leagueId={leagueId} teamId={teamId} />
+      </div>
       <div className="flex flex-col gap-6">
         <AggregateBansAgainst leagueId={leagueId} teamId={teamId} />
         <AggregateBansFor leagueId={leagueId} teamId={teamId} />

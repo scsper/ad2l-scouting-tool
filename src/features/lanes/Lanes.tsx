@@ -232,7 +232,7 @@ export const Lanes = ({
             </div>
 
             {!has10MinData && (
-              <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-200/90 text-sm">
+              <div className="px-2 sm:px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-200/90 text-sm">
                 10-minute statistics not available for this match. Showing match totals where applicable.
               </div>
             )}
@@ -304,19 +304,19 @@ function LaneSummaryTable({
 
   return (
     <div className="inline-block bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-slate-700 bg-slate-700/30">
+      <div className="px-2 sm:px-4 py-2.5 border-b border-slate-700 bg-slate-700/30">
         <h2 className="text-sm font-semibold text-slate-200">Lane Record Summary</h2>
       </div>
       <table className="text-sm">
         <thead>
           <tr className="border-b border-slate-700">
             <th className="text-left px-4 py-2 text-slate-400 font-medium">Lane</th>
-            <th className="px-4 py-2 text-green-400 font-medium">W</th>
-            <th className="px-4 py-2 text-slate-400 font-medium">D</th>
-            <th className="px-4 py-2 text-red-400 font-medium">L</th>
-            <th className="px-4 py-2 text-green-400 font-medium text-right">W%</th>
-            <th className="px-4 py-2 text-slate-400 font-medium text-right">D%</th>
-            <th className="px-4 py-2 text-red-400 font-medium text-right">L%</th>
+            <th className="px-2 sm:px-4 py-2 text-green-400 font-medium">W</th>
+            <th className="px-2 sm:px-4 py-2 text-slate-400 font-medium">D</th>
+            <th className="px-2 sm:px-4 py-2 text-red-400 font-medium">L</th>
+            <th className="px-2 sm:px-4 py-2 text-green-400 font-medium text-right">W%</th>
+            <th className="px-2 sm:px-4 py-2 text-slate-400 font-medium text-right">D%</th>
+            <th className="px-2 sm:px-4 py-2 text-red-400 font-medium text-right">L%</th>
           </tr>
         </thead>
         <tbody>
@@ -328,13 +328,13 @@ function LaneSummaryTable({
               winPct == null ? "text-slate-500" : winPct >= 60 ? "text-green-400" : winPct >= 40 ? "text-slate-300" : "text-red-400"
             return (
               <tr key={key} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
-                <td className="px-4 py-2 text-slate-200 font-medium">{label}</td>
-                <td className="px-4 py-2 text-green-400 font-medium">{wins}</td>
-                <td className="px-4 py-2 text-slate-400">{draws}</td>
-                <td className="px-4 py-2 text-red-400 font-medium">{losses}</td>
-                <td className={`px-4 py-2 text-right font-medium ${winPctColor}`}>{pct(wins, total)}</td>
-                <td className="px-4 py-2 text-slate-400 text-right">{pct(draws, total)}</td>
-                <td className="px-4 py-2 text-red-400/80 text-right">{pct(losses, total)}</td>
+                <td className="px-2 sm:px-4 py-2 text-slate-200 font-medium">{label}</td>
+                <td className="px-2 sm:px-4 py-2 text-green-400 font-medium">{wins}</td>
+                <td className="px-2 sm:px-4 py-2 text-slate-400">{draws}</td>
+                <td className="px-2 sm:px-4 py-2 text-red-400 font-medium">{losses}</td>
+                <td className={`px-2 sm:px-4 py-2 text-right font-medium ${winPctColor}`}>{pct(wins, total)}</td>
+                <td className="px-2 sm:px-4 py-2 text-slate-400 text-right">{pct(draws, total)}</td>
+                <td className="px-2 sm:px-4 py-2 text-red-400/80 text-right">{pct(losses, total)}</td>
               </tr>
             )
           })}
