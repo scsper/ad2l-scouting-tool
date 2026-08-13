@@ -145,6 +145,21 @@ describe("getMatch ward mapping", () => {
     )
   }
 
+  it("prefers the pro handle over the Steam persona", async () => {
+    const pro = { account_id: 10, personaname: "o_o", name: "Cr1t-" }
+    stubOpenDota([
+      { ...player({ slot: 0 }), ...pro },
+      { ...player({ slot: 1 }), account_id: 11, personaname: "someguy" },
+      { ...player({ slot: 2 }), account_id: 12 },
+    ])
+
+    const { match } = await getMatch(1)
+
+    expect(match.players[0].steamAccount?.name).toBe("Cr1t-")
+    expect(match.players[1].steamAccount?.name).toBe("someguy")
+    expect(match.players[2].steamAccount?.name).toBeNull()
+  })
+
   it("maps an absent ward field to null rather than zero", async () => {
     stubOpenDota([
       { ...player({ slot: 0 }), obs_placed: 4, sen_placed: 0 },
