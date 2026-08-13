@@ -18,6 +18,7 @@
     "backfill-wards": "tsx scripts/backfill-wards.ts",
     "backfill-ward-placements": "tsx scripts/backfill-ward-placements.ts",
     "backfill-objectives": "tsx scripts/backfill-objectives.ts",
+    "backfill-pro-names": "tsx scripts/backfill-pro-names.ts",
     "parse-replays": "tsx scripts/parse-replays.ts",
     "add-teams-to-league": "tsx scripts/add-teams-to-league.ts",
     "grant": "tsx scripts/grant-access.ts",
