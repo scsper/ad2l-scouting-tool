@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { useLocation } from "react-router"
 import { renderWithProviders } from "../../utils/test-utils"
 import { stubFetch } from "../../utils/test-fetch"
-import { DivisionPlayers } from "./DivisionPlayers"
+import { DivisionPlayers, phoneColumnKeys } from "./DivisionPlayers"
+import { COLUMNS } from "./division-players-utils"
 import type { DivisionPlayerRow } from "../league-stats/league-stats-api"
 
 const LEAGUE_ID = 19554
@@ -208,6 +210,57 @@ describe("DivisionPlayers", () => {
 
     await screen.findByText("neo_sporin")
     expect(within(rowFor("neo_sporin")).getByText("12-10 (55%)")).toBeInTheDocument()
+  })
+
+  // A phone shows three of the eleven numeric columns. Which three is not a
+  // styling question: get it wrong and the board renders in an order the reader
+  // has no way to account for.
+  describe("the columns a phone keeps", () => {
+    it("always shows the column the board is sorted by", () => {
+      expect(phoneColumnKeys("lhAt10")).toEqual(["lhAt10", "games", "winPct"])
+      expect(phoneColumnKeys("obsPerGame")).toEqual([
+        "obsPerGame",
+        "games",
+        "winPct",
+      ])
+    })
+
+    // Otherwise sorting by games would show `games` twice and leave a hole.
+    it("falls back to GPM when the sort is already one of the fixed two", () => {
+      expect(phoneColumnKeys("games")).toEqual(["gpm", "games", "winPct"])
+      expect(phoneColumnKeys("winPct")).toEqual(["gpm", "games", "winPct"])
+    })
+
+    it("keeps the sample size and the record whatever the sort", () => {
+      for (const column of COLUMNS) {
+        const kept = phoneColumnKeys(column.key)
+        expect(kept).toContain("games")
+        expect(kept).toContain("winPct")
+        expect(kept).toHaveLength(3)
+        expect(new Set(kept).size).toBe(3)
+      }
+    })
+  })
+
+  it("reveals the columns a phone has no room for when a row is opened", async () => {
+    renderBoard()
+    const user = userEvent.setup()
+
+    await screen.findByText("neo_sporin")
+    const row = rowFor("neo_sporin")
+
+    // Collapsed, the eight columns off the phone row are not in the tree at all
+    // — so nothing claims to be showing a number it isn't.
+    expect(within(row).queryByText("XP@10")).not.toBeInTheDocument()
+
+    await user.click(within(row).getByRole("button"))
+
+    expect(within(row).getByText("XP@10")).toBeInTheDocument()
+    expect(within(row).getByText("KDA")).toBeInTheDocument()
+    expect(within(row).getByText("SEN")).toBeInTheDocument()
+    // The three already on the row are not repeated underneath it.
+    expect(within(row).queryByText("G@10")).toBeInTheDocument()
+    expect(within(row).queryByText("GPM")).not.toBeInTheDocument()
   })
 
   // The gate the hero board already has: a ranking that averages two skill

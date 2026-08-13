@@ -139,17 +139,23 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
       {entries.map(member => (
         <div key={member.player_id} className="space-y-0">
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg hover:bg-slate-900/30 transition-colors">
-            <div className="p-6 flex items-center justify-between">
+            <div className="p-4 sm:p-6 flex items-center justify-between">
+              {/*
+                Four columns needed roughly 70px each on a phone, which is not a
+                column so much as a place a word gets cut in half. Two, with the
+                name across both: the name and its three external links are the
+                row's subject and the other three fields are a caption to it.
+              */}
               <div
-                className="flex-1 grid grid-cols-4 gap-6 cursor-pointer"
+                className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 sm:gap-6 cursor-pointer"
                 onClick={() => togglePlayerExpanded(member.player_id)}
               >
-                <div>
+                <div className="col-span-2 sm:col-span-1 min-w-0">
                   <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
                     Name
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="text-lg font-medium text-slate-200">
+                    <div className="text-base sm:text-lg font-medium text-slate-200 truncate">
                       {member.name}
                     </div>
                     <div className="flex items-center gap-1">
@@ -188,30 +194,30 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                     </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                <div className="max-sm:flex max-sm:items-baseline max-sm:gap-1.5">
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 max-sm:mb-0 shrink-0">
                     Role
                   </div>
-                  <div className="text-lg text-slate-300">{member.role}</div>
+                  <div className="text-base sm:text-lg text-slate-300">{member.role}</div>
                 </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                <div className="max-sm:flex max-sm:items-baseline max-sm:gap-1.5">
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 max-sm:mb-0 shrink-0">
                     Rank
                   </div>
-                  <div className="text-lg text-slate-300">
+                  <div className="text-base sm:text-lg text-slate-300">
                     {member.rank ?? "—"}
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
+                <div className="max-sm:flex max-sm:items-baseline max-sm:gap-1.5">
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 max-sm:mb-0 shrink-0">
                     Original Rank
                   </div>
-                  <div className="text-lg text-slate-300">
+                  <div className="text-base sm:text-lg text-slate-300">
                     {member.original_rank ?? "—"}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 ml-6">
+              <div className="flex items-center gap-2 ml-3 sm:ml-6 shrink-0">
                 <button
                   onClick={() => handleRefreshPlayerData(member)}
                   disabled={fetchingPlayerIds.has(member.player_id)}
@@ -300,7 +306,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
   return (
     <div className="space-y-6">
       {/* Header with Add Player button */}
-      <div className="flex items-center justify-between">
+      <div className="flex max-sm:flex-col max-sm:items-stretch items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-slate-200">Players</h2>
           {/* The league is the write target, not just a filter: adding someone
@@ -310,16 +316,16 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
             <span className="text-slate-200 font-medium">{leagueName}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setIsCopyModalOpen(true)}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md transition-colors"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-md transition-colors whitespace-nowrap max-sm:flex-1 max-sm:text-sm"
           >
             Copy roster from…
           </button>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors flex items-center justify-center gap-2 whitespace-nowrap max-sm:flex-1 max-sm:text-sm"
           >
             <svg
               className="w-5 h-5"
