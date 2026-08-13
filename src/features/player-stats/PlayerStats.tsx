@@ -13,11 +13,60 @@ import {
 /**
  * Shared across the header, every collapsed average row, and every game row so
  * the averages line up column-for-column and can be scanned down the page.
+ *
+ * Fourteen columns need about 790px, so the phone gets five of them over two
+ * rows instead. Same cells in the same DOM order — the eight that don't fit are
+ * hidden rather than dropped, and restated by `MoreStats` when a card is
+ * expanded, so nothing is unreachable.
  */
 const GRID =
-  "grid grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(10,minmax(2.75rem,0.7fr))_1.75rem] gap-x-2 items-center"
+  "grid grid-cols-[1.25rem_minmax(0,1fr)_auto_2.75rem_2.75rem] md:grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(10,minmax(2.75rem,0.7fr))_1.75rem] gap-x-2 items-center"
+
+/**
+ * Where each surviving cell lands on the phone. Placed explicitly rather than
+ * left to auto-flow: with some siblings hidden and one spanning two rows,
+ * auto-placement puts cells in whichever hole it finds first, which is stable
+ * until someone adds a column and then silently is not.
+ */
+const AT = {
+  gutter: "max-md:col-start-1 max-md:row-start-1 max-md:row-span-2",
+  primary: "max-md:col-start-2 max-md:row-start-1",
+  sub: "max-md:col-start-2 max-md:row-start-2 max-md:col-span-4",
+  third: "max-md:col-start-3 max-md:row-start-1",
+  fourth: "max-md:col-start-4 max-md:row-start-1",
+  fifth: "max-md:col-start-5 max-md:row-start-1",
+  subLeft: "max-md:col-start-2 max-md:row-start-2",
+  subRight: "max-md:col-start-3 max-md:row-start-2 max-md:col-span-3",
+  thirdRow: "max-md:col-start-1 max-md:col-span-5 max-md:row-start-3",
+  phoneHidden: "max-md:hidden",
+}
 
 const NUMERIC = "text-right tabular-nums"
+
+/**
+ * The columns the phone row has no room for, restated as labelled pairs.
+ *
+ * Wrapping text rather than a grid: eight short numbers in a two-column table
+ * is taller than the row it describes, and these are read one at a time
+ * ("what's their ward count") rather than scanned as a column.
+ */
+const MoreStats = ({
+  pairs,
+  className = "",
+}: {
+  pairs: [string, string][]
+  className?: string
+}) => (
+  <div
+    className={`md:hidden flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-400 ${className}`}
+  >
+    {pairs.map(([label, value]) => (
+      <span key={label}>
+        <span className="text-slate-500">{label}</span> {value}
+      </span>
+    ))}
+  </div>
+)
 
 const formatMatchDate = (startDateTime: number) =>
   new Date(startDateTime * 1000).toLocaleDateString("en-US", {
@@ -35,15 +84,22 @@ const formatMatchDate = (startDateTime: number) =>
 const NoGamesRow = ({ entry }: { entry: PlayerStatsEntry }) => (
   <li className="rounded-lg bg-slate-800/30 border border-slate-800">
     <div className={`${GRID} w-full px-3 py-2.5`}>
-      <span />
-      <span className="font-medium text-slate-500 truncate" title={entry.name}>
+      <span className={AT.gutter} />
+      <span
+        className={`font-medium text-slate-500 truncate ${AT.primary}`}
+        title={entry.name}
+      >
         {entry.name}
       </span>
-      <span className="text-sm text-slate-600">{entry.positionLabel}</span>
-      <span className="text-sm text-slate-600 col-span-8">
+      <span className={`text-sm text-slate-600 ${AT.sub}`}>
+        {entry.positionLabel}
+      </span>
+      <span
+        className={`text-sm text-slate-600 col-span-8 max-md:col-span-3 ${AT.third}`}
+      >
         no games this league
       </span>
-      <span />
+      <span className={AT.phoneHidden} />
     </div>
   </li>
 )
@@ -69,7 +125,7 @@ const PlayerCard = ({
         className={`${GRID} w-full text-left px-3 py-2.5 cursor-pointer hover:bg-slate-700/30 transition-colors`}
       >
         <svg
-          className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+          className={`w-4 h-4 text-slate-400 transition-transform ${AT.gutter} ${isExpanded ? "rotate-90" : ""}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -82,118 +138,170 @@ const PlayerCard = ({
           />
         </svg>
         <span
-          className="font-semibold text-slate-100 truncate"
+          className={`font-semibold text-slate-100 truncate ${AT.primary}`}
           title={entry.name}
         >
           {entry.name}
         </span>
-        <span className="text-sm text-slate-400">
+        <span className={`text-sm text-slate-400 max-md:text-xs ${AT.sub}`}>
           {entry.positionLabel}
           <span className="text-slate-500"> · {entry.games.length}g</span>
         </span>
-        <span className="text-sm">
+        <span className={`text-sm max-md:text-xs ${AT.third}`}>
           <span className="text-green-400">{entry.wins}</span>
           <span className="text-slate-500">-</span>
           <span className="text-red-400">{entry.losses}</span>
           <span className="text-slate-500"> ({winRate}%)</span>
         </span>
-        <span className={`${NUMERIC} text-sm font-medium text-slate-200`}>
+        <span
+          className={`${NUMERIC} text-sm font-medium text-slate-200 ${AT.fourth}`}
+        >
           {Math.round(averages.gpm)}
         </span>
-        <span className={`${NUMERIC} text-sm font-medium text-slate-200`}>
+        <span
+          className={`${NUMERIC} text-sm font-medium text-slate-200 ${AT.phoneHidden}`}
+        >
           {Math.round(averages.xpm)}
         </span>
-        <span className={`${NUMERIC} text-sm text-slate-200`}>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {averages.kills.toFixed(1)}
         </span>
-        <span className={`${NUMERIC} text-sm text-slate-200`}>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {averages.deaths.toFixed(1)}
         </span>
-        <span className={`${NUMERIC} text-sm text-slate-200`}>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {averages.assists.toFixed(1)}
         </span>
-        <span className={`${NUMERIC} text-sm font-medium text-emerald-300`}>
+        <span
+          className={`${NUMERIC} text-sm font-medium text-emerald-300 ${AT.fifth}`}
+        >
           {averages.kda.toFixed(1)}
         </span>
-        <span className={`${NUMERIC} text-sm text-slate-200`}>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {formatDamage(averages.heroDamage)}
         </span>
-        <span className={`${NUMERIC} text-sm text-slate-200`}>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {formatDamage(averages.towerDamage)}
         </span>
-        <span className={`${NUMERIC} text-sm text-slate-200`}>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {formatWards(averages.obsPlaced, 1)}
         </span>
-        <span className={`${NUMERIC} text-sm text-slate-200`}>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {formatWards(averages.senPlaced, 1)}
         </span>
-        <span />
+        <span className={AT.phoneHidden} />
       </button>
 
       {isExpanded && (
         <div className="border-t border-slate-700/60 bg-slate-900/30">
+          {/* The averages the phone row had to drop. On desktop these are
+              already the columns to the right, so this whole block is one more
+              copy of what is on screen and stays hidden. */}
+          <MoreStats
+            className="px-3 py-2 border-b border-slate-800/60"
+            pairs={[
+              ["XPM", String(Math.round(averages.xpm))],
+              [
+                "K/D/A",
+                `${averages.kills.toFixed(1)}/${averages.deaths.toFixed(1)}/${averages.assists.toFixed(1)}`,
+              ],
+              ["HD", formatDamage(averages.heroDamage)],
+              ["BLD", formatDamage(averages.towerDamage)],
+              ["OBS", formatWards(averages.obsPlaced, 1)],
+              ["SEN", formatWards(averages.senPlaced, 1)],
+            ]}
+          />
           {entry.games.map(game => (
             <div
               key={game.matchId}
               className={`${GRID} px-3 py-1.5 border-b border-slate-800/60 last:border-b-0 hover:bg-slate-800/40 transition-colors`}
             >
               <span
-                className={`text-xs font-bold ${game.won ? "text-green-400" : "text-red-400"}`}
+                className={`text-xs font-bold ${AT.gutter} ${game.won ? "text-green-400" : "text-red-400"}`}
                 title={game.won ? "Win" : "Loss"}
               >
                 {game.won ? "W" : "L"}
               </span>
-              <span className="text-xs text-slate-500">
+              <span className={`text-xs text-slate-500 ${AT.subLeft}`}>
                 {formatMatchDate(game.startDateTime)}
               </span>
               <span
-                className="text-sm text-slate-300 truncate"
+                className={`text-sm text-slate-300 truncate ${AT.primary}`}
                 title={getHero(game.heroId)}
               >
                 {getHero(game.heroId)}
               </span>
               <span
-                className="text-xs text-slate-400 truncate"
+                className={`text-xs text-slate-400 truncate ${AT.subRight}`}
                 title={getTeamName(game.opponentTeamId)}
               >
                 vs {getTeamName(game.opponentTeamId)}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span className={`${NUMERIC} text-sm text-slate-300 ${AT.third}`}>
                 {game.gpm}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {game.xpm}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {game.kills}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {game.deaths}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {game.assists}
               </span>
-              <span className={`${NUMERIC} text-sm text-emerald-300/80`}>
+              <span
+                className={`${NUMERIC} text-sm text-emerald-300/80 ${AT.fourth}`}
+              >
                 {game.kda.toFixed(1)}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {formatDamage(game.heroDamage)}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {formatDamage(game.towerDamage)}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {formatWards(game.obsPlaced)}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {formatWards(game.senPlaced)}
               </span>
+              <MoreStats
+                className={`pt-1 ${AT.thirdRow}`}
+                pairs={[
+                  ["XPM", String(game.xpm)],
+                  ["K/D/A", `${String(game.kills)}/${String(game.deaths)}/${String(game.assists)}`],
+                  ["HD", formatDamage(game.heroDamage)],
+                  ["BLD", formatDamage(game.towerDamage)],
+                  ["OBS", formatWards(game.obsPlaced)],
+                  ["SEN", formatWards(game.senPlaced)],
+                ]}
+              />
               <a
                 href={`https://www.dotabuff.com/matches/${String(game.matchId)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="View on Dotabuff"
-                className="text-slate-500 hover:text-blue-400 transition-colors justify-self-end"
+                className={`text-slate-500 hover:text-blue-400 transition-colors justify-self-end ${AT.fifth}`}
               >
                 <svg
                   className="w-3.5 h-3.5"
@@ -275,7 +383,7 @@ export const PlayerStats = ({
     isLoadingPlayers
   ) {
     return (
-      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-3 sm:p-6">
         <div className="flex items-center gap-3">
           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500"></div>
           <span className="text-slate-400">Loading player stats...</span>
@@ -297,7 +405,7 @@ export const PlayerStats = ({
   // as a roster problem when it's really a missing-matches one.
   if ((matchesData?.matches.length ?? 0) === 0) {
     return (
-      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-3 sm:p-6">
         <div className="text-slate-400">No matches found for this team</div>
       </div>
     )
@@ -329,7 +437,7 @@ export const PlayerStats = ({
   )
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-6">
+    <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-3 sm:p-6">
       <h2 className="text-xl font-bold mb-1 bg-linear-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
         Player Stats
       </h2>
@@ -346,27 +454,39 @@ export const PlayerStats = ({
       <div
         className={`${GRID} px-3 pb-2 mb-2 border-b border-slate-700 text-xs font-medium text-slate-500 uppercase tracking-wide`}
       >
-        <span />
-        <span>Player / Match</span>
-        <span>Pos / Hero</span>
-        <span>Record / Opponent</span>
-        <span className={NUMERIC}>GPM</span>
-        <span className={NUMERIC}>XPM</span>
-        <span className={NUMERIC}>K</span>
-        <span className={NUMERIC}>D</span>
-        <span className={NUMERIC}>A</span>
-        <span className={NUMERIC}>KDA</span>
-        <span className={NUMERIC}>HD</span>
-        <span className={NUMERIC} title="Building damage">
+        <span className={AT.gutter} />
+        <span className={AT.primary}>
+          <span className="md:hidden">Player</span>
+          <span className="max-md:hidden">Player / Match</span>
+        </span>
+        <span className={AT.phoneHidden}>Pos / Hero</span>
+        <span className={AT.third}>
+          <span className="md:hidden">W-L</span>
+          <span className="max-md:hidden">Record / Opponent</span>
+        </span>
+        <span className={`${NUMERIC} ${AT.fourth}`}>GPM</span>
+        <span className={`${NUMERIC} ${AT.phoneHidden}`}>XPM</span>
+        <span className={`${NUMERIC} ${AT.phoneHidden}`}>K</span>
+        <span className={`${NUMERIC} ${AT.phoneHidden}`}>D</span>
+        <span className={`${NUMERIC} ${AT.phoneHidden}`}>A</span>
+        <span className={`${NUMERIC} ${AT.fifth}`}>KDA</span>
+        <span className={`${NUMERIC} ${AT.phoneHidden}`}>HD</span>
+        <span className={`${NUMERIC} ${AT.phoneHidden}`} title="Building damage">
           BLD
         </span>
-        <span className={NUMERIC} title="Observer wards placed">
+        <span
+          className={`${NUMERIC} ${AT.phoneHidden}`}
+          title="Observer wards placed"
+        >
           OBS
         </span>
-        <span className={NUMERIC} title="Sentry wards placed">
+        <span
+          className={`${NUMERIC} ${AT.phoneHidden}`}
+          title="Sentry wards placed"
+        >
           SEN
         </span>
-        <span />
+        <span className={AT.phoneHidden} />
       </div>
 
       {renderCards(roster)}

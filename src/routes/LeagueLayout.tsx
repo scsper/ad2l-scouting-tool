@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useMatch, useNavigate, useParams, useSearchParams } from "react-router"
 import { LeagueAndTeamHeader } from "../features/league-and-team-picker/league-and-team-header"
+import { StickyChrome } from "../components/StickyChrome"
 import { divisionSearch } from "./routing"
 
 /**
@@ -36,6 +37,7 @@ export const LeagueLayout = () => {
 
   return (
     <>
+      <StickyChrome>
       <LeagueAndTeamHeader
         leagueId={leagueId}
         teamId={teamId}
@@ -71,6 +73,7 @@ export const LeagueLayout = () => {
           )
         }}
       />
+      </StickyChrome>
 
       <Outlet />
     </>

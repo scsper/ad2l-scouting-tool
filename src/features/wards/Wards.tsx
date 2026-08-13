@@ -126,6 +126,12 @@ const WardDot = ({
         // land its enter before this leave, and a blind reset would blank it.
         setHovered(prev => (prev === placed ? null : prev))
       }}
+      // Touch has no hover, so a tap toggles. Toggle rather than set, because
+      // with no pointer to move away there would otherwise be no way to put a
+      // card down except by opening another one.
+      onClick={() => {
+        setHovered(prev => (prev === placed ? null : placed))
+      }}
     >
       {/* Dark halo first: the terrain runs from bright jungle to near-black
           river, and a single flat colour disappears against one or the other. */}
@@ -150,11 +156,14 @@ const WardDot = ({
         strokeDasharray={dewarded ? "2 1.5" : undefined}
       />
       {/* Invisible, generous hit area: a sentry is 3.5px across, which is a
-          miserable hover target on a 640px map. */}
+          miserable hover target on a 640px map and worse under a fingertip on a
+          350px one. Not enlarged to a full finger's width, which would be ~36
+          units here and would swallow every neighbouring ward in a stack — the
+          full-screen inspector is the answer for those. */}
       <circle
         cx={x * size}
         cy={y * size}
-        r={r + 4}
+        r={r + 8}
         fill="transparent"
         stroke="none"
       />
@@ -739,6 +748,10 @@ export const Wards = ({
               src={minimap.src}
               size={size}
               label="Ward placement map"
+              onBackgroundTap={() => {
+                setHovered(null)
+                setHoveredObjective(null)
+              }}
               overlay={
                 <>
                   {hoveredObjective && (

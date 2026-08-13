@@ -116,6 +116,9 @@ const HeroMark = ({
       aria-label={getHero(heroId)}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      // Touch has no hover. Tapping a mark opens its card; tapping the
+      // terrain behind it closes it again — see `onBackgroundTap`.
+      onClick={onEnter}
     >
       {/* Dark halo first: terrain runs from bright jungle to near-black river,
           and one flat colour vanishes against one or the other. An icon is more
@@ -225,6 +228,9 @@ const WardMark = ({
       aria-label={`${isObs ? "Observer" : "Sentry"} · ${placed.byScouted ? "theirs" : "enemy"}`}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      // Touch has no hover. Tapping a mark opens its card; tapping the
+      // terrain behind it closes it again — see `onBackgroundTap`.
+      onClick={onEnter}
     >
       <circle
         cx={cx}
@@ -286,6 +292,9 @@ const NeutralKillMark = ({
       aria-label={`${neutral.kind === "roshan" ? "Roshan" : "Tormentor"} killed`}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      // Touch has no hover. Tapping a mark opens its card; tapping the
+      // terrain behind it closes it again — see `onBackgroundTap`.
+      onClick={onEnter}
     >
       <circle
         cx={cx}

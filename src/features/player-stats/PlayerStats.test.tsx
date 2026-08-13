@@ -214,9 +214,19 @@ describe("PlayerStats", () => {
     // Match 111 has real counts; match 222 has none. The second game must read
     // "—" and not "0", which would claim the player warded nothing rather than
     // admitting the data is missing.
-    expect(screen.getByText("9")).toBeInTheDocument()
-    expect(screen.getByText("14")).toBeInTheDocument()
-    expect(screen.getAllByText("—")).toHaveLength(2)
+    //
+    // Counted rather than found, and counted exactly: every ward figure is in
+    // the tree twice — once as the desktop column, once in the phone's
+    // restatement of the columns it has no room for. Only one of the pair is
+    // ever displayed, since they are `display: none` at opposite widths, but
+    // jsdom has no width and sees both.
+    //
+    // The exact numbers are the point. Asserting merely "at least one" would
+    // still pass if a missing count regressed to "0", which is the thing this
+    // test exists to catch.
+    expect(screen.getAllByText("9")).toHaveLength(2)
+    expect(screen.getAllByText("14")).toHaveLength(2)
+    expect(screen.getAllByText("—")).toHaveLength(4)
   })
 
   it("omits the stand-in heading when the roster is unknown", async () => {
