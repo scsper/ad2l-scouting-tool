@@ -8,7 +8,7 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-const LEAGUE = { id: 19543, name: "PGL Wallachia 2026" }
+const LEAGUE = { id: 19719, name: "The International 2026" }
 
 // The division these teams play in, or null for a league that has none. A
 // league's divisions are derived from the rows this writes, so a value here is
@@ -16,23 +16,34 @@ const LEAGUE = { id: 19543, name: "PGL Wallachia 2026" }
 // shared/divisions.ts would become a bracket of its own in it.
 const DIVISION: Division | null = null
 
+// The 16 attendees, cross-checked between OpenDota's /leagues/19719/teams and
+// Dotabuff's league page — the two agree on the full field, so no invitee is
+// missing merely for not having played yet.
+//
+// Names are as the sources spell them today. Three ids were stored under
+// older ones — 8255888 as "BetBoom Team", 9572001 as "Parivision", and 726228
+// under no name at all (it read "726228") — and were renamed by hand, because
+// this script inserts and skips on conflict rather than renaming. That stays
+// deliberate: `team.name` is global, so a rebrand between seasons rewrites how
+// every earlier league reads, which is a decision to make once and not a side
+// effect of registering the next tournament.
 const TEAMS = [
-  { id: 8255888, name: "BetBoom" },
   { id: 9467224, name: "Aurora Gaming" },
-  { id: 9572001, name: "Parivision" },
+  { id: 8255888, name: "BoomBoys" },
   { id: 9964962, name: "GamerLegion" },
+  { id: 10149530, name: "HULIGANI" },
+  { id: 10150413, name: "Iron Wing" },
+  { id: 10150538, name: "LGD Gaming" },
+  { id: 10136357, name: "Nigma Galaxy" },
+  { id: 2586976, name: "OG" },
   { id: 9247354, name: "Team Falcons" },
-  { id: 9303484, name: "Heroic" },
   { id: 2163, name: "Team Liquid" },
-  { id: 10108947, name: "SouthAmericaRejects" },
-  { id: 726228, name: "Vici Gaming" },
-  { id: 36, name: "Natus Vincere" },
-  { id: 8261500, name: "Xtreme Gaming" },
+  { id: 5017210, name: "Team Resilience" },
   { id: 7119388, name: "Team Spirit" },
-  { id: 8291895, name: "Tundra Esports" },
-  { id: 9895392, name: "Virtus.pro" },
   { id: 9823272, name: "Team Yandex" },
-  { id: 9338413, name: "MOUZ" },
+  { id: 9572001, name: "TEAM VISION" },
+  { id: 726228, name: "Vici Gaming" },
+  { id: 8261500, name: "Xtreme Gaming" },
 ]
 
 async function addTeams() {
