@@ -12,6 +12,12 @@
  * ~57 MB download per match, and tens of seconds of CPU, against a serverless
  * timeout measured in seconds.
  *
+ * Resumable, and cheaply so. A match already in `match_positions` at the
+ * current `POSITION_ENCODING` is skipped outright — no archive read, no
+ * re-extract, no re-upload — so re-running a whole league after adding a few
+ * matches costs one batched query plus the new games. Both `--force` and
+ * `--from-archive` bypass that check, since re-deriving is the point of each.
+ *
  * Requires odota/parser listening on :5600 —
  *   docker run -d --rm --name odparser -p 5600:5600 odota/parser:latest
  *
@@ -58,6 +64,8 @@ const ARCHIVE_DIR =
 const PARSER_URL = "http://localhost:5600"
 const OPEN_DOTA_DELAY_MS = 1200
 const EVENT_INSERT_CHUNK = 500
+/** IDs per `.in()` filter when asking which matches are already written. */
+const WRITTEN_QUERY_CHUNK = 200
 
 const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -224,22 +232,6 @@ async function writeMatch(
   }
   if (dryRun) return result
 
-  const { error: positionsError } = await supabase
-    .from("match_positions")
-    .upsert(
-      {
-        match_id: matchId,
-        encoding: POSITION_ENCODING,
-        first_time: extracted.firstTime,
-        sample_count: extracted.sampleCount,
-        slot_hero_ids: extracted.slotHeroIds,
-        positions: toPgHex(positions),
-        life_states: toPgHex(lifeStates),
-      },
-      { onConflict: "match_id" },
-    )
-  if (positionsError) throw new Error(positionsError.message)
-
   // Replace rather than append. Supabase has no transactions, and match_event
   // has no primary key (two heroes dying on the same second is ordinary), so a
   // re-run without the delete would double every marker on the map.
@@ -257,7 +249,59 @@ async function writeMatch(
     if (error) throw new Error(error.message)
   }
 
+  // Written last, deliberately. Lacking transactions, the positions row is the
+  // only commit marker this pair of tables has, and `getWrittenMatchIds` treats
+  // it as one. Upserting it first would mean a run killed midway through the
+  // event inserts left a match that the next run skips as done while its map is
+  // missing most of its markers.
+  const { error: positionsError } = await supabase
+    .from("match_positions")
+    .upsert(
+      {
+        match_id: matchId,
+        encoding: POSITION_ENCODING,
+        first_time: extracted.firstTime,
+        sample_count: extracted.sampleCount,
+        slot_hero_ids: extracted.slotHeroIds,
+        positions: toPgHex(positions),
+        life_states: toPgHex(lifeStates),
+      },
+      { onConflict: "match_id" },
+    )
+  if (positionsError) throw new Error(positionsError.message)
+
   return result
+}
+
+/**
+ * Which of these matches are already in the database at the current encoding.
+ *
+ * Encoding-aware rather than a bare existence check, because that is what the
+ * version string in `match_positions.encoding` is for: a v1 row is exactly the
+ * thing a v2 run must redo, and skipping it would make bumping the codec a
+ * silent no-op.
+ *
+ * One batched query rather than a probe per match: a league run is ~60 matches
+ * and the whole point is to make the resume path cheap.
+ */
+async function getWrittenMatchIds(matchIds: number[]): Promise<Set<number>> {
+  const written = new Set<number>()
+
+  for (let i = 0; i < matchIds.length; i += WRITTEN_QUERY_CHUNK) {
+    const chunk = matchIds.slice(i, i + WRITTEN_QUERY_CHUNK)
+    const rows = await selectAll<{ match_id: number }>((from, to) =>
+      supabase
+        .from("match_positions")
+        .select("match_id")
+        .eq("encoding", POSITION_ENCODING)
+        .in("match_id", chunk)
+        .order("match_id")
+        .range(from, to),
+    )
+    for (const row of rows) written.add(row.match_id)
+  }
+
+  return written
 }
 
 async function getLeagueMatchIds(leagueId: number): Promise<number[]> {
@@ -339,9 +383,22 @@ async function main() {
   console.log(`Archive: ${ARCHIVE_DIR}`)
   if (dryRun) console.log("DRY RUN — no writes will be made.")
 
+  // Both flags mean "derive this again", so neither consults the resume check:
+  // `--force` re-downloads, and `--from-archive` exists precisely for the case
+  // where the extraction changed but the encoding string did not.
+  const rederiving = force || fromArchive
+  const alreadyWritten = rederiving
+    ? new Set<number>()
+    : await getWrittenMatchIds(matchIds)
+  if (alreadyWritten.size > 0) {
+    console.log(
+      `${String(alreadyWritten.size)} of ${String(matchIds.length)} already written at ${POSITION_ENCODING} — skipping those.`,
+    )
+  }
+
+  const pending = matchIds.filter(id => !alreadyWritten.has(id))
   const needsParser =
-    !fromArchive &&
-    matchIds.some(id => force || !fs.existsSync(archivePath(id)))
+    !fromArchive && pending.some(id => force || !fs.existsSync(archivePath(id)))
   if (needsParser && !dryRun) await assertParserRunning()
 
   let parsed = 0
@@ -354,9 +411,9 @@ async function main() {
   // a partial run must never be able to masquerade as a complete one.
   const skipped: number[] = []
 
-  for (let i = 0; i < matchIds.length; i++) {
-    const matchId = matchIds[i]
-    const label = `[${String(i + 1)}/${String(matchIds.length)}]`
+  for (let i = 0; i < pending.length; i++) {
+    const matchId = pending[i]
+    const label = `[${String(i + 1)}/${String(pending.length)}]`
     const archived = fs.existsSync(archivePath(matchId))
 
     try {
@@ -418,6 +475,7 @@ async function main() {
   console.log("\nDone.")
   console.log(
     `Parsed: ${String(parsed)}, reused from archive: ${String(reused)}, ` +
+      `already written: ${String(alreadyWritten.size)}, ` +
       `no replay: ${String(noReplay)}, failed: ${String(failed.length)}.`,
   )
   console.log(
