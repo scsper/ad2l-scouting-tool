@@ -369,6 +369,80 @@ function ceilingFor(bins: Float32Array): number {
   return Math.max(1, occupied[Math.floor(occupied.length * 0.99)] ?? 1)
 }
 
+/**
+ * Playback rates, where 1x is real time — one game-second per real second.
+ *
+ * Samples are stored at 1 Hz, so the playhead steps a whole second at a time
+ * and never interpolates. A hero at full sprint covers about 4.3 grid units in
+ * that second, roughly twenty pixels on a 640px map, which reads as movement.
+ * Interpolating would smooth those steps out, and would also draw a Blink
+ * Dagger as a glide through the trees — inventing a path the replay never had,
+ * on the one tab whose only claim is that it shows where they actually were.
+ */
+export const PLAYBACK_SPEEDS = [1, 1.5, 2, 4] as const
+
+/**
+ * A frame gap this long is discarded rather than applied.
+ *
+ * `requestAnimationFrame` stops firing in a backgrounded tab, so the first
+ * frame after you come back reports however long you were away. Applied, that
+ * would fling the playhead minutes down the game; discarded, the run simply
+ * pauses while you are gone and resumes where you left it.
+ */
+const MAX_FRAME_MS = 500
+
+/**
+ * Absorbed before flooring, because the carry is a float sum.
+ *
+ * Ten real seconds of 16.667ms frames at 4x comes to 39.999999999999996, and
+ * floored bare that is 39 — a second the run never gets back, always lost in
+ * the same direction. A nanosecond of slack cannot advance the playhead early
+ * by anything a person could see, and it stops the drift being one-sided.
+ */
+const FLOOR_EPSILON = 1e-9
+
+export type PlaybackStep = {
+  time: number
+  /** Sub-second credit carried into the next frame. */
+  remainder: number
+  ended: boolean
+}
+
+/**
+ * Advance the playhead by one animation frame.
+ *
+ * The remainder is what makes the fractional rates real. At 1.5x a 1000ms frame
+ * earns one and a half seconds; drop the half and 1.5x quietly becomes 1x, and
+ * at 60fps every individual frame earns less than a whole second, so without
+ * the carry nothing would move at any speed at all.
+ */
+export function advancePlayback({
+  time,
+  remainder,
+  elapsedMs,
+  speed,
+  bounds,
+}: {
+  time: number
+  remainder: number
+  elapsedMs: number
+  speed: number
+  bounds: TimeRange
+}): PlaybackStep {
+  if (elapsedMs < 0 || elapsedMs > MAX_FRAME_MS) {
+    return { time, remainder, ended: false }
+  }
+
+  const earned = remainder + (elapsedMs / 1000) * speed
+  const whole = Math.floor(earned + FLOOR_EPSILON)
+  const next = time + whole
+
+  if (next >= bounds.to) return { time: bounds.to, remainder: 0, ended: true }
+  // Clamped because the epsilon can floor a hair past `earned`, which would
+  // otherwise leave a faintly negative credit to pay off next frame.
+  return { time: next, remainder: Math.max(0, earned - whole), ended: false }
+}
+
 /** Events for one match at or spanning a moment, for the playback markers. */
 export function eventsNear(
   events: PositionEvent[],

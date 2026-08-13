@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { encodePositions, type SlotSamples } from "../../shared/position-codec"
 import type { PositionMatch, PositionSlot } from "../../api/match-positions"
 import {
+  advancePlayback,
   binPlayer,
   confidenceFor,
   decodeMatch,
@@ -283,6 +284,60 @@ describe("positionBounds", () => {
       makeMatch({ id: 2, firstTime: -20, seconds: 300, slots: ROSTER }),
     ])
     expect(bounds).toEqual({ from: -89, to: 279 })
+  })
+})
+
+describe("advancePlayback", () => {
+  const bounds = { from: 0, to: 600 }
+
+  /** A run of real 60fps frames, which is all this ever sees in a browser. */
+  function play(realSeconds: number, speed: number, from = 0) {
+    let step = { time: from, remainder: 0, ended: false }
+    for (let i = 0; i < realSeconds * 60; i++) {
+      step = advancePlayback({ ...step, elapsedMs: 1000 / 60, speed, bounds })
+    }
+    return step
+  }
+
+  it("advances one game-second per real second at 1x", () => {
+    expect(play(10, 1).time).toBe(10)
+  })
+
+  it("accumulates sub-second frames rather than losing them", () => {
+    // Every individual 16ms frame earns a fraction of a second. Floor each one
+    // independently and the playhead never moves at any speed at all.
+    expect(play(1, 1).time).toBe(1)
+  })
+
+  it("carries the half-second at 1.5x instead of dropping it", () => {
+    // The failure this guards against is 1.5x silently behaving as 1x: two real
+    // seconds must buy three game-seconds, not two.
+    expect(play(2, 1.5).time).toBe(3)
+    expect(play(10, 4).time).toBe(40)
+  })
+
+  it("stops at the end of the game rather than running past it", () => {
+    const step = advancePlayback({
+      time: 598,
+      remainder: 0,
+      elapsedMs: 500,
+      speed: 4,
+      bounds,
+    })
+    expect(step).toEqual({ time: 600, remainder: 0, ended: true })
+  })
+
+  it("discards a frame gap no browser would produce while visible", () => {
+    // What a backgrounded tab reports on the first frame after you return.
+    // Applied, it would fling the playhead minutes down the game.
+    const step = advancePlayback({
+      time: 100,
+      remainder: 0,
+      elapsedMs: 90_000,
+      speed: 1,
+      bounds,
+    })
+    expect(step).toEqual({ time: 100, remainder: 0, ended: false })
   })
 })
 
