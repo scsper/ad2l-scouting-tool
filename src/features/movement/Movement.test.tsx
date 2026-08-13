@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Provider } from "react-redux"
 import { MemoryRouter, useLocation } from "react-router"
@@ -239,6 +239,47 @@ function renderMovement(url = "/") {
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
 })
+
+/**
+ * A hand-cranked `requestAnimationFrame`, so playback runs on test time.
+ *
+ * Install it only once the tab has finished loading, and drive everything after
+ * that with `fireEvent` rather than `userEvent`. Testing Library's async helpers
+ * sit on real frames, so a stub that fires only when this test says so
+ * deadlocks every `findBy*` and every awaited click for as long as it is
+ * installed.
+ *
+ * Half-second frames rather than sixtieths: the loop's own guard discards
+ * anything longer, and this is the coarsest step it will still honour, so a run
+ * costs a handful of frames instead of hundreds.
+ *
+ * `cancelAnimationFrame` really drops the callback. A no-op would let the frame
+ * already in flight when playback stops fire anyway, and every pause test would
+ * be watching the playhead take one more step than the component asked for.
+ */
+function stubFrames() {
+  const pending = new Map<number, FrameRequestCallback>()
+  let handle = 0
+  let now = 0
+
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+    handle += 1
+    pending.set(handle, cb)
+    return handle
+  })
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => pending.delete(id))
+
+  return (frames: number) => {
+    for (let i = 0; i < frames; i++) {
+      const due = [...pending.values()]
+      pending.clear()
+      now += 500
+      act(() => {
+        for (const cb of due) cb(now)
+      })
+    }
+  }
+}
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -502,6 +543,79 @@ describe("Movement", () => {
     expect(
       await screen.findByText("Nothing in the last 20s"),
     ).toBeInTheDocument()
+  })
+
+  it("plays the game forward and links to where it stopped", async () => {
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    await screen.findByRole("img", { name: "Hero position playback" })
+    expect(screen.getByText(/^Positions at/)).toHaveTextContent(
+      "Positions at 5:00",
+    )
+
+    const pump = stubFrames()
+    fireEvent.click(screen.getByRole("button", { name: "4x" }))
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    // The first frame is worth nothing — there is no earlier timestamp to
+    // measure it against — so five half-seconds at 4x buy the ten seconds.
+    pump(6)
+    expect(screen.getByText(/^Positions at/)).toHaveTextContent(
+      "Positions at 5:10",
+    )
+
+    // Nothing reaches the URL until it stops, because an automated sweep at the
+    // scrub debounce's rate would exhaust the browser's history allowance.
+    expect(screen.getByTestId("search")).toHaveTextContent("t=300")
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }))
+    expect(screen.getByTestId("search")).toHaveTextContent("t=310")
+  })
+
+  it("stops playing the moment you take the slider yourself", async () => {
+    // You grabbed the handle to look at something. A playhead that keeps
+    // crawling out from under the cursor is fighting you for the same state.
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=300")
+
+    await screen.findByRole("img", { name: "Hero position playback" })
+    const pump = stubFrames()
+    fireEvent.click(screen.getByRole("button", { name: "4x" }))
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    pump(3)
+
+    fireEvent.change(screen.getByLabelText("Game time"), {
+      target: { value: "420" },
+    })
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument()
+
+    pump(5)
+    expect(screen.getByText(/^Positions at/)).toHaveTextContent(
+      "Positions at 7:00",
+    )
+  })
+
+  it("parks at the end of the game and restarts from the top", async () => {
+    stubFetch({ "api/match-positions": POSITIONS, "api/team": TEAMS })
+    renderMovement("/?mode=playback&t=598")
+
+    await screen.findByRole("img", { name: "Hero position playback" })
+    const pump = stubFrames()
+    fireEvent.click(screen.getByRole("button", { name: "4x" }))
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    pump(4)
+
+    // Stopped, not looped, and the moment it ended on is linkable.
+    expect(screen.getByText(/^Positions at/)).toHaveTextContent(
+      "Positions at 9:59",
+    )
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument()
+    expect(screen.getByTestId("search")).toHaveTextContent("t=599")
+
+    // Play is never a dead button: pressed at the end, it goes back to the top.
+    fireEvent.click(screen.getByRole("button", { name: "Play" }))
+    expect(screen.getByText(/^Positions at/)).toHaveTextContent(
+      "Positions at 0:00",
+    )
   })
 
   it("opens on the team's majority side rather than pooling both", async () => {

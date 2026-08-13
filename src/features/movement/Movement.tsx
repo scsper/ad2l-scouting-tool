@@ -6,6 +6,8 @@ import { getHero } from "../../utils/get-hero"
 import { POSITION_LABELS, formatGameTime } from "../../utils/ward-aggregation"
 import { getMinimapForMatches } from "../../utils/ward-map"
 import {
+  PLAYBACK_SPEEDS,
+  advancePlayback,
   binPlayer,
   confidenceFor,
   decodeMatch,
@@ -157,6 +159,21 @@ export const Movement = ({
   } | null>(null)
   const pendingWrite = useRef<ReturnType<typeof setTimeout>>(undefined)
 
+  /*
+   * Playback is deliberately absent from the URL, unlike every other control
+   * here. Speed is a preference rather than a view, and a pasted scouting link
+   * that starts animating on open is a surprise — these params describe what
+   * you are looking at, and playing is something you do, not something you see.
+   */
+  const [playing, setPlaying] = useState(false)
+  const [speed, setSpeed] = useState<number>(PLAYBACK_SPEEDS[0])
+
+  // The running playhead lives in a ref, not in state: the frame loop has to
+  // read the value it wrote on the previous frame, and a re-render per frame is
+  // one render more than the map needs.
+  const playhead = useRef(0)
+  const remainder = useRef(0)
+
   useEffect(() => {
     setDraftTime(null)
   }, [urlTime])
@@ -265,16 +282,108 @@ export const Movement = ({
     matches.find(m => String(m.id) === urlMatch) ?? matches.at(0)
   const decodedMatch = decoded.find(d => d.match.id === selectedMatch?.id)
 
-  const matchBounds = decodedMatch
-    ? {
-        from: decodedMatch.match.firstTime,
-        to: decodedMatch.match.firstTime + decodedMatch.match.sampleCount - 1,
-      }
-    : bounds
+  // Memoised because the frame loop below depends on it, and a fresh object
+  // literal every render would tear the loop down and rebuild it every frame —
+  // losing the previous frame's timestamp each time, so nothing would move.
+  const matchBounds = useMemo(
+    () =>
+      decodedMatch
+        ? {
+            from: decodedMatch.match.firstTime,
+            to:
+              decodedMatch.match.firstTime + decodedMatch.match.sampleCount - 1,
+          }
+        : bounds,
+    [decodedMatch, bounds],
+  )
   const time = Math.min(
     matchBounds.to,
     Math.max(matchBounds.from, draftTime ?? urlTime ?? 0),
   )
+
+  /*
+   * `updateFilters` is a new closure every render, so the loop cannot call it
+   * directly without listing it as a dependency and rebuilding itself every
+   * frame. The ref keeps the loop's dependencies down to the things that should
+   * actually restart it.
+   */
+  const flushTime = useRef<(t: number) => void>(() => undefined)
+  useEffect(() => {
+    flushTime.current = (t: number) => {
+      updateFilters({ t: String(t) })
+    }
+  })
+
+  /**
+   * One `requestAnimationFrame` loop while playing, advancing whole seconds.
+   *
+   * rAF rather than an interval because a backgrounded tab stops firing it
+   * entirely: the run pauses while you are away instead of racing on unseen.
+   * The first frame is worth zero — there is no previous timestamp to measure
+   * against — which costs one frame and avoids a jump of however long the
+   * browser sat on the callback.
+   */
+  useEffect(() => {
+    if (!playing) return
+
+    let frame = 0
+    let previous: number | null = null
+
+    const tick = (now: number) => {
+      const elapsed = previous === null ? 0 : now - previous
+      previous = now
+
+      const before = playhead.current
+      const step = advancePlayback({
+        time: before,
+        remainder: remainder.current,
+        elapsedMs: elapsed,
+        speed,
+        bounds: matchBounds,
+      })
+      playhead.current = step.time
+      remainder.current = step.remainder
+      if (step.time !== before) setDraftTime(step.time)
+
+      if (step.ended) {
+        setPlaying(false)
+        // The moment a run ends on is the one moment you would want to link to,
+        // and it is the only write playback makes on its own.
+        flushTime.current(step.time)
+        return
+      }
+      frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [playing, speed, matchBounds])
+
+  /**
+   * Playing writes nothing to the URL until it stops.
+   *
+   * The history rate-limit that shaped the scrub debounce is the whole reason:
+   * an automated sweep of a fifty-minute game at 250ms an entry would spend the
+   * browser's entire allowance and start throwing. So the URL records where you
+   * stopped to look at something, which is the only position worth sharing.
+   */
+  const togglePlay = () => {
+    if (playing) {
+      setPlaying(false)
+      flushTime.current(playhead.current)
+      return
+    }
+    // A scrub within the last 250ms still has a write in flight. Left alone it
+    // would land mid-run, change `urlTime`, and snap the playhead back to it.
+    clearTimeout(pendingWrite.current)
+    const start = time >= matchBounds.to ? matchBounds.from : time
+    playhead.current = start
+    remainder.current = 0
+    setDraftTime(start)
+    setPlaying(true)
+  }
 
   const visibleEvents = useMemo(
     () =>
@@ -397,6 +506,10 @@ export const Movement = ({
    * track's width is the constraint, and no amount of slider polish changes it.
    */
   const seek = (next: number) => {
+    // Stop the loop first. You moved the playhead to look at something, and a
+    // running loop would keep writing the same state this write is writing,
+    // creeping forward under your finger.
+    setPlaying(false)
     const clamped = Math.min(matchBounds.to, Math.max(matchBounds.from, next))
     setDraftTime(clamped)
     clearTimeout(pendingWrite.current)
@@ -415,6 +528,23 @@ export const Movement = ({
    */
   const playbackControls = (
     <div className="flex items-center gap-2">
+      <button
+        onClick={togglePlay}
+        disabled={matchBounds.to <= matchBounds.from}
+        aria-label={playing ? "Pause" : "Play"}
+        className="shrink-0 w-8 h-8 flex items-center justify-center rounded border border-slate-700 bg-slate-900 text-slate-300 hover:text-slate-100 disabled:opacity-40 disabled:hover:text-slate-300"
+      >
+        {playing ? (
+          <svg viewBox="0 0 12 12" className="w-3 h-3 fill-current">
+            <rect x="2" y="1.5" width="3" height="9" rx="0.5" />
+            <rect x="7" y="1.5" width="3" height="9" rx="0.5" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 12 12" className="w-3 h-3 fill-current">
+            <path d="M3 1.5 L10.5 6 L3 10.5 Z" />
+          </svg>
+        )}
+      </button>
       {STEPS.slice(0, 2).map(step => (
         <button
           key={step}
@@ -498,7 +628,14 @@ export const Movement = ({
                 <button
                   key={m}
                   onClick={() => {
-                    updateFilters({ mode: m === "heatmap" ? null : m })
+                    // Leaving playback really stops the loop rather than
+                    // hiding it. Two minutes on the heatmap and back should not
+                    // find the playhead somewhere you did not put it.
+                    setPlaying(false)
+                    updateFilters({
+                      mode: m === "heatmap" ? null : m,
+                      ...(playing ? { t: String(playhead.current) } : {}),
+                    })
                   }}
                   className={`px-3 py-1 text-sm capitalize ${
                     mode === m
@@ -550,6 +687,9 @@ export const Movement = ({
             <select
               value={selectedMatch ? String(selectedMatch.id) : ""}
               onChange={e => {
+                // The playhead resets to the new game's start, and a game you
+                // just picked should not begin animating on its own.
+                setPlaying(false)
                 updateFilters({ match: e.target.value, t: null })
               }}
               className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200"
@@ -884,10 +1024,34 @@ export const Movement = ({
                   : ""}
               </span>
             </div>
+            {/* Play/pause, step buttons and the scrubber are one component now,
+                because the full-screen inspector needs the whole transport
+                rather than a copy of half of it. `pl-10` clears the play
+                button so the start-of-game label still sits under the track. */}
             {playbackControls}
-            <div className="flex justify-between text-xs text-slate-500 mt-0.5">
+            <div className="flex justify-between text-xs text-slate-500 mt-0.5 pl-10">
               <span>{formatGameTime(matchBounds.from)}</span>
               <span>{formatGameTime(matchBounds.to)}</span>
+            </div>
+            {/* Sits where the heatmap keeps its range presets, and stays
+                clickable while paused: a speed you can only reach mid-run is a
+                speed you have to be already playing to choose. */}
+            <div className="flex flex-wrap gap-2 mt-2">
+              {PLAYBACK_SPEEDS.map(option => (
+                <button
+                  key={option}
+                  onClick={() => {
+                    setSpeed(option)
+                  }}
+                  className={`px-2 py-0.5 text-xs rounded border ${
+                    speed === option
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : "border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {option}x
+                </button>
+              ))}
             </div>
             <div className="mt-2 text-xs overflow-x-auto whitespace-nowrap">
               <PlaybackEventList events={visibleEvents} slotName={slotName} />

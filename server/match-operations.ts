@@ -34,6 +34,13 @@ type OpenDotaPickBan = {
 type OpenDotaPlayer = {
   account_id?: number
   personaname?: string
+  /**
+   * The pro handle OpenDota keeps for notable players ("Sneyking"), separate
+   * from the Steam persona, which is whatever they renamed themselves to this
+   * week ("I m Going To Be 10k Player"). Only present for accounts OpenDota
+   * tracks as pros.
+   */
+  name?: string
   hero_id: number
   player_slot: number // 0-127 = radiant, 128-255 = dire
   kills: number
@@ -290,8 +297,10 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
     return {
       steamAccount: player.account_id
         ? {
+            // Pro handle first: it is stable across the season, where the Steam
+            // persona changes between matches and splits a player's history.
             id: player.account_id,
-            name: player.personaname ?? null,
+            name: player.name ?? player.personaname ?? null,
           }
         : null,
       heroId: player.hero_id,
