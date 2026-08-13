@@ -25,6 +25,11 @@
  * under the same `.dem.bz2` name, so which one a given match needs is not
  * knowable in advance — see `sniffDecompressor`.
  *
+ * Downloads are guarded and retried rather than merely time-limited: Valve's
+ * Chinese replay CDN hands out connections that establish and then deliver
+ * nothing, which a bare `--max-time` turns into a quarter-hour of silence. See
+ * `SOURCE_CURL_LIMITS`.
+ *
  * Env: SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY,
  *      OPENDOTA_API_TOKEN (optional), REPLAY_ARCHIVE_DIR (optional)
  *
@@ -63,6 +68,31 @@ const ARCHIVE_DIR =
 
 const PARSER_URL = "http://localhost:5600"
 const OPEN_DOTA_DELAY_MS = 1200
+
+/**
+ * Give up on a stalled download rather than sitting on it for `--max-time`.
+ *
+ * `replay*.dota2.com.cn` is a Kunlun CDN with eight A records, and the edge you
+ * get can accept the connection and then send nothing at all: observed
+ * 2026-08-13 on TI 2026 match 8943200897, where the socket sat ESTABLISHED for
+ * eleven minutes having moved zero bytes and burnt 0.09s of CPU across the whole
+ * pipeline. A fresh request to the same node answered 206 in 0.66s, so the node
+ * was not down — that one connection was simply dead. `--max-time` alone turns
+ * that into a fifteen-minute silent pause per match, which is why this reads as
+ * a hang rather than a failure.
+ *
+ * `--speed-time`/`--speed-limit` is the guard that actually fits: abort a
+ * transfer delivering under 1 KB/s for 30s. A healthy replay arrives at MB/s
+ * even from China, so the threshold is two orders of magnitude below anything
+ * legitimate and will not fire on a merely slow link.
+ */
+const SOURCE_CURL_LIMITS =
+  "--connect-timeout 20 --speed-limit 1024 --speed-time 30 --max-time 900"
+/** Attempts per match. A dead edge is per-connection, so a retry re-rolls it. */
+const DOWNLOAD_ATTEMPTS = 3
+const RETRY_DELAY_MS = 3000
+/** Cap on the two small metadata fetches, which hit the same flaky hosts. */
+const FETCH_TIMEOUT_MS = 30000
 const EVENT_INSERT_CHUNK = 500
 /** IDs per `.in()` filter when asking which matches are already written. */
 const WRITTEN_QUERY_CHUNK = 200
@@ -100,6 +130,7 @@ async function getReplayUrl(matchId: number): Promise<string | null> {
   const suffix = OPENDOTA_API_KEY ? `?api_key=${OPENDOTA_API_KEY}` : ""
   const response = await fetch(
     `https://api.opendota.com/api/matches/${String(matchId)}${suffix}`,
+    { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
   )
   if (!response.ok) {
     throw new Error(
@@ -130,7 +161,10 @@ async function getReplayUrl(matchId: number): Promise<string | null> {
  * fault and says nothing whatsoever about compression.
  */
 async function sniffDecompressor(replayUrl: string): Promise<string> {
-  const response = await fetch(replayUrl, { headers: { Range: "bytes=0-3" } })
+  const response = await fetch(replayUrl, {
+    headers: { Range: "bytes=0-3" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
   if (!response.ok) {
     throw new Error(`replay range request ${String(response.status)}`)
   }
@@ -156,25 +190,28 @@ async function sniffDecompressor(replayUrl: string): Promise<string> {
 }
 
 /**
- * Download, decompress and parse in one pipeline, writing gzipped NDJSON.
+ * One download-decompress-parse attempt, writing gzipped NDJSON to `partial`.
  *
  * Streamed rather than staged through temp files: the intermediate .dem is
  * ~250 MB uncompressed and nothing needs it on disk. `pipefail` matters — the
  * final `gzip` succeeds on an empty stream, so without it a 404 from Valve would
  * produce a valid, empty archive file that the resume check then treats as done.
+ *
+ * The speed guards go on the source curl only. The POST to the parser is a
+ * localhost upload whose rate is bounded by how fast the source feeds it, so a
+ * threshold there would only ever fire second, on a stall the source already
+ * caught.
  */
-async function downloadAndParse(
+async function runPipeline(
   replayUrl: string,
-  destination: string,
+  decompress: string,
+  partial: string,
 ): Promise<void> {
-  const decompress = await sniffDecompressor(replayUrl)
-
-  // Written to `.part` and renamed only on success, so a killed run cannot leave
-  // a truncated archive that looks complete to the next one.
-  const partial = `${destination}.part`
+  // `>` truncates, so an attempt always starts from an empty file rather than
+  // appending to the corpse of the previous one.
   const command = [
     "set -o pipefail",
-    `curl -sSf --max-time 900 ${JSON.stringify(replayUrl)}` +
+    `curl -sSf ${SOURCE_CURL_LIMITS} ${JSON.stringify(replayUrl)}` +
       ` | ${decompress}` +
       ` | curl -sSf -X POST -T - --max-time 900 ${JSON.stringify(PARSER_URL)}` +
       ` | gzip -6 > ${JSON.stringify(partial)}`,
@@ -197,11 +234,49 @@ async function downloadAndParse(
   })
 
   const { size } = fs.statSync(partial)
-  if (size === 0) {
-    fs.unlinkSync(partial)
-    throw new Error("parse pipeline produced an empty archive")
+  if (size === 0) throw new Error("parse pipeline produced an empty archive")
+}
+
+/**
+ * Parse one replay into the archive, retrying a stalled or dead CDN edge.
+ *
+ * Retried here rather than with `curl --retry` because curl restarts a retried
+ * transfer from byte zero, and by then `zstd` downstream has already been fed a
+ * prefix of the stream — the second attempt would splice onto the first and
+ * corrupt the .dem. Re-running the whole pipeline is the only retry that leaves
+ * the archive honest.
+ *
+ * The sniff is inside the loop for the same reason the retry exists: it hits the
+ * same CDN, and re-requesting re-resolves DNS and lands on a different edge.
+ */
+async function downloadAndParse(
+  replayUrl: string,
+  destination: string,
+): Promise<void> {
+  // Written to `.part` and renamed only on success, so a killed run cannot leave
+  // a truncated archive that looks complete to the next one.
+  const partial = `${destination}.part`
+  let lastError = new Error("no attempt made")
+
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+    try {
+      const decompress = await sniffDecompressor(replayUrl)
+      await runPipeline(replayUrl, decompress, partial)
+      fs.renameSync(partial, destination)
+      return
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e))
+      if (fs.existsSync(partial)) fs.unlinkSync(partial)
+      if (attempt === DOWNLOAD_ATTEMPTS) break
+      console.log(
+        `    attempt ${String(attempt)}/${String(DOWNLOAD_ATTEMPTS)} failed ` +
+          `(${lastError.message}) — retrying`,
+      )
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
+    }
   }
-  fs.renameSync(partial, destination)
+
+  throw lastError
 }
 
 function readArchive(matchId: number): string[] {
@@ -441,6 +516,12 @@ async function main() {
           continue
         }
 
+        // Printed before the minutes-long silent stretch, not after it. Which
+        // host a replay comes from is the first thing you want when a match
+        // stalls, and the CN edges are where that happens.
+        console.log(
+          `${label} ${String(matchId)}: downloading from ${new URL(replayUrl).host}`,
+        )
         const started = Date.now()
         await downloadAndParse(replayUrl, archivePath(matchId))
         parsed += 1
