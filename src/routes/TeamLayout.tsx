@@ -1,5 +1,8 @@
-import { NavLink, Navigate, Outlet, useParams, useSearchParams } from "react-router"
+import { useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
+import { NavLink, Navigate, Outlet, useLocation, useParams, useSearchParams } from "react-router"
 import { ContentArea } from "../components/ContentArea"
+import { useChromeSlot } from "../components/StickyChrome"
 import { useGetTeamsByLeagueQuery } from "../features/league-and-team-picker/teams-api"
 import type { LeagueTeamEntry } from "../features/league-and-team-picker/teams-api"
 import { TABS, divisionSearch, type TeamScope } from "./routing"
@@ -83,37 +86,72 @@ const OutOfScopeGate = ({
 
 const teamTabs = (search: string, scope: TeamScope) => (
     <>
-      <div className="bg-slate-800/30 border-b border-slate-700">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-1">
-            {TABS.map(tab => (
-              <NavLink
-                key={tab.id}
-                to={`${tab.id}${search}`}
-                className={({ isActive }) =>
-                  `px-6 py-3 font-medium transition-all relative ${
-                    isActive
-                      ? "text-blue-400 bg-slate-800/50"
-                      : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/30"
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    {tab.label}
-                    {isActive && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400"></div>
-                    )}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
-        </div>
-      </div>
+      <TeamTabs search={search} />
 
       <ContentArea>
         <Outlet context={scope} />
       </ContentArea>
     </>
 )
+
+/**
+ * The seven tabs, which do not fit on a phone.
+ *
+ * At `px-6 py-3` the strip is around 780px wide, so on a 390px screen `Movement`
+ * and `Tempo` were simply off the right edge with nothing to say they existed.
+ * It scrolls now, with a fade at the edge to admit there is more and the active
+ * tab pulled into view — which matters most for the case that has no other cue:
+ * a shared link that opens straight onto `Tempo`.
+ *
+ * It renders into the chrome slot so it hides and returns with the header
+ * rather than independently. See `StickyChrome` for why that is a portal.
+ */
+const TeamTabs = ({ search }: { search: string }) => {
+  const slot = useChromeSlot()
+  const { pathname } = useLocation()
+  const activeRef = useRef<HTMLAnchorElement>(null)
+  const activeTab = TABS.find(tab => pathname.endsWith(`/${tab.id}`))?.id
+
+  useEffect(() => {
+    // `block: "nearest"` so pulling a tab into view horizontally cannot also
+    // scroll the page vertically out from under whatever you were reading.
+    activeRef.current?.scrollIntoView({ inline: "center", block: "nearest" })
+  }, [activeTab])
+
+  const strip = (
+    <div className="relative bg-slate-800/30 border-b border-slate-700">
+      <div className="container mx-auto px-3 sm:px-4">
+        <div className="flex gap-1 overflow-x-auto md:overflow-visible snap-x scroll-px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {TABS.map(tab => (
+            <NavLink
+              key={tab.id}
+              ref={tab.id === activeTab ? activeRef : null}
+              to={`${tab.id}${search}`}
+              className={({ isActive }) =>
+                `px-3 py-2.5 text-sm sm:px-6 sm:py-3 sm:text-base font-medium transition-all relative shrink-0 snap-start whitespace-nowrap ${
+                  isActive
+                    ? "text-blue-400 bg-slate-800/50"
+                    : "text-slate-400 hover:text-slate-300 hover:bg-slate-800/30"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {tab.label}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400"></div>
+                  )}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-linear-to-l from-slate-900/90 to-transparent md:hidden" />
+    </div>
+  )
+
+  // Inline for the one render before the slot ref resolves. That position is
+  // where the portal puts it anyway, so nothing moves.
+  return slot ? createPortal(strip, slot) : strip
+}

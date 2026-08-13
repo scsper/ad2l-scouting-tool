@@ -8,7 +8,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  min-height: 100vh;
+  /* `dvh`, not `vh`: on a phone `100vh` is the *large* viewport — the height the
+     page would have with the browser's URL bar collapsed — so with the bar
+     showing, the bottom of the shell sits below the fold. Harmless while the
+     document never scrolled; load-bearing now that it does. */
+  min-height: 100dvh;
   color: #f1f5f9;
 }
 
@@ -18,5 +22,18 @@ code {
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Form controls below 16px make mobile Safari zoom the whole page on focus, and
+   there is no way back out of that zoom except a pinch. Android Chrome doesn't
+   do it, but iPhone users of this tool would hit it on every `<select>` in the
+   team picker sheet. Scoped to the phone tier so desktop's `text-sm` controls
+   are untouched. */
+@media (max-width: 767px) {
+  input:not([type="range"]):not([type="checkbox"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

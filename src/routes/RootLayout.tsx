@@ -13,7 +13,7 @@ import { useGetMeQuery } from "../features/access/access-api"
  * signed up, ready when you are".
  */
 const NoAccess = () => (
-  <div className="flex flex-col items-center justify-center h-[calc(100vh-48px)] gap-3">
+  <div className="flex flex-col items-center justify-center min-h-[calc(100dvh-48px)] gap-3">
     <p className="text-slate-300 text-lg font-medium">
       Your account isn&apos;t set up yet
     </p>
@@ -25,7 +25,7 @@ const NoAccess = () => (
 )
 
 const LoadingAccess = () => (
-  <div className="flex items-center justify-center h-[calc(100vh-48px)] gap-3">
+  <div className="flex items-center justify-center min-h-[calc(100dvh-48px)] gap-3">
     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
     <span className="text-slate-400">Loading...</span>
   </div>
@@ -57,10 +57,24 @@ const SignedIn = () => {
   return <Outlet />
 }
 
+/**
+ * The shell scrolls two different ways, and which one you get is the difference
+ * between a phone screen with a URL bar on it and one without.
+ *
+ * At `md` and up this is what it always was: a fixed-height shell that clips its
+ * own overflow, with `ContentArea` as the one scrolling region. On a phone the
+ * document itself scrolls instead — because mobile browsers only retract their
+ * chrome when the *document* moves, and a fixed shell therefore donates ~60-100px
+ * of an already short screen to Chrome's own UI for the entire session.
+ *
+ * It also stops three scroll containers from nesting. A horizontally scrolling
+ * board inside a vertically scrolling div inside a fixed shell is the
+ * arrangement where touch scrolling picks the wrong axis and reads as broken.
+ */
 export const RootLayout = () => (
-  <div className="App flex flex-col h-screen overflow-hidden">
+  <div className="App flex flex-col min-h-dvh md:h-dvh md:overflow-hidden">
     <Show when="signed-out">
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-48px)] gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100dvh-48px)] gap-3">
         <p className="text-slate-300 text-lg font-medium">
           Please sign in to continue
         </p>
