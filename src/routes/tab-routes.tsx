@@ -15,23 +15,25 @@ export const TeamTab = () => {
   const { leagueId, teamId } = useTeamScope()
 
   /*
-   * Four columns, then two, then one — and in one column the match list goes
-   * last.
+   * Four columns at `xl`, and below it the match list takes the full width with
+   * every aggregate underneath it.
    *
-   * Side by side, the layout is doing the summarising for you: the bans and the
-   * heroes-by-position sit next to the games they were drawn from, and your eye
-   * joins them. Stacking destroys that, and with the match list first it also
-   * buries every aggregate on the tab under a few thousand pixels of raw games.
-   * Ordering is the only replacement available in one column.
+   * A match card carries its own four-column layout — two rosters and two ban
+   * lists — which only fits when it has the wide `2.25fr` column `xl` gives it.
+   * Put that card in half of a two-column grid and it does not reflow, it
+   * clips: the opponent's name truncates and both ban lists run off the card's
+   * right edge.
    *
-   * `order` rather than moving the JSX, so `xl` renders in exactly the sequence
-   * it always did.
+   * So the aggregates get the two-column treatment below `xl` and the match
+   * list spans them. That does bury the summaries under the raw games on a
+   * phone, which ordering was previously being used to avoid — the match list
+   * collapsing to three with a "show all" is what keeps them reachable.
    */
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[2.25fr_1fr_1fr_1fr] gap-4 sm:gap-6">
-      {/* Wrapped so the order can be set on the grid item without `Matches`
+      {/* Wrapped so the span can be set on the grid item without `Matches`
           needing to know it is in a grid. */}
-      <div className="max-md:order-last">
+      <div className="md:col-span-2 xl:col-span-1">
         <Matches leagueId={leagueId} teamId={teamId} />
       </div>
       <div className="flex flex-col gap-6">
