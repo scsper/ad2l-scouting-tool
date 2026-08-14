@@ -36,7 +36,8 @@ const AT = {
   fourth: "max-md:col-start-4 max-md:row-start-1",
   fifth: "max-md:col-start-5 max-md:row-start-1",
   subLeft: "max-md:col-start-2 max-md:row-start-2",
-  subRight: "max-md:col-start-3 max-md:row-start-2 max-md:col-span-3",
+  subRight: "max-md:col-start-3 max-md:row-start-2 max-md:col-span-2",
+  subEnd: "max-md:col-start-5 max-md:row-start-2",
   thirdRow: "max-md:col-start-1 max-md:col-span-5 max-md:row-start-3",
   phoneHidden: "max-md:hidden",
 }
@@ -237,7 +238,9 @@ const PlayerCard = ({
               >
                 vs {getTeamName(game.opponentTeamId)}
               </span>
-              <span className={`${NUMERIC} text-sm text-slate-300 ${AT.third}`}>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.fourth}`}
+              >
                 {game.gpm}
               </span>
               <span
@@ -261,7 +264,7 @@ const PlayerCard = ({
                 {game.assists}
               </span>
               <span
-                className={`${NUMERIC} text-sm text-emerald-300/80 ${AT.fourth}`}
+                className={`${NUMERIC} text-sm text-emerald-300/80 ${AT.fifth}`}
               >
                 {game.kda.toFixed(1)}
               </span>
@@ -289,7 +292,10 @@ const PlayerCard = ({
                 className={`pt-1 ${AT.thirdRow}`}
                 pairs={[
                   ["XPM", String(game.xpm)],
-                  ["K/D/A", `${String(game.kills)}/${String(game.deaths)}/${String(game.assists)}`],
+                  [
+                    "K/D/A",
+                    `${String(game.kills)}/${String(game.deaths)}/${String(game.assists)}`,
+                  ],
                   ["HD", formatDamage(game.heroDamage)],
                   ["BLD", formatDamage(game.towerDamage)],
                   ["OBS", formatWards(game.obsPlaced)],
@@ -301,7 +307,7 @@ const PlayerCard = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 title="View on Dotabuff"
-                className={`text-slate-500 hover:text-blue-400 transition-colors justify-self-end ${AT.fifth}`}
+                className={`text-slate-500 hover:text-blue-400 transition-colors justify-self-end ${AT.subEnd}`}
               >
                 <svg
                   className="w-3.5 h-3.5"
@@ -471,7 +477,10 @@ export const PlayerStats = ({
         <span className={`${NUMERIC} ${AT.phoneHidden}`}>A</span>
         <span className={`${NUMERIC} ${AT.fifth}`}>KDA</span>
         <span className={`${NUMERIC} ${AT.phoneHidden}`}>HD</span>
-        <span className={`${NUMERIC} ${AT.phoneHidden}`} title="Building damage">
+        <span
+          className={`${NUMERIC} ${AT.phoneHidden}`}
+          title="Building damage"
+        >
           BLD
         </span>
         <span
