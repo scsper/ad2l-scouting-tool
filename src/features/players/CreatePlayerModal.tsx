@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Modal } from "../../components/Modal"
 import {
   useAddRosterMemberMutation,
@@ -6,12 +6,18 @@ import {
 } from "./players-api"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { useGetLeaguesQuery } from "../league-and-team-picker/league-api"
+import type { RosterEntry } from "../../../types/db"
 
 type CreatePlayerModalProps = {
   isOpen: boolean
   onClose: () => void
   leagueId: number
   teamId: number
+  /**
+   * When set, the form opens prefilled and saves over this member instead of
+   * adding a new one. The write is the same upsert either way — see api/roster.
+   */
+  memberToEdit?: RosterEntry | null
 }
 
 const ROLE_OPTIONS = [
@@ -27,6 +33,7 @@ export const CreatePlayerModal = ({
   onClose,
   leagueId,
   teamId,
+  memberToEdit = null,
 }: CreatePlayerModalProps) => {
   const [playerId, setPlayerId] = useState("")
   const [name, setName] = useState("")
@@ -35,6 +42,21 @@ export const CreatePlayerModal = ({
   const [role, setRole] = useState("")
   const [isStandIn, setIsStandIn] = useState(false)
   const [knownPlayer, setKnownPlayer] = useState<string | null>(null)
+
+  const isEditing = memberToEdit !== null
+
+  // The modal stays mounted across opens, so the form is seeded per open rather
+  // than per mount: edit gets the member being edited, add gets a blank slate.
+  useEffect(() => {
+    if (!isOpen) return
+    setPlayerId(memberToEdit ? String(memberToEdit.player_id) : "")
+    setName(memberToEdit?.name ?? "")
+    setRank(memberToEdit?.rank ?? "")
+    setOriginalRank(memberToEdit?.original_rank ?? "")
+    setRole(memberToEdit?.role ?? "")
+    setIsStandIn(memberToEdit?.is_stand_in ?? false)
+    setKnownPlayer(null)
+  }, [isOpen, memberToEdit])
 
   const [addRosterMember, { isLoading, error }] = useAddRosterMemberMutation()
   const [lookUpPlayer] = useLazyGetPlayerByIdQuery()
@@ -107,9 +129,15 @@ export const CreatePlayerModal = ({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Add to roster">
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={isEditing ? "Edit player" : "Add to roster"}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Player ID */}
+        {/* Player ID. Locked while editing: it's the identity the membership is
+            keyed on, so "changing" it would add a second person, not rename
+            this one. Remove and re-add is the honest way to do that. */}
         <div>
           <label
             htmlFor="player-id"
@@ -124,9 +152,16 @@ export const CreatePlayerModal = ({
             onChange={e => setPlayerId(e.target.value)}
             onBlur={handlePlayerIdBlur}
             required
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            disabled={isEditing}
+            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent disabled:text-slate-500 disabled:cursor-not-allowed"
             placeholder="Enter player ID (e.g., Steam ID)"
           />
+          {isEditing && (
+            <p className="text-slate-500 text-xs mt-2">
+              The Steam id can&rsquo;t be changed — remove this player and add
+              the right id instead.
+            </p>
+          )}
           {knownPlayer && (
             <p className="text-slate-500 text-xs mt-2">
               Known player: {knownPlayer}. Their pub match history is kept.
@@ -196,8 +231,8 @@ export const CreatePlayerModal = ({
             <span className="text-sm font-medium text-slate-300">Stand-in</span>
           </label>
           <p className="text-slate-500 text-xs mt-2">
-            Filed separately from the roster, and not carried over by &ldquo;Copy
-            roster from…&rdquo;.
+            Filed separately from the roster, and not carried over by
+            &ldquo;Copy roster from…&rdquo;.
           </p>
         </div>
 
@@ -238,8 +273,8 @@ export const CreatePlayerModal = ({
               left blank for a member, so it's called out only when it matters. */}
           {isStandIn ? (
             <p className="text-amber-400/80 text-xs mt-2">
-              Worth filling in for a stand-in — this is what their eligibility is
-              judged against.
+              Worth filling in for a stand-in — this is what their eligibility
+              is judged against.
             </p>
           ) : (
             <p className="text-slate-500 text-xs mt-2">
@@ -264,7 +299,9 @@ export const CreatePlayerModal = ({
         {/* Error Message */}
         {error && (
           <div className="text-red-400 text-sm">
-            Failed to add player to roster. Please try again.
+            {isEditing
+              ? "Failed to save changes. Please try again."
+              : "Failed to add player to roster. Please try again."}
           </div>
         )}
 
@@ -284,10 +321,14 @@ export const CreatePlayerModal = ({
             className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading
-              ? "Adding..."
-              : isStandIn
-                ? "Add stand-in"
-                : "Add to roster"}
+              ? isEditing
+                ? "Saving..."
+                : "Adding..."
+              : isEditing
+                ? "Save changes"
+                : isStandIn
+                  ? "Add stand-in"
+                  : "Add to roster"}
           </button>
         </div>
       </form>
