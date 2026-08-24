@@ -22,6 +22,7 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false)
   const [memberToRemove, setMemberToRemove] = useState<RosterEntry | null>(null)
+  const [memberToEdit, setMemberToEdit] = useState<RosterEntry | null>(null)
   const {
     data: roster = [],
     isLoading,
@@ -198,7 +199,9 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                   <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 max-sm:mb-0 shrink-0">
                     Role
                   </div>
-                  <div className="text-base sm:text-lg text-slate-300">{member.role}</div>
+                  <div className="text-base sm:text-lg text-slate-300">
+                    {member.role}
+                  </div>
                 </div>
                 <div className="max-sm:flex max-sm:items-baseline max-sm:gap-1.5">
                   <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 max-sm:mb-0 shrink-0">
@@ -218,6 +221,27 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-3 sm:ml-6 shrink-0">
+                <button
+                  onClick={() => {
+                    setMemberToEdit(member)
+                  }}
+                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  title="Edit player"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                </button>
                 <button
                   onClick={() => handleRefreshPlayerData(member)}
                   disabled={fetchingPlayerIds.has(member.player_id)}
@@ -392,12 +416,17 @@ export const Players = ({ leagueId, teamId }: PlayersProps) => {
         </>
       )}
 
-      {/* Add to roster modal */}
+      {/* Add to roster / edit member modal — one form, since an edit is the
+          same upsert as an add with the id locked. */}
       <CreatePlayerModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isModalOpen || memberToEdit !== null}
+        onClose={() => {
+          setIsModalOpen(false)
+          setMemberToEdit(null)
+        }}
         leagueId={leagueId}
         teamId={teamId}
+        memberToEdit={memberToEdit}
       />
 
       {/* Copy roster from another league */}
