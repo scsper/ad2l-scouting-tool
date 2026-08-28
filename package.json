@@ -23,6 +23,7 @@
     "add-teams-to-league": "tsx scripts/add-teams-to-league.ts",
     "grant": "tsx scripts/grant-access.ts",
     "replace-team-id": "tsx scripts/replace-team-id.ts",
+    "replace-league-id": "tsx scripts/replace-league-id.ts",
     "preview": "vite preview",
     "test": "vitest --run",
     "type-check": "tsc -b --noEmit"
