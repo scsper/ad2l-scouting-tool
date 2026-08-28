@@ -1,7 +1,10 @@
 import { useOutletContext } from "react-router"
 
-/** AD2L Season 47 — where `/` lands until a newer season becomes the default. */
-export const DEFAULT_LEAGUE_ID = 19554
+/** AD2L Season 48 — where `/` lands until a newer season becomes the default. */
+export const DEFAULT_LEAGUE_ID = 20077
+
+/** The division `/` lands in — the one Sharkhorse plays in this season. */
+export const DEFAULT_DIVISION = "Challenger"
 
 export type Tab =
   | "team"
