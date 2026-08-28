@@ -14,7 +14,11 @@ import {
   TempoTab,
   WardsTab,
 } from "./routes/tab-routes"
-import { DEFAULT_LEAGUE_ID } from "./routes/routing"
+import {
+  DEFAULT_DIVISION,
+  DEFAULT_LEAGUE_ID,
+  divisionSearch,
+} from "./routes/routing"
 import { useGetMeQuery } from "./features/access/access-api"
 
 /**
@@ -95,16 +99,21 @@ const RedirectToLandingLeague = () => {
   // fallback below look like dead code. A non-admin with no grants never gets
   // this far — `RootLayout` shows them the not-set-up screen instead — but the
   // type has no way to know that.
-  const landing =
+  const grant =
     me && !me.isAdmin && !me.grants.some(g => g.leagueId === DEFAULT_LEAGUE_ID)
-      ? me.grants.at(0)?.leagueId
-      : DEFAULT_LEAGUE_ID
+      ? me.grants.at(0)
+      : undefined
 
-  // `RootLayout` has already established that this account has a grant, so an
-  // undefined landing here means only that `api/me` failed — in which case the
-  // default is as good a guess as any and the screen reports its own error.
+  // A scoped user lands in the division of their grant; everyone else lands in
+  // the default one. `RootLayout` has already established that this account has
+  // a grant, so an undefined grant here for a non-admin means only that
+  // `api/me` failed — in which case the default is as good a guess as any and
+  // the screen reports its own error.
   return (
-    <Navigate to={`/leagues/${String(landing ?? DEFAULT_LEAGUE_ID)}`} replace />
+    <Navigate
+      to={`/leagues/${String(grant?.leagueId ?? DEFAULT_LEAGUE_ID)}${divisionSearch(grant ? grant.division : DEFAULT_DIVISION)}`}
+      replace
+    />
   )
 }
 

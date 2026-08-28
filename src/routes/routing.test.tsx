@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from "react-router"
 import { makeStore } from "../app/store"
 import { stubFetch } from "../utils/test-fetch"
 import { App } from "../App"
+import { DEFAULT_DIVISION, DEFAULT_LEAGUE_ID } from "./routing"
 
 const LEAGUE_ID = 19554
 const TEAM_ID = 9150871
@@ -88,18 +89,21 @@ const currentPath = () => screen.getByTestId("path").textContent
 const currentSearch = () => screen.getByTestId("search").textContent
 
 describe("routes", () => {
-  it("sends the root at the default season", async () => {
+  it("sends the root at the default season and division", async () => {
     renderAt("/")
 
-    expect(await screen.findByText("Select a team to continue")).toBeInTheDocument()
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}`)
+    expect(
+      await screen.findByText("Select a team to continue"),
+    ).toBeInTheDocument()
+    expect(currentPath()).toBe(`/leagues/${String(DEFAULT_LEAGUE_ID)}`)
+    expect(currentSearch()).toBe(`?division=${DEFAULT_DIVISION}`)
   })
 
   it("sends a URL it cannot place back to the root", async () => {
     renderAt("/scouting/derailed")
 
     await screen.findByText("Select a team to continue")
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}`)
+    expect(currentPath()).toBe(`/leagues/${String(DEFAULT_LEAGUE_ID)}`)
   })
 
   it("opens the tab a deep link names, with no prior state", async () => {
@@ -173,10 +177,9 @@ describe("routes", () => {
   it("opens the player board a deep link names", async () => {
     renderAt(`/leagues/${String(LEAGUE_ID)}/stats/players`)
 
-    expect(await screen.findByRole("link", { name: "Players" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    )
+    expect(
+      await screen.findByRole("link", { name: "Players" }),
+    ).toHaveAttribute("aria-current", "page")
   })
 
   // Without it the board it lands on would refuse to query, which is the one
