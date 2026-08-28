@@ -1,8 +1,8 @@
 /**
- * Import the AD2L S48 Challenger division — teams and rosters — from
- * https://dota.playon.gg/seasons/672 ("Division Ready To Be Scheduled").
+ * Import one AD2L S48 division — teams and rosters — from its playon season
+ * page into the S48 league (20077 unless --league says otherwise).
  *
- * Runs before any match exists, which shapes two compromises:
+ * Can run before any match exists, which shapes two compromises:
  *   - A team with no history here gets its PLAYON team id (a 5-digit number)
  *     as a placeholder, because its in-game id is unknowable until it plays.
  *     Teams whose name exactly matches an existing `team` row keep their real
@@ -15,16 +15,18 @@
  *
  * Player ids are Steam32 account ids, read from each roster's OpenDota link.
  * The rank badge (e.g. "Legend 2") is the rank at registration, so it is
- * written to both `rank` and `original_rank`.
+ * written to both `rank` and `original_rank` — but a re-run only refreshes
+ * `rank`, leaving `original_rank` and any hand-set role alone.
  *
  * Usage:
- *   npx tsx scripts/add-ad2l-s48-challenger.ts --dry-run
- *   npx tsx scripts/add-ad2l-s48-challenger.ts
+ *   npx tsx scripts/add-ad2l-s48-division.ts --season 672 --division Challenger --dry-run
+ *   npx tsx scripts/add-ad2l-s48-division.ts --season 673 --division Warrior
  *
  * Env: SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY
  */
 
 import { createClient } from "@supabase/supabase-js"
+import { DIVISIONS, isDivision } from "../shared/divisions"
 
 const SUPABASE_DOTA2_URL = process.env.SUPABASE_DOTA2_URL ?? ""
 const SUPABASE_DOTA2_SECRET_KEY = process.env.SUPABASE_DOTA2_SECRET_KEY ?? ""
@@ -35,14 +37,29 @@ const supabase = createClient(SUPABASE_DOTA2_URL, SUPABASE_DOTA2_SECRET_KEY, {
 
 const dryRun = process.argv.includes("--dry-run")
 
-/** Was placeholder 48 until the real ticket surfaced in week 1's matches. */
-const LEAGUE_ID = 20077
-const DIVISION = "Challenger"
-const SEASON_URL = "https://dota.playon.gg/seasons/672"
-const SECTION = "Division Ready To Be Scheduled"
+function readFlag(flag: string): string | null {
+  const index = process.argv.indexOf(flag)
+  return index === -1 ? null : (process.argv[index + 1] ?? null)
+}
 
-/** A scheduling artifact with admin accounts on its roster, not an opponent. */
-const SKIP_TEAMS = ["Challenger Bye Week"]
+const seasonArg = readFlag("--season")
+if (!seasonArg || Number.isNaN(parseInt(seasonArg, 10))) {
+  console.error("--season <playonSeasonId> is required (e.g. 673)")
+  process.exit(1)
+}
+
+const divisionArg = readFlag("--division")
+if (!isDivision(divisionArg)) {
+  console.error(
+    `--division must be one of: ${DIVISIONS.join(", ")} (got ${JSON.stringify(divisionArg)})`,
+  )
+  process.exit(1)
+}
+
+/** Was placeholder 48 until the real ticket surfaced in week 1's matches. */
+const LEAGUE_ID = parseInt(readFlag("--league") ?? "20077", 10)
+const DIVISION = divisionArg
+const SEASON_URL = `https://dota.playon.gg/seasons/${seasonArg}`
 
 /**
  * Playon team id → our team id, for teams name-matching can't resolve.
@@ -78,10 +95,15 @@ async function fetchHtml(url: string): Promise<string> {
   return res.text()
 }
 
-/** The team links inside the one participants table headed by SECTION. */
+/**
+ * The team links in the first table under "Participants". Challenger heads
+ * that table "Division Ready To Be Scheduled" and follows it with a refund
+ * table; Warrior has one unheaded table. Taking only the first table serves
+ * both, and drops the refunded teams by construction.
+ */
 function parseSeasonTeams(html: string): PlayonTeam[] {
-  const sectionStart = html.indexOf(SECTION)
-  if (sectionStart === -1) throw new Error(`Section "${SECTION}" not found`)
+  const sectionStart = html.indexOf("Participants")
+  if (sectionStart === -1) throw new Error(`"Participants" not found`)
   const tableEnd = html.indexOf("</table>", sectionStart)
   const section = html.slice(sectionStart, tableEnd)
 
@@ -251,11 +273,13 @@ async function main() {
 
   const teams = parseSeasonTeams(await fetchHtml(SEASON_URL))
   console.log(
-    `${dryRun ? "[dry-run] " : ""}${String(teams.length)} team(s) under "${SECTION}"`,
+    `${dryRun ? "[dry-run] " : ""}${String(teams.length)} team(s) on ${SEASON_URL} → ${DIVISION}`,
   )
 
   for (const team of teams) {
-    if (SKIP_TEAMS.includes(team.name)) {
+    // Every division carries a "<Division> Bye Week" scheduling artifact with
+    // admin accounts on its roster; none of them is an opponent.
+    if (team.name.includes("Bye Week")) {
       console.log(`\nSkipping ${team.name} (bye placeholder).`)
       continue
     }
