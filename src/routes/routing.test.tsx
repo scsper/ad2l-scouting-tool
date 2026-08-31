@@ -7,8 +7,9 @@ import { makeStore } from "../app/store"
 import { stubFetch } from "../utils/test-fetch"
 import { App } from "../App"
 
-const LEAGUE_ID = 19554
+const LEAGUE_ID = 20077
 const TEAM_ID = 9150871
+const DEFAULT_TEAM_ID = 9403219
 
 // The router has to be exercised through the real shell, and the shell gates
 // on Clerk. Standing in for it keeps these tests about URLs rather than auth.
@@ -34,11 +35,20 @@ const PathProbe = () => {
   )
 }
 
-function renderAt(path: string) {
+type Me = {
+  isAdmin: boolean
+  grants: { leagueId: number; division: string }[]
+  hasAccess: boolean
+}
+
+function renderAt(
+  path: string,
+  me: Me = { isAdmin: true, grants: [], hasAccess: true },
+) {
   stubFetch({
     // The shell now blocks on this before rendering any route: it decides
     // whether the account is provisioned, and where `/` lands.
-    "api/me": { isAdmin: true, grants: [], hasAccess: true },
+    "api/me": me,
     // Ahead of "api/league", which is a prefix of it and would answer first.
     "api/league-matches": {
       picksByPosition: {},
@@ -47,10 +57,11 @@ function renderAt(path: string) {
       playerNames: {},
       teamNames: {},
     },
-    "api/league": [{ id: LEAGUE_ID, name: "AD2L Season 47" }],
+    "api/league": [{ id: LEAGUE_ID, name: "AD2L Season 48" }],
     "api/team": {
       [LEAGUE_ID]: {
         [TEAM_ID]: { name: "Derailed Gaming", division: "Voyager" },
+        [DEFAULT_TEAM_ID]: { name: "Sharkhorse", division: "Challenger" },
       },
     },
     "api/matches": [],
@@ -88,18 +99,52 @@ const currentPath = () => screen.getByTestId("path").textContent
 const currentSearch = () => screen.getByTestId("search").textContent
 
 describe("routes", () => {
-  it("sends the root at the default season", async () => {
+  it("sends the root at the default team in the default season", async () => {
     renderAt("/")
 
-    expect(await screen.findByText("Select a team to continue")).toBeInTheDocument()
-    expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}`)
+    await waitFor(() => {
+      expect(currentPath()).toBe(
+        `/leagues/${String(LEAGUE_ID)}/teams/${String(DEFAULT_TEAM_ID)}/team`,
+      )
+    })
+    expect(currentSearch()).toBe("?division=Challenger")
   })
 
   it("sends a URL it cannot place back to the root", async () => {
     renderAt("/scouting/derailed")
 
-    await screen.findByText("Select a team to continue")
+    await waitFor(() => {
+      expect(currentPath()).toBe(
+        `/leagues/${String(LEAGUE_ID)}/teams/${String(DEFAULT_TEAM_ID)}/team`,
+      )
+    })
+  })
+
+  // A grant is keyed on a division, so the default team is only the right
+  // landing for accounts that can read Challenger.
+  it("stops a user granted another division at the league picker", async () => {
+    renderAt("/", {
+      isAdmin: false,
+      grants: [{ leagueId: LEAGUE_ID, division: "Warrior" }],
+      hasAccess: true,
+    })
+
+    expect(
+      await screen.findByText("Select a team to continue"),
+    ).toBeInTheDocument()
     expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}`)
+  })
+
+  it("sends a user scoped to another season to that season", async () => {
+    renderAt("/", {
+      isAdmin: false,
+      grants: [{ leagueId: 19554, division: "Voyager" }],
+      hasAccess: true,
+    })
+
+    await waitFor(() => {
+      expect(currentPath()).toBe("/leagues/19554")
+    })
   })
 
   it("opens the tab a deep link names, with no prior state", async () => {

@@ -14,7 +14,12 @@ import {
   TempoTab,
   WardsTab,
 } from "./routes/tab-routes"
-import { DEFAULT_LEAGUE_ID } from "./routes/routing"
+import {
+  DEFAULT_DIVISION,
+  DEFAULT_LEAGUE_ID,
+  DEFAULT_TEAM_ID,
+  divisionSearch,
+} from "./routes/routing"
 import { useGetMeQuery } from "./features/access/access-api"
 
 /**
@@ -82,27 +87,46 @@ const RedirectFromAggregate = () => {
 /**
  * Where `/` lands, which is no longer the same answer for everybody.
  *
- * `DEFAULT_LEAGUE_ID` is Season 47, and a user scoped to a later season holds
- * no grant for it — so the old unconditional redirect would have dropped them
- * on a league they cannot read every single time they signed in, with the
- * league dropdown as the only way out. The default is kept when it is readable,
- * because for an admin it is still the right place to start.
+ * The default is the current season's own team — Sharkhorse, in Challenger —
+ * because the person signing in most mornings wants that screen, not a picker
+ * asking them to find it again. But a grant is keyed on a division, so the
+ * team page is only the right landing for accounts that can read Challenger:
+ * anyone else scoped to this season stops at the league picker, and a user
+ * scoped to another season entirely goes to that season instead — the old
+ * unconditional redirect would have dropped them on a league they cannot read
+ * every single time they signed in, with the league dropdown as the only way
+ * out.
  */
 const RedirectToLandingLeague = () => {
   const { data: me } = useGetMeQuery()
 
-  // `.at` rather than `[0]`, which types as a `Grant` and would make the
-  // fallback below look like dead code. A non-admin with no grants never gets
-  // this far — `RootLayout` shows them the not-set-up screen instead — but the
-  // type has no way to know that.
-  const landing =
-    me && !me.isAdmin && !me.grants.some(g => g.leagueId === DEFAULT_LEAGUE_ID)
-      ? me.grants.at(0)?.leagueId
-      : DEFAULT_LEAGUE_ID
-
-  // `RootLayout` has already established that this account has a grant, so an
-  // undefined landing here means only that `api/me` failed — in which case the
+  // `RootLayout` has already established that this account has a grant, so a
+  // missing `me` here means only that `api/me` failed — in which case the
   // default is as good a guess as any and the screen reports its own error.
+  const canRead = (predicate: (g: { leagueId: number; division: string }) => boolean) =>
+    !me || me.isAdmin || me.grants.some(predicate)
+
+  if (
+    canRead(
+      g => g.leagueId === DEFAULT_LEAGUE_ID && g.division === DEFAULT_DIVISION,
+    )
+  ) {
+    return (
+      <Navigate
+        to={`/leagues/${String(DEFAULT_LEAGUE_ID)}/teams/${String(DEFAULT_TEAM_ID)}/team${divisionSearch(DEFAULT_DIVISION)}`}
+        replace
+      />
+    )
+  }
+
+  // `.at` rather than `[0]`, which types as a `Grant` and would make the
+  // fallback look like dead code. A non-admin with no grants never gets this
+  // far — `RootLayout` shows them the not-set-up screen instead — but the type
+  // has no way to know that.
+  const landing = canRead(g => g.leagueId === DEFAULT_LEAGUE_ID)
+    ? DEFAULT_LEAGUE_ID
+    : me?.grants.at(0)?.leagueId
+
   return (
     <Navigate to={`/leagues/${String(landing ?? DEFAULT_LEAGUE_ID)}`} replace />
   )
