@@ -19,6 +19,7 @@ function row(overrides: Partial<DivisionPlayerRow> = {}): DivisionPlayerRow {
     teamIds: [100],
     games: 5,
     wins: 3,
+    laneRecord: { wins: 2, draws: 1, losses: 2 },
     goldAt10: 2800,
     xpAt10: 3000,
     lhAt10: 50,
@@ -39,6 +40,28 @@ const column = (key: string) => {
 }
 
 describe("sortRows", () => {
+  it("ranks lane records by wins over known lanes and puts missing data last", () => {
+    const rows = [
+      row({ name: "unknown", laneRecord: { wins: 0, draws: 0, losses: 0 } }),
+      row({ name: "grinder", laneRecord: { wins: 4, draws: 4, losses: 2 } }),
+      row({
+        name: "sharp",
+        games: 20,
+        laneRecord: { wins: 3, draws: 0, losses: 1 },
+      }),
+    ]
+    expect(sortRows(rows, "laneWinPct", "desc").map(row => row.name)).toEqual([
+      "sharp",
+      "grinder",
+      "unknown",
+    ])
+    expect(sortRows(rows, "laneWinPct", "asc").map(row => row.name)).toEqual([
+      "grinder",
+      "sharp",
+      "unknown",
+    ])
+  })
+
   it("puts the largest first when descending", () => {
     const sorted = sortRows(
       [row({ name: "low", gpm: 400 }), row({ name: "high", gpm: 700 })],
@@ -135,6 +158,20 @@ describe("splitBySample", () => {
 })
 
 describe("column formatting", () => {
+  it("shows lane wins-draws-losses, with a dash only for an unknown record", () => {
+    expect(column("laneWinPct").format(row())).toBe("2-1-2")
+    expect(
+      column("laneWinPct").format(
+        row({ laneRecord: { wins: 0, draws: 0, losses: 3 } }),
+      ),
+    ).toBe("0-0-3")
+    expect(
+      column("laneWinPct").format(
+        row({ laneRecord: { wins: 0, draws: 0, losses: 0 } }),
+      ),
+    ).toBe("—")
+  })
+
   it("renders a missing stat as an em dash rather than a zero", () => {
     expect(column("goldAt10").format(row({ goldAt10: null }))).toBe("—")
     expect(column("obsPerGame").format(row({ obsPerGame: null }))).toBe("—")
@@ -165,7 +202,9 @@ describe("column formatting", () => {
   })
 
   it("shows a record with its win rate", () => {
-    expect(column("winPct").format(row({ games: 5, wins: 3 }))).toBe("3-2 (60%)")
+    expect(column("winPct").format(row({ games: 5, wins: 3 }))).toBe(
+      "3-2 (60%)",
+    )
   })
 })
 

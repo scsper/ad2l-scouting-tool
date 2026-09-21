@@ -8,6 +8,7 @@ import {
   type DuoLaneMatchup,
 } from "../../utils/lane-analysis"
 import type { MatchPlayerRow } from "../../../types/db"
+import { getLaneResult } from "../../../shared/lane-result"
 
 export const Lanes = ({
   leagueId,
@@ -342,17 +343,6 @@ function LaneSummaryTable({
       </table>
     </div>
   )
-}
-
-type LaneResult = "win_stomp" | "win" | "draw" | "loss" | "loss_stomp"
-
-function getLaneResult(goldAdv: number, xpAdv: number): LaneResult {
-  const score = goldAdv + xpAdv
-  if (score >= 2500) return "win_stomp"
-  if (score > 1000) return "win"
-  if (score >= -1000) return "draw"
-  if (score > -2500) return "loss"
-  return "loss_stomp"
 }
 
 function signedStr(n: number, suffix = "") {

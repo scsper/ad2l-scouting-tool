@@ -86,6 +86,22 @@ export const COLUMNS: Column[] = [
       )}%)`,
   },
   {
+    key: "laneWinPct",
+    label: "Lane",
+    title: "Lane wins-draws-losses at 10 minutes (sorted by win rate)",
+    value: row => {
+      const { wins, draws, losses } = row.laneRecord
+      const total = wins + draws + losses
+      return total === 0 ? null : (wins / total) * 100
+    },
+    format: row => {
+      const { wins, draws, losses } = row.laneRecord
+      return wins + draws + losses === 0
+        ? "—"
+        : `${String(wins)}-${String(draws)}-${String(losses)}`
+    },
+  },
+  {
     key: "goldAt10",
     label: "G@10",
     title: "Gold at 10 minutes",
@@ -199,7 +215,8 @@ export function sortRows(
       return a.name.localeCompare(b.name)
     }
 
-    if (left !== right) return direction === "desc" ? right - left : left - right
+    if (left !== right)
+      return direction === "desc" ? right - left : left - right
     // Name last so the order is stable across renders and re-sorts.
     return a.name.localeCompare(b.name)
   })
