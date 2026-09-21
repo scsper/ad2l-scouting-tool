@@ -1,3 +1,5 @@
+import { getLaneResult, type LaneResult } from "../shared/lane-result.js"
+
 /**
  * One player's record at one position, aggregated across a division.
  *
@@ -32,6 +34,8 @@ export type DivisionPlayerRow = {
   teamIds: number[]
   games: number
   wins: number
+  /** Only complete lane matchups count; all zeroes means no lane data. */
+  laneRecord: { wins: number; draws: number; losses: number }
   /**
    * `null` when no game of theirs carries the stat — never 0. Each of these has
    * its own denominator, so a player with lane data for three of five games is
@@ -57,6 +61,8 @@ const ANONYMOUS_PLAYER_ID = 0
 
 export type DivisionMatch = {
   id: number
+  radiant_team_id: number | null
+  dire_team_id: number | null
   winning_team_id: number | null
   start_date_time: number
   end_date_time: number
@@ -110,6 +116,7 @@ type Accumulator = {
   teamIds: Set<number>
   games: number
   wins: number
+  laneRecord: DivisionPlayerRow["laneRecord"]
   goldAt10: SkippingMean
   xpAt10: SkippingMean
   lhAt10: SkippingMean
@@ -136,6 +143,59 @@ function durationMinutes(match: DivisionMatch): number | null {
   return seconds > 0 ? seconds / 60 : null
 }
 
+const LANE_PAIRS = [
+  [
+    ["POSITION_1", "POSITION_5"],
+    ["POSITION_3", "POSITION_4"],
+  ],
+  [["POSITION_2"], ["POSITION_2"]],
+  [
+    ["POSITION_3", "POSITION_4"],
+    ["POSITION_1", "POSITION_5"],
+  ],
+]
+
+function matchLaneResults(
+  match: DivisionMatch,
+  players: DivisionPlayer[],
+): Map<DivisionPlayer, LaneResult> {
+  const results = new Map<DivisionPlayer, LaneResult>()
+  const radiant = match.radiant_team_id
+  const dire = match.dire_team_id
+  if (radiant == null || dire == null || radiant === dire) return results
+
+  for (const [radiantPositions, direPositions] of LANE_PAIRS) {
+    // Require exactly one player per lane role, including anonymous teammates
+    // and opponents. Missing or ambiguous lineups cannot produce a lane result.
+    const sides = [
+      radiantPositions.map(position =>
+        players.filter(p => p.team_id === radiant && p.position === position),
+      ),
+      direPositions.map(position =>
+        players.filter(p => p.team_id === dire && p.position === position),
+      ),
+    ]
+    if (sides.flat().some(atPosition => atPosition.length !== 1)) continue
+    const [radiantLane, direLane] = sides.map(side => side.flat())
+    if (
+      [...radiantLane, ...direLane].some(
+        p => p.gold_at_10 == null || p.xp_at_10 == null,
+      )
+    )
+      continue
+
+    const gold = (lane: DivisionPlayer[]) =>
+      lane.reduce((total, p) => total + (p.gold_at_10 ?? 0), 0)
+    const xp = (lane: DivisionPlayer[]) =>
+      lane.reduce((total, p) => total + (p.xp_at_10 ?? 0), 0)
+    const goldAdv = gold(radiantLane) - gold(direLane)
+    const xpAdv = xp(radiantLane) - xp(direLane)
+    for (const p of radiantLane) results.set(p, getLaneResult(goldAdv, xpAdv))
+    for (const p of direLane) results.set(p, getLaneResult(-goldAdv, -xpAdv))
+  }
+  return results
+}
+
 /**
  * Build the division's player-position rows.
  *
@@ -153,6 +213,17 @@ export function buildDivisionPlayerRows(
 ): DivisionPlayerRow[] {
   const matchesById = new Map(matches.map(match => [match.id, match]))
   const accumulators = new Map<string, Accumulator>()
+  const playersByMatch = new Map<number, DivisionPlayer[]>()
+  for (const player of players) {
+    const group = playersByMatch.get(player.match_id) ?? []
+    group.push(player)
+    playersByMatch.set(player.match_id, group)
+  }
+  const laneResults = new Map(
+    matches.flatMap(match =>
+      Array.from(matchLaneResults(match, playersByMatch.get(match.id) ?? [])),
+    ),
+  )
 
   for (const player of players) {
     // Private Steam profiles all ingest as player 0, so merging them would
@@ -176,6 +247,7 @@ export function buildDivisionPlayerRows(
         teamIds: new Set(),
         games: 0,
         wins: 0,
+        laneRecord: { wins: 0, draws: 0, losses: 0 },
         goldAt10: new SkippingMean(),
         xpAt10: new SkippingMean(),
         lhAt10: new SkippingMean(),
@@ -202,6 +274,14 @@ export function buildDivisionPlayerRows(
     if (player.team_id !== null) accumulator.teamIds.add(player.team_id)
 
     accumulator.games += 1
+    const laneResult = laneResults.get(player)
+    if (laneResult === "win" || laneResult === "win_stomp") {
+      accumulator.laneRecord.wins += 1
+    } else if (laneResult === "draw") {
+      accumulator.laneRecord.draws += 1
+    } else if (laneResult === "loss" || laneResult === "loss_stomp") {
+      accumulator.laneRecord.losses += 1
+    }
     if (player.team_id !== null && player.team_id === match.winning_team_id) {
       accumulator.wins += 1
     }
@@ -237,13 +317,15 @@ export function buildDivisionPlayerRows(
     teamIds: Array.from(accumulator.teamIds),
     games: accumulator.games,
     wins: accumulator.wins,
+    laneRecord: accumulator.laneRecord,
     goldAt10: accumulator.goldAt10.get(),
     xpAt10: accumulator.xpAt10.get(),
     lhAt10: accumulator.lhAt10.get(),
     gpm: accumulator.gpm / accumulator.games,
     xpm: accumulator.xpm / accumulator.games,
     kda:
-      (accumulator.kills + accumulator.assists) / Math.max(accumulator.deaths, 1),
+      (accumulator.kills + accumulator.assists) /
+      Math.max(accumulator.deaths, 1),
     heroDamagePerMin: accumulator.heroDamagePerMin.get(),
     obsPerGame: accumulator.obsPerGame.get(),
     senPerGame: accumulator.senPerGame.get(),

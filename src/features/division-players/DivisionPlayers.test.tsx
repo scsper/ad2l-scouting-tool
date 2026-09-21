@@ -20,6 +20,7 @@ function row(overrides: Partial<DivisionPlayerRow>): DivisionPlayerRow {
     teamIds: [SHARKHORSE],
     games: 5,
     wins: 3,
+    laneRecord: { wins: 2, draws: 1, losses: 2 },
     goldAt10: 2800,
     xpAt10: 3000,
     lhAt10: 50,
@@ -34,7 +35,14 @@ function row(overrides: Partial<DivisionPlayerRow>): DivisionPlayerRow {
 }
 
 const PLAYER_STATS: DivisionPlayerRow[] = [
-  row({ playerId: 1, name: "Winkx", games: 19, wins: 12, gpm: 692 }),
+  row({
+    playerId: 1,
+    name: "Winkx",
+    games: 19,
+    wins: 12,
+    gpm: 692,
+    laneRecord: { wins: 9, draws: 3, losses: 7 },
+  }),
   row({ playerId: 2, name: "neo_sporin", games: 22, wins: 12, gpm: 637 }),
   // Below the games floor: listed, but never ranked.
   row({ playerId: 3, name: "Jishba", games: 2, wins: 0, gpm: 900 }),
@@ -116,6 +124,20 @@ afterEach(() => {
 })
 
 describe("DivisionPlayers", () => {
+  it("shows lane records and lets the phone sort control rank by lane win rate", async () => {
+    const { user } = renderBoard()
+    await screen.findByText("neo_sporin")
+    expect(within(rowFor("Winkx")).getByText("9-3-7")).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText("Sort"), "laneWinPct")
+    expect(currentSearch()).toBe("?sort=laneWinPct")
+    expect(rowNames()).toEqual(["Winkx", "neo_sporin", "Jishba"])
+    expect(phoneColumnKeys("laneWinPct")).toEqual([
+      "laneWinPct",
+      "games",
+      "winPct",
+    ])
+  })
+
   it("opens on pos 1 sorted by games, and ranks from one", async () => {
     renderBoard()
 
@@ -195,7 +217,9 @@ describe("DivisionPlayers", () => {
     renderBoard("/?pos=5")
 
     await screen.findByText("Lady Septimus")
-    expect(within(rowFor("Lady Septimus")).getByText("Sharkhorse +1")).toBeInTheDocument()
+    expect(
+      within(rowFor("Lady Septimus")).getByText("Sharkhorse +1"),
+    ).toBeInTheDocument()
   })
 
   it("renders a stat no game carries as an em dash, not a zero", async () => {
@@ -209,7 +233,9 @@ describe("DivisionPlayers", () => {
     renderBoard()
 
     await screen.findByText("neo_sporin")
-    expect(within(rowFor("neo_sporin")).getByText("12-10 (55%)")).toBeInTheDocument()
+    expect(
+      within(rowFor("neo_sporin")).getByText("12-10 (55%)"),
+    ).toBeInTheDocument()
   })
 
   // A phone shows three of the eleven numeric columns. Which three is not a

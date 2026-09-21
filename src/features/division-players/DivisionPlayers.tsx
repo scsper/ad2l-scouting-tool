@@ -21,35 +21,43 @@ import {
 } from "./division-players-utils"
 
 /**
- * Shared by the header and every row so the eleven numeric columns line up and
+ * Shared by the header and every row so the numeric columns line up and
  * can be scanned down the page.
  *
- * Fourteen columns want about 800px. The phone gets rank, name and three
- * numbers over two rows; the rest are hidden and restated on expand.
+ * Below xl, rank, name and three numbers fit over two rows; the rest
+ * appear on expand. The full table needs the wider xl container.
  */
 // The last phone column is the widest because it carries "12-10 (55%)", which
 // wraps to two lines — and so doubles the height of every row on the board — at
 // anything under 4rem.
 const GRID =
-  "grid grid-cols-[1.25rem_minmax(0,1fr)_2.5rem_1.75rem_4rem] md:grid-cols-[2rem_minmax(7rem,1.4fr)_minmax(5.5rem,1fr)_2.25rem_minmax(5.5rem,0.9fr)_repeat(9,minmax(3.25rem,0.8fr))] gap-x-2 items-center"
+  "grid xl:grid-cols-[2rem_minmax(7rem,1.4fr)_minmax(5.5rem,1fr)_2.25rem_minmax(5.5rem,0.9fr)_minmax(4rem,0.8fr)_repeat(9,minmax(3.25rem,0.8fr))] gap-x-2 items-center"
+
+function gridClasses(sort: string): string {
+  return `${GRID} ${
+    sort === "laneWinPct"
+      ? "grid-cols-[1.25rem_minmax(0,1fr)_4rem_1.75rem_4rem]"
+      : "grid-cols-[1.25rem_minmax(0,1fr)_2.5rem_1.75rem_4rem]"
+  }`
+}
 
 /** Where each surviving cell lands on the phone. See `PlayerStats` for why these are explicit. */
 const AT = {
-  gutter: "max-md:col-start-1 max-md:row-start-1 max-md:row-span-2",
-  primary: "max-md:col-start-2 max-md:row-start-1",
-  sub: "max-md:col-start-2 max-md:row-start-2 max-md:col-span-4",
-  phoneHidden: "max-md:hidden",
+  gutter: "max-xl:col-start-1 max-xl:row-start-1 max-xl:row-span-2",
+  primary: "max-xl:col-start-2 max-xl:row-start-1",
+  sub: "max-xl:col-start-2 max-xl:row-start-2 max-xl:col-span-4",
+  phoneHidden: "max-xl:hidden",
 }
 
 /** The three numeric columns, in the order they sit on a phone row. */
 const PHONE_SLOTS = [
-  "max-md:col-start-3 max-md:row-start-1",
-  "max-md:col-start-4 max-md:row-start-1",
-  "max-md:col-start-5 max-md:row-start-1",
+  "max-xl:col-start-3 max-xl:row-start-1",
+  "max-xl:col-start-4 max-xl:row-start-1",
+  "max-xl:col-start-5 max-xl:row-start-1",
 ]
 
 /**
- * Which three of the eleven numeric columns a phone shows.
+ * Which three numeric columns a phone shows.
  *
  * The sorted column has to be one of them. A ranked list whose ordering column
  * is off-screen is a list in an order the screen does not justify — the reader
@@ -104,13 +112,13 @@ const PlayerRow = ({
       }`}
     >
       {/*
-        A button only because the phone needs somewhere to put the eight columns
-        it cannot show. At `md` and up every column is already on the row, so the
+        A button only because the phone needs somewhere to put the columns
+        it cannot show. At `xl` and up every column is already on the row, so the
         block this toggles is empty there and the cursor stays an arrow.
       */}
       <button
         onClick={onToggle}
-        className={`${GRID} w-full text-left px-3 py-2 max-md:cursor-pointer`}
+        className={`${gridClasses(sort)} w-full text-left px-3 py-2 max-xl:cursor-pointer`}
       >
         <span className={`${NUMERIC} text-xs text-slate-500 ${AT.gutter}`}>
           {rank ?? ""}
@@ -130,7 +138,7 @@ const PlayerRow = ({
         {COLUMNS.map(column => (
           <span
             key={column.key}
-            className={`${NUMERIC} text-sm max-md:text-xs max-md:whitespace-nowrap ${phonePlacement(column.key, sort)} ${isRanked ? "text-slate-200" : "text-slate-400"}`}
+            className={`${NUMERIC} text-sm max-xl:text-xs max-xl:whitespace-nowrap ${phonePlacement(column.key, sort)} ${isRanked ? "text-slate-200" : "text-slate-400"}`}
           >
             {column.format(row)}
           </span>
@@ -138,7 +146,7 @@ const PlayerRow = ({
       </button>
 
       {isExpanded && (
-        <div className="md:hidden flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-xs text-slate-400 border-t border-slate-700/60 pt-2">
+        <div className="xl:hidden flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-xs text-slate-400 border-t border-slate-700/60 pt-2">
           {COLUMNS.filter(column => !shown.includes(column.key)).map(column => (
             <span key={column.key}>
               <span className="text-slate-500">{column.label}</span>{" "}
@@ -172,7 +180,7 @@ export const DivisionPlayers = ({
 
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Phone-only in effect: the block it reveals is `md:hidden`, because at `md`
+  // Phone-only in effect: the block it reveals is `xl:hidden`, because at `xl`
   // and up there is nothing left to reveal. Kept out of the URL unlike the
   // board's own state — which rows you opened is not something anyone pastes
   // into a scrims thread.
@@ -281,12 +289,12 @@ export const DivisionPlayers = ({
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-slate-700 shadow-lg p-3 sm:p-6">
       {/*
         The phone's sort control, because the header it would otherwise use is
-        mostly off-screen: eight of the eleven column buttons are hidden there,
+        mostly off-screen: most of the column buttons are hidden there,
         and a board you can only sort three ways is a different board. Every
         column is selectable here, and whichever one is chosen becomes the first
         number on every row — see `phoneColumnKeys`.
       */}
-      <div className="md:hidden flex items-center gap-2 mb-3">
+      <div className="xl:hidden flex items-center gap-2 mb-3">
         <label
           htmlFor="division-players-sort"
           className="text-xs font-medium text-slate-500 uppercase tracking-wide"
@@ -338,8 +346,13 @@ export const DivisionPlayers = ({
         ))}
       </div>
 
+      <p className="mb-4 text-xs text-slate-400">
+        Lane: wins-draws-losses at 10 minutes. Side lanes share the duo’s
+        result; games without complete lane data are excluded.
+      </p>
+
       <div
-        className={`${GRID} px-3 pb-2 mb-2 border-b border-slate-700 text-xs font-medium text-slate-500 uppercase tracking-wide`}
+        className={`${gridClasses(sort)} px-3 pb-2 mb-2 border-b border-slate-700 text-xs font-medium text-slate-500 uppercase tracking-wide`}
       >
         <span className={AT.gutter} />
         <span className={AT.primary}>Player</span>

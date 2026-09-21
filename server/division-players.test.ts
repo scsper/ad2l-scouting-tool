@@ -14,6 +14,8 @@ function match(
 ): DivisionMatch {
   return {
     id,
+    radiant_team_id: 100,
+    dire_team_id: 200,
     winning_team_id: winner,
     start_date_time: start,
     end_date_time: start + minutes * 60,
@@ -54,6 +56,133 @@ const only = (rows: ReturnType<typeof buildDivisionPlayerRows>) => {
 }
 
 describe("buildDivisionPlayerRows", () => {
+  describe("lane records", () => {
+    it.each([
+      [1001, { wins: 1, draws: 0, losses: 0 }],
+      [3000, { wins: 1, draws: 0, losses: 0 }],
+      [1000, { wins: 0, draws: 1, losses: 0 }],
+      [-1000, { wins: 0, draws: 1, losses: 0 }],
+      [-1001, { wins: 0, draws: 0, losses: 1 }],
+      [-3000, { wins: 0, draws: 0, losses: 1 }],
+    ])("scores a mid lane with %i combined advantage", (advantage, record) => {
+      const rows = buildDivisionPlayerRows(
+        [match(1, 200)],
+        [
+          player(1, 7, "POSITION_2", {
+            gold_at_10: 3000,
+            xp_at_10: 3000 + advantage,
+          }),
+          player(1, 8, "POSITION_2", { team_id: 200, gold_at_10: 3000 }),
+        ],
+      )
+      expect(rows[0].laneRecord).toEqual(record)
+      expect(rows[1].laneRecord).toEqual({
+        wins: record.losses,
+        draws: record.draws,
+        losses: record.wins,
+      })
+    })
+
+    it("shares side-lane results with supports and reverses the opposing lane", () => {
+      const rows = buildDivisionPlayerRows(
+        [match(1, 200)],
+        [
+          player(1, 1, "POSITION_1"),
+          player(1, 5, "POSITION_5", { gold_at_10: 4500 }),
+          player(1, 13, "POSITION_3", { team_id: 200 }),
+          player(1, 14, "POSITION_4", { team_id: 200 }),
+          player(1, 3, "POSITION_3"),
+          player(1, 4, "POSITION_4"),
+          player(1, 11, "POSITION_1", { team_id: 200, xp_at_10: 6000 }),
+          player(1, 15, "POSITION_5", { team_id: 200 }),
+        ],
+      )
+      expect(rows.map(row => [row.playerId, row.laneRecord])).toEqual([
+        [1, { wins: 1, draws: 0, losses: 0 }],
+        [5, { wins: 1, draws: 0, losses: 0 }],
+        [13, { wins: 0, draws: 0, losses: 1 }],
+        [14, { wins: 0, draws: 0, losses: 1 }],
+        [3, { wins: 0, draws: 0, losses: 1 }],
+        [4, { wins: 0, draws: 0, losses: 1 }],
+        [11, { wins: 1, draws: 0, losses: 0 }],
+        [15, { wins: 1, draws: 0, losses: 0 }],
+      ])
+    })
+
+    it.each([{ gold_at_10: null }, { xp_at_10: undefined }])(
+      "excludes a lane when one participant lacks ten-minute data: %j",
+      missing => {
+        const rows = buildDivisionPlayerRows(
+          [match(1, 100)],
+          [
+            player(1, 1, "POSITION_1"),
+            player(1, 5, "POSITION_5"),
+            player(1, 13, "POSITION_3", { team_id: 200 }),
+            player(1, 14, "POSITION_4", { team_id: 200, ...missing }),
+          ],
+        )
+        expect(rows.every(row => row.games === 1)).toBe(true)
+        expect(
+          rows.every(row => Object.values(row.laneRecord).every(n => n === 0)),
+        ).toBe(true)
+      },
+    )
+
+    it("excludes incomplete lanes without discarding another lane's result", () => {
+      const rows = buildDivisionPlayerRows(
+        [match(1, 100)],
+        [
+          player(1, 1, "POSITION_1"),
+          player(1, 13, "POSITION_3", { team_id: 200 }),
+          player(1, 14, "POSITION_4", { team_id: 200 }),
+          player(1, 2, "POSITION_2"),
+          player(1, 12, "POSITION_2", { team_id: 200 }),
+        ],
+      )
+      expect(rows[0].laneRecord).toEqual({ wins: 0, draws: 0, losses: 0 })
+      expect(rows[3].laneRecord).toEqual({ wins: 0, draws: 1, losses: 0 })
+    })
+
+    it("counts real zeroes and anonymous opponents while excluding other divisions", () => {
+      const row = only(
+        buildDivisionPlayerRows(
+          [match(1, 100)],
+          [
+            player(1, 7, "POSITION_2", { gold_at_10: 0, xp_at_10: 0 }),
+            player(1, 0, "POSITION_2", {
+              team_id: 200,
+              gold_at_10: 0,
+              xp_at_10: 0,
+            }),
+            player(999, 7, "POSITION_2"),
+            player(999, 0, "POSITION_2", { team_id: 200 }),
+          ],
+        ),
+      )
+      expect(row.laneRecord).toEqual({ wins: 0, draws: 1, losses: 0 })
+    })
+
+    it("keeps separate position records when a player changes sides and roles", () => {
+      const rows = buildDivisionPlayerRows(
+        [match(1, 100), match(2, 200), match(3, 100)],
+        [
+          player(1, 7, "POSITION_2", { xp_at_10: 5000 }),
+          player(1, 0, "POSITION_2", { team_id: 200 }),
+          player(2, 7, "POSITION_2", { team_id: 200 }),
+          player(2, 0, "POSITION_2", { xp_at_10: 5000 }),
+          player(3, 7, "POSITION_1"),
+          player(3, 0, "POSITION_5"),
+          player(3, 0, "POSITION_3", { team_id: 200 }),
+          player(3, 0, "POSITION_4", { team_id: 200 }),
+        ],
+      )
+      expect(rows.map(row => [row.position, row.laneRecord])).toEqual([
+        ["POSITION_2", { wins: 1, draws: 0, losses: 1 }],
+        ["POSITION_1", { wins: 0, draws: 1, losses: 0 }],
+      ])
+    })
+  })
+
   // The whole reason the row is keyed on (player, position). Averaging his pos 4
   // game into his pos 1 record would rank him against carries on a number that
   // is partly a support's.
