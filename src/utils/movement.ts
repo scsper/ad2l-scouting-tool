@@ -379,7 +379,7 @@ function ceilingFor(bins: Float32Array): number {
  * Dagger as a glide through the trees — inventing a path the replay never had,
  * on the one tab whose only claim is that it shows where they actually were.
  */
-export const PLAYBACK_SPEEDS = [1, 1.5, 2, 4] as const
+export const PLAYBACK_SPEEDS = [1, 1.5, 2, 4, 8] as const
 
 /**
  * A frame gap this long is discarded rather than applied.
