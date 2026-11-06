@@ -167,18 +167,20 @@ export const COLUMNS: Column[] = [
     format: row => formatOrDash(row.senPerGame, formatCountPerGame),
   },
   {
-    key: "obsKillsPerGame",
+    key: "obsDewardsPerGame",
     label: "OBS DW",
-    title: "Observer wards dewarded per game",
-    value: row => row.obsKillsPerGame,
-    format: row => formatOrDash(row.obsKillsPerGame, formatCountPerGame),
+    title:
+      "Observer wards dewarded per game, credited to the player who provided True Sight",
+    value: row => row.obsDewardsPerGame,
+    format: row => formatOrDash(row.obsDewardsPerGame, formatCountPerGame),
   },
   {
-    key: "senKillsPerGame",
+    key: "senDewardsPerGame",
     label: "SEN DW",
-    title: "Sentry wards dewarded per game",
-    value: row => row.senKillsPerGame,
-    format: row => formatOrDash(row.senKillsPerGame, formatCountPerGame),
+    title:
+      "Sentry wards dewarded per game, credited to the player who provided True Sight",
+    value: row => row.senDewardsPerGame,
+    format: row => formatOrDash(row.senDewardsPerGame, formatCountPerGame),
   },
   {
     key: "campsStackedPerGame",

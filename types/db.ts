@@ -106,11 +106,17 @@ type MatchPlayerRow = {
   obs_placed: number | null
   sen_placed: number | null
   /**
-   * Enemy wards this player destroyed — dewards. Same `null`-vs-`0` contract as
-   * the placement counts above, and required for the same reason.
+   * Raw OpenDota ward last hits, distinct from reveal credit below. Same
+   * `null`-vs-`0` contract as the placement counts above.
    */
   obs_kills: number | null
   sen_kills: number | null
+  /**
+   * Enemy wards revealed, credited to the True Sight provider by the replay.
+   * Separate from last hits above. null = unavailable; 0 = no credited dewards.
+   */
+  obs_dewards: number | null
+  sen_dewards: number | null
   /** Jungle camps stacked; null means unavailable, while 0 means none stacked. */
   camps_stacked: number | null
   gold_at_10?: number | null

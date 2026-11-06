@@ -51,6 +51,8 @@ import zlib from "zlib"
 import { spawn } from "child_process"
 import { createClient } from "@supabase/supabase-js"
 import { extractFromEvents } from "../server/replay-extract"
+import { extractReplayDewards } from "../server/replay-dewards"
+import { storeDewards } from "../server/store-dewards"
 import { toPgHex } from "../server/pg-bytea"
 import { selectAll } from "../server/select-all"
 import { POSITION_ENCODING } from "../shared/position-codec"
@@ -533,7 +535,9 @@ async function writeMatch(
   matchId: number,
   dryRun: boolean,
 ): Promise<WriteResult> {
-  const extracted = extractFromEvents(readArchive(matchId))
+  const lines = readArchive(matchId)
+  const extracted = extractFromEvents(lines)
+  const dewards = extractReplayDewards(lines)
   const positions = zlib.gzipSync(extracted.positions)
   const lifeStates = zlib.gzipSync(extracted.lifeStates)
 
@@ -561,6 +565,8 @@ async function writeMatch(
     const { error } = await supabase.from("match_event").insert(chunk)
     if (error) throw new Error(error.message)
   }
+
+  await storeDewards(supabase, matchId, dewards)
 
   // Written last, deliberately. Lacking transactions, the positions row is the
   // only commit marker this pair of tables has, and `getWrittenMatchIds` treats

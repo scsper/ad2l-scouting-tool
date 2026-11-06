@@ -1,6 +1,7 @@
 /**
- * Fill missing deward counts (obs_kills, sen_kills) without replacing other
- * match data. Needs migrations/add_ward_kills.sql applied first.
+ * Fill raw ward last-hit counts (obs_kills, sen_kills) without replacing other
+ * match data. Needs migrations/add_ward_kills.sql applied first. The displayed
+ * deward stats use reveal credit instead; see backfill-dewards.ts.
  *
  * Usage (with SUPABASE_DOTA2_URL and SUPABASE_DOTA2_SECRET_KEY in the environment):
  *   npm run backfill-ward-kills -- --db

@@ -34,6 +34,8 @@ function player(overrides: Partial<MatchPlayerRow>): MatchPlayerRow {
     sen_placed: null,
     obs_kills: null,
     sen_kills: null,
+    obs_dewards: null,
+    sen_dewards: null,
     camps_stacked: null,
     ...overrides,
   }
@@ -62,8 +64,8 @@ const MATCHES: MatchApiResponse[] = [
         // chosen not to collide with any other number rendered on the row.
         obs_placed: 9,
         sen_placed: 14,
-        obs_kills: 3,
-        sen_kills: 11,
+        obs_dewards: 3,
+        sen_dewards: 11,
         camps_stacked: 8,
       }),
     ],

@@ -9,7 +9,17 @@
 - `backfill-camps-stacked -- --db` - fill missing jungle camp stack counts for
   existing games from OpenDota. Run after the migration, with `SUPABASE_DOTA2_URL` and
   `SUPABASE_DOTA2_SECRET_KEY` set. Unavailable counts display as “—” in the UI.
-- `backfill-ward-kills -- --db` - same, for observer and sentry deward counts.
+- `backfill-ward-kills -- --db` - fill raw OpenDota ward last-hit counts.
+- `backfill-dewards -- --db` - fill observer and sentry deward credit from local
+  replay archives after the `add_deward_credit.sql` migration. Credits the
+  player who provided True Sight (usually the sentry placer), using Dota's
+  recorded attribution. Both Players and league stats use this credit.
+  Add `--dry-run` to preview; this also works before the migration. Requires
+  the same Supabase environment variables as other backfills. Archives default
+  to `~/dota-replay-archive` (override with `REPLAY_ARCHIVE_DIR`). Missing
+  archives remain unknown and display as “—”; raw last hits are never used as
+  a fallback. New `parse-replays` runs fill this credit automatically; already
+  processed matches need this backfill or `parse-replays --from-archive`.
 - `grant` - add an admin or a division-scoped user, or revoke access. `npm run grant -- --list`
   shows who has what; see `.claude/skills/grant-access/SKILL.md` for the full runbook.
 

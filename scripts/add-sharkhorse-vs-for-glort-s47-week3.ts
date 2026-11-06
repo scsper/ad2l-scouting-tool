@@ -515,6 +515,8 @@ function buildMatchPlayerRows(game: GameInput): MatchPlayerRow[] {
     // them. Written explicitly so it reads as a decision, not an omission.
     obs_placed: null,
     sen_placed: null,
+    obs_dewards: null,
+    sen_dewards: null,
     obs_kills: null,
     sen_kills: null,
     camps_stacked: null,
