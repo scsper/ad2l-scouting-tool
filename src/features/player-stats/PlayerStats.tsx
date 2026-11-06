@@ -6,7 +6,7 @@ import { getHero } from "../../utils/get-hero"
 import {
   buildPlayerStats,
   formatDamage,
-  formatWards,
+  formatCount,
   type PlayerStatsEntry,
 } from "./player-stats-utils"
 
@@ -14,13 +14,13 @@ import {
  * Shared across the header, every collapsed average row, and every game row so
  * the averages line up column-for-column and can be scanned down the page.
  *
- * Fourteen columns need about 790px, so the phone gets five of them over two
- * rows instead. Same cells in the same DOM order — the eight that don't fit are
+ * The desktop columns are too wide for phones and tablets, which get five over two
+ * rows instead. Same cells in the same DOM order — those that don't fit are
  * hidden rather than dropped, and restated by `MoreStats` when a card is
  * expanded, so nothing is unreachable.
  */
 const GRID =
-  "grid grid-cols-[1.25rem_minmax(0,1fr)_auto_2.75rem_2.75rem] md:grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(10,minmax(2.75rem,0.7fr))_1.75rem] gap-x-2 items-center"
+  "grid grid-cols-[1.25rem_minmax(0,1fr)_auto_2.75rem_2.75rem] xl:grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(10,minmax(2.75rem,0.7fr))_minmax(4.5rem,0.9fr)_1.75rem] gap-x-2 items-center"
 
 /**
  * Where each surviving cell lands on the phone. Placed explicitly rather than
@@ -29,17 +29,17 @@ const GRID =
  * until someone adds a column and then silently is not.
  */
 const AT = {
-  gutter: "max-md:col-start-1 max-md:row-start-1 max-md:row-span-2",
-  primary: "max-md:col-start-2 max-md:row-start-1",
-  sub: "max-md:col-start-2 max-md:row-start-2 max-md:col-span-4",
-  third: "max-md:col-start-3 max-md:row-start-1",
-  fourth: "max-md:col-start-4 max-md:row-start-1",
-  fifth: "max-md:col-start-5 max-md:row-start-1",
-  subLeft: "max-md:col-start-2 max-md:row-start-2",
-  subRight: "max-md:col-start-3 max-md:row-start-2 max-md:col-span-2",
-  subEnd: "max-md:col-start-5 max-md:row-start-2",
-  thirdRow: "max-md:col-start-1 max-md:col-span-5 max-md:row-start-3",
-  phoneHidden: "max-md:hidden",
+  gutter: "max-xl:col-start-1 max-xl:row-start-1 max-xl:row-span-2",
+  primary: "max-xl:col-start-2 max-xl:row-start-1",
+  sub: "max-xl:col-start-2 max-xl:row-start-2 max-xl:col-span-4",
+  third: "max-xl:col-start-3 max-xl:row-start-1",
+  fourth: "max-xl:col-start-4 max-xl:row-start-1",
+  fifth: "max-xl:col-start-5 max-xl:row-start-1",
+  subLeft: "max-xl:col-start-2 max-xl:row-start-2",
+  subRight: "max-xl:col-start-3 max-xl:row-start-2 max-xl:col-span-2",
+  subEnd: "max-xl:col-start-5 max-xl:row-start-2",
+  thirdRow: "max-xl:col-start-1 max-xl:col-span-5 max-xl:row-start-3",
+  phoneHidden: "max-xl:hidden",
 }
 
 const NUMERIC = "text-right tabular-nums"
@@ -47,7 +47,7 @@ const NUMERIC = "text-right tabular-nums"
 /**
  * The columns the phone row has no room for, restated as labelled pairs.
  *
- * Wrapping text rather than a grid: eight short numbers in a two-column table
+ * Wrapping text rather than a grid: a two-column table of these short numbers
  * is taller than the row it describes, and these are read one at a time
  * ("what's their ward count") rather than scanned as a column.
  */
@@ -59,7 +59,7 @@ const MoreStats = ({
   className?: string
 }) => (
   <div
-    className={`md:hidden flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-400 ${className}`}
+    className={`xl:hidden flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-400 ${className}`}
   >
     {pairs.map(([label, value]) => (
       <span key={label}>
@@ -96,7 +96,7 @@ const NoGamesRow = ({ entry }: { entry: PlayerStatsEntry }) => (
         {entry.positionLabel}
       </span>
       <span
-        className={`text-sm text-slate-600 col-span-8 max-md:col-span-3 ${AT.third}`}
+        className={`text-sm text-slate-600 col-span-8 max-xl:col-span-3 ${AT.third}`}
       >
         no games this league
       </span>
@@ -144,11 +144,11 @@ const PlayerCard = ({
         >
           {entry.name}
         </span>
-        <span className={`text-sm text-slate-400 max-md:text-xs ${AT.sub}`}>
+        <span className={`text-sm text-slate-400 max-xl:text-xs ${AT.sub}`}>
           {entry.positionLabel}
           <span className="text-slate-500"> · {entry.games.length}g</span>
         </span>
-        <span className={`text-sm max-md:text-xs ${AT.third}`}>
+        <span className={`text-sm max-xl:text-xs ${AT.third}`}>
           <span className="text-green-400">{entry.wins}</span>
           <span className="text-slate-500">-</span>
           <span className="text-red-400">{entry.losses}</span>
@@ -185,10 +185,13 @@ const PlayerCard = ({
           {formatDamage(averages.towerDamage)}
         </span>
         <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
-          {formatWards(averages.obsPlaced, 1)}
+          {formatCount(averages.obsPlaced, 1)}
         </span>
         <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
-          {formatWards(averages.senPlaced, 1)}
+          {formatCount(averages.senPlaced, 1)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
+          {formatCount(averages.campsStacked, 1)}
         </span>
         <span className={AT.phoneHidden} />
       </button>
@@ -208,8 +211,9 @@ const PlayerCard = ({
               ],
               ["HD", formatDamage(averages.heroDamage)],
               ["BLD", formatDamage(averages.towerDamage)],
-              ["OBS", formatWards(averages.obsPlaced, 1)],
-              ["SEN", formatWards(averages.senPlaced, 1)],
+              ["OBS", formatCount(averages.obsPlaced, 1)],
+              ["SEN", formatCount(averages.senPlaced, 1)],
+              ["Camps stacked", formatCount(averages.campsStacked, 1)],
             ]}
           />
           {entry.games.map(game => (
@@ -281,12 +285,17 @@ const PlayerCard = ({
               <span
                 className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
               >
-                {formatWards(game.obsPlaced)}
+                {formatCount(game.obsPlaced)}
               </span>
               <span
                 className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
               >
-                {formatWards(game.senPlaced)}
+                {formatCount(game.senPlaced)}
+              </span>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
+                {formatCount(game.campsStacked)}
               </span>
               <MoreStats
                 className={`pt-1 ${AT.thirdRow}`}
@@ -298,8 +307,9 @@ const PlayerCard = ({
                   ],
                   ["HD", formatDamage(game.heroDamage)],
                   ["BLD", formatDamage(game.towerDamage)],
-                  ["OBS", formatWards(game.obsPlaced)],
-                  ["SEN", formatWards(game.senPlaced)],
+                  ["OBS", formatCount(game.obsPlaced)],
+                  ["SEN", formatCount(game.senPlaced)],
+                  ["Camps stacked", formatCount(game.campsStacked)],
                 ]}
               />
               <a
@@ -462,13 +472,13 @@ export const PlayerStats = ({
       >
         <span className={AT.gutter} />
         <span className={AT.primary}>
-          <span className="md:hidden">Player</span>
-          <span className="max-md:hidden">Player / Match</span>
+          <span className="xl:hidden">Player</span>
+          <span className="max-xl:hidden">Player / Match</span>
         </span>
         <span className={AT.phoneHidden}>Pos / Hero</span>
         <span className={AT.third}>
-          <span className="md:hidden">W-L</span>
-          <span className="max-md:hidden">Record / Opponent</span>
+          <span className="xl:hidden">W-L</span>
+          <span className="max-xl:hidden">Record / Opponent</span>
         </span>
         <span className={`${NUMERIC} ${AT.fourth}`}>GPM</span>
         <span className={`${NUMERIC} ${AT.phoneHidden}`}>XPM</span>
@@ -494,6 +504,12 @@ export const PlayerStats = ({
           title="Sentry wards placed"
         >
           SEN
+        </span>
+        <span
+          className={`${NUMERIC} ${AT.phoneHidden}`}
+          title="Jungle camps stacked per game"
+        >
+          Camps stacked
         </span>
         <span className={AT.phoneHidden} />
       </div>

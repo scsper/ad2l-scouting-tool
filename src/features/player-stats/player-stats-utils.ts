@@ -33,6 +33,8 @@ export type PlayerGame = {
   /** `null` when the match has no ward data; `0` means none were placed. */
   obsPlaced: number | null
   senPlaced: number | null
+  /** `null` when unavailable; `0` means no jungle camps stacked. */
+  campsStacked: number | null
   kda: number
 }
 
@@ -47,6 +49,8 @@ export type PlayerAverages = {
   /** `null` when none of the player's games carry ward data. */
   obsPlaced: number | null
   senPlaced: number | null
+  /** Average over games with stack data; `null` if none have it. */
+  campsStacked: number | null
   kda: number
 }
 
@@ -142,7 +146,7 @@ function getOpponentTeamId(
 }
 
 /**
- * Averages a ward stat over only the games that carry ward data, so the
+ * Averages a nullable stat over only the games that carry data, so the
  * denominator differs from the player's game count. Games with `null` are
  * skipped rather than counted as zero — treating "we have no data" as "placed
  * none" would quietly drag a support's average toward zero for games nobody has
@@ -150,16 +154,16 @@ function getOpponentTeamId(
  *
  * Returns `null` when no game has data, which the UI renders as an em dash.
  */
-function getWardAverage(
+function getNullableAverage(
   games: PlayerGame[],
   select: (game: PlayerGame) => number | null,
 ): number | null {
   let total = 0
   let count = 0
   for (const game of games) {
-    const placed = select(game)
-    if (placed == null) continue
-    total += placed
+    const value = select(game)
+    if (value == null) continue
+    total += value
     count += 1
   }
   return count === 0 ? null : total / count
@@ -197,8 +201,9 @@ function getAverages(games: PlayerGame[]): PlayerAverages {
     assists: totals.assists / gameCount,
     heroDamage: totals.heroDamage / gameCount,
     towerDamage: totals.towerDamage / gameCount,
-    obsPlaced: getWardAverage(games, game => game.obsPlaced),
-    senPlaced: getWardAverage(games, game => game.senPlaced),
+    obsPlaced: getNullableAverage(games, game => game.obsPlaced),
+    senPlaced: getNullableAverage(games, game => game.senPlaced),
+    campsStacked: getNullableAverage(games, game => game.campsStacked),
     // Ratio of totals, matching how Dotabuff/OpenDota/Stratz report aggregate KDA.
     kda: (totals.kills + totals.assists) / Math.max(totals.deaths, 1),
   }
@@ -306,6 +311,7 @@ export function buildPlayerStats(
         // null here. Normalise undefined to null but never to 0.
         obsPlaced: player.obs_placed ?? null,
         senPlaced: player.sen_placed ?? null,
+        campsStacked: player.camps_stacked ?? null,
         kda: getGameKda(player.kills, player.deaths, player.assists),
       })
       gamesByPlayer.set(player.player_id, games)
@@ -400,9 +406,8 @@ export function formatDamage(value: number): string {
 }
 
 /**
- * Renders an em dash for missing ward data so it never reads as a zero. A core
- * who warded nothing shows "0"; a match we have no data for shows "—".
+ * Renders an em dash for missing counts so they never read as a real zero.
  */
-export function formatWards(placed: number | null, digits = 0): string {
-  return placed == null ? "—" : placed.toFixed(digits)
+export function formatCount(value: number | null, digits = 0): string {
+  return value == null ? "—" : value.toFixed(digits)
 }

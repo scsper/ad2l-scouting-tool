@@ -105,6 +105,8 @@ type MatchPlayerRow = {
    */
   obs_placed: number | null
   sen_placed: number | null
+  /** Jungle camps stacked; null means unavailable, while 0 means none stacked. */
+  camps_stacked: number | null
   gold_at_10?: number | null
   xp_at_10?: number | null
   lh_at_10?: number | null
