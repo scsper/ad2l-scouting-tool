@@ -14,7 +14,7 @@ import { getLaneResult, type LaneResult } from "../shared/lane-result.js"
  * Most stats here are duration-neutral, which is the difference between this and
  * the per-team Players tab; the `@10` columns are the strongest for that reason,
  * since a fixed ten-minute window is comparable across every game ever played.
- * Wards are the deliberate exception. A rate per minute is the cleaner quantity
+ * Ward and camp stack counts are the exceptions. A rate per minute is cleaner
  * — games run 23 to 83 minutes, so a long game inflates the count — but nobody
  * scouting a support thinks in wards per minute, and rescaling to per-ten to
  * make it readable produced a column whose numbers matched nothing anyone had
@@ -54,6 +54,8 @@ export type DivisionPlayerRow = {
   /** Wards placed per game, averaged over the games that report them. */
   obsPerGame: number | null
   senPerGame: number | null
+  /** Jungle camps stacked per game, averaged over games with stack data. */
+  campsStackedPerGame: number | null
 }
 
 /** Sentinel written by the ingest scripts when a Steam profile is private. */
@@ -82,6 +84,7 @@ export type DivisionPlayer = {
   hero_damage: number
   obs_placed: number | null
   sen_placed: number | null
+  camps_stacked: number | null
   gold_at_10?: number | null
   xp_at_10?: number | null
   lh_at_10?: number | null
@@ -128,6 +131,7 @@ type Accumulator = {
   heroDamagePerMin: SkippingMean
   obsPerGame: SkippingMean
   senPerGame: SkippingMean
+  campsStackedPerGame: SkippingMean
 }
 
 /**
@@ -259,6 +263,7 @@ export function buildDivisionPlayerRows(
         heroDamagePerMin: new SkippingMean(),
         obsPerGame: new SkippingMean(),
         senPerGame: new SkippingMean(),
+        campsStackedPerGame: new SkippingMean(),
       }
       accumulators.set(key, accumulator)
     }
@@ -296,10 +301,11 @@ export function buildDivisionPlayerRows(
     accumulator.deaths += player.deaths
     accumulator.assists += player.assists
 
-    // Ward counts don't need the match's duration, so they survive a game whose
-    // timestamps we can't use — which the hero-damage rate can't.
+    // Ward and stack counts survive unusable match timestamps; the hero-damage
+    // rate needs a valid duration.
     accumulator.obsPerGame.add(player.obs_placed)
     accumulator.senPerGame.add(player.sen_placed)
+    accumulator.campsStackedPerGame.add(player.camps_stacked)
 
     // Rated per game and then averaged, rather than summing both sides and
     // dividing once. Otherwise a single long game would weigh more than a short
@@ -329,5 +335,6 @@ export function buildDivisionPlayerRows(
     heroDamagePerMin: accumulator.heroDamagePerMin.get(),
     obsPerGame: accumulator.obsPerGame.get(),
     senPerGame: accumulator.senPerGame.get(),
+    campsStackedPerGame: accumulator.campsStackedPerGame.get(),
   }))
 }

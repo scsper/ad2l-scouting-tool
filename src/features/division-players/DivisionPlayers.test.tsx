@@ -30,6 +30,7 @@ function row(overrides: Partial<DivisionPlayerRow>): DivisionPlayerRow {
     heroDamagePerMin: 400,
     obsPerGame: 4,
     senPerGame: 2,
+    campsStackedPerGame: 0,
     ...overrides,
   }
 }
@@ -41,6 +42,7 @@ const PLAYER_STATS: DivisionPlayerRow[] = [
     games: 19,
     wins: 12,
     gpm: 692,
+    campsStackedPerGame: 3.5,
     laneRecord: { wins: 9, draws: 3, losses: 7 },
   }),
   row({ playerId: 2, name: "neo_sporin", games: 22, wins: 12, gpm: 637 }),
@@ -56,6 +58,7 @@ const PLAYER_STATS: DivisionPlayerRow[] = [
     wins: 7,
     obsPerGame: null,
     senPerGame: null,
+    campsStackedPerGame: null,
   }),
 ]
 
@@ -182,6 +185,32 @@ describe("DivisionPlayers", () => {
     expect(rowNames()).toEqual(["Winkx", "neo_sporin", "Jishba"])
   })
 
+  it("shows camps stacked per game and sorts from the column header and phone control", async () => {
+    const { user } = renderBoard()
+    await screen.findByText("neo_sporin")
+
+    expect(within(rowFor("Winkx")).getByText("3.5")).toBeInTheDocument()
+    expect(within(rowFor("neo_sporin")).getByText("0.0")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Camps stacked" }))
+    expect(currentSearch()).toBe("?sort=campsStackedPerGame")
+    expect(rowNames()).toEqual(["Winkx", "neo_sporin", "Jishba"])
+    await user.click(screen.getByLabelText("Sort ascending"))
+    expect(rowNames()).toEqual(["neo_sporin", "Winkx", "Jishba"])
+
+    await user.selectOptions(screen.getByLabelText("Sort"), "games")
+    await user.selectOptions(
+      screen.getByLabelText("Sort"),
+      "campsStackedPerGame",
+    )
+    expect(currentSearch()).toBe("?sort=campsStackedPerGame")
+    expect(rowNames()).toEqual(["Winkx", "neo_sporin", "Jishba"])
+    expect(phoneColumnKeys("campsStackedPerGame")).toEqual([
+      "campsStackedPerGame",
+      "games",
+      "winPct",
+    ])
+  })
+
   // Otherwise the common URL carries three params that say "the defaults", and
   // the one thing worth reading in it is buried.
   it("leaves a param at its default out of the URL", async () => {
@@ -226,7 +255,7 @@ describe("DivisionPlayers", () => {
     renderBoard("/?pos=5")
 
     await screen.findByText("Lady Septimus")
-    expect(within(rowFor("Lady Septimus")).getAllByText("—")).toHaveLength(2)
+    expect(within(rowFor("Lady Septimus")).getAllByText("—")).toHaveLength(3)
   })
 
   it("shows a record with its win rate", async () => {
@@ -238,7 +267,7 @@ describe("DivisionPlayers", () => {
     ).toBeInTheDocument()
   })
 
-  // A phone shows three of the eleven numeric columns. Which three is not a
+  // A phone shows three numeric columns. Which three is not a
   // styling question: get it wrong and the board renders in an order the reader
   // has no way to account for.
   describe("the columns a phone keeps", () => {
@@ -275,7 +304,7 @@ describe("DivisionPlayers", () => {
     await screen.findByText("neo_sporin")
     const row = rowFor("neo_sporin")
 
-    // Collapsed, the eight columns off the phone row are not in the tree at all
+    // Collapsed, labels for the hidden phone columns are not in the tree at all
     // — so nothing claims to be showing a number it isn't.
     expect(within(row).queryByText("XP@10")).not.toBeInTheDocument()
 
@@ -284,6 +313,7 @@ describe("DivisionPlayers", () => {
     expect(within(row).getByText("XP@10")).toBeInTheDocument()
     expect(within(row).getByText("KDA")).toBeInTheDocument()
     expect(within(row).getByText("SEN")).toBeInTheDocument()
+    expect(within(row).getByText("Camps stacked")).toBeInTheDocument()
     // The three already on the row are not repeated underneath it.
     expect(within(row).queryByText("G@10")).toBeInTheDocument()
     expect(within(row).queryByText("GPM")).not.toBeInTheDocument()

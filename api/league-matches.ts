@@ -41,6 +41,7 @@ export type LeagueMatchPlayer = Pick<
   | 'hero_damage'
   | 'obs_placed'
   | 'sen_placed'
+  | 'camps_stacked'
   | 'gold_at_10'
   | 'xp_at_10'
   | 'lh_at_10'
@@ -49,7 +50,7 @@ export type LeagueMatchPlayer = Pick<
 const PLAYER_COLUMNS = [
   'match_id', 'player_id', 'player_name', 'hero_id', 'position', 'team_id',
   'gpm', 'xpm', 'kills', 'deaths', 'assists', 'hero_damage',
-  'obs_placed', 'sen_placed', 'gold_at_10', 'xp_at_10', 'lh_at_10',
+  'obs_placed', 'sen_placed', 'camps_stacked', 'gold_at_10', 'xp_at_10', 'lh_at_10',
 ].join(', ');
 
 /**
