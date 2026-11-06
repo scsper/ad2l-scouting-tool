@@ -18,7 +18,7 @@ type LeagueAndTeamHeaderProps = {
    * a history entry for a URL nobody was meant to see.
    */
   onSelectLeague: (leagueId: number, keepTeamId: number | undefined) => void;
-  onSelectTeam: (teamId: number) => void;
+  onSelectTeam: (teamId: number | undefined) => void;
   onSelectDivision: (division: string | undefined) => void;
 }
 
@@ -202,7 +202,7 @@ export const LeagueAndTeamHeader = ({leagueId, teamId, division, onSelectLeague,
             aria-label="Team"
             value={teamId ?? ""}
             onChange={(e) => {
-              onSelectTeam(parseInt(e.target.value, 10));
+              onSelectTeam(e.target.value === "" ? undefined : parseInt(e.target.value, 10));
               setIsPickerOpen(false);
             }}
             className={selectClassName}
