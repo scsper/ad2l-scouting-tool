@@ -195,10 +195,10 @@ const PlayerCard = ({
           {formatCount(averages.senPlaced, 1)}
         </span>
         <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
-          {formatCount(averages.obsKills, 1)}
+          {formatCount(averages.obsDewards, 1)}
         </span>
         <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
-          {formatCount(averages.senKills, 1)}
+          {formatCount(averages.senDewards, 1)}
         </span>
         <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {formatCount(averages.campsStacked, 1)}
@@ -223,8 +223,8 @@ const PlayerCard = ({
               ["BLD", formatDamage(averages.towerDamage)],
               ["OBS", formatCount(averages.obsPlaced, 1)],
               ["SEN", formatCount(averages.senPlaced, 1)],
-              ["Obs dewarded", formatCount(averages.obsKills, 1)],
-              ["Sen dewarded", formatCount(averages.senKills, 1)],
+              ["Obs dewarded", formatCount(averages.obsDewards, 1)],
+              ["Sen dewarded", formatCount(averages.senDewards, 1)],
               ["Camps stacked", formatCount(averages.campsStacked, 1)],
             ]}
           />
@@ -307,12 +307,12 @@ const PlayerCard = ({
               <span
                 className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
               >
-                {formatCount(game.obsKills)}
+                {formatCount(game.obsDewards)}
               </span>
               <span
                 className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
               >
-                {formatCount(game.senKills)}
+                {formatCount(game.senDewards)}
               </span>
               <span
                 className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
@@ -331,8 +331,8 @@ const PlayerCard = ({
                   ["BLD", formatDamage(game.towerDamage)],
                   ["OBS", formatCount(game.obsPlaced)],
                   ["SEN", formatCount(game.senPlaced)],
-                  ["Obs dewarded", formatCount(game.obsKills)],
-                  ["Sen dewarded", formatCount(game.senKills)],
+                  ["Obs dewarded", formatCount(game.obsDewards)],
+                  ["Sen dewarded", formatCount(game.senDewards)],
                   ["Camps stacked", formatCount(game.campsStacked)],
                 ]}
               />
@@ -531,13 +531,13 @@ export const PlayerStats = ({
         </span>
         <span
           className={`${NUMERIC} ${AT.phoneHidden}`}
-          title="Observer wards dewarded per game"
+          title="Observer wards dewarded per game, credited to the player who provided True Sight"
         >
           Obs dewarded
         </span>
         <span
           className={`${NUMERIC} ${AT.phoneHidden}`}
-          title="Sentry wards dewarded per game"
+          title="Sentry wards dewarded per game, credited to the player who provided True Sight"
         >
           Sen dewarded
         </span>

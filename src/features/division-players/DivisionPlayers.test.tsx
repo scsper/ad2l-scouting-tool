@@ -30,8 +30,8 @@ function row(overrides: Partial<DivisionPlayerRow>): DivisionPlayerRow {
     heroDamagePerMin: 400,
     obsPerGame: 4,
     senPerGame: 2,
-    obsKillsPerGame: 1,
-    senKillsPerGame: 3,
+    obsDewardsPerGame: 1,
+    senDewardsPerGame: 3,
     campsStackedPerGame: 0,
     ...overrides,
   }
@@ -60,8 +60,8 @@ const PLAYER_STATS: DivisionPlayerRow[] = [
     wins: 7,
     obsPerGame: null,
     senPerGame: null,
-    obsKillsPerGame: null,
-    senKillsPerGame: null,
+    obsDewardsPerGame: null,
+    senDewardsPerGame: null,
     campsStackedPerGame: null,
   }),
 ]

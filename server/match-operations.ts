@@ -489,6 +489,10 @@ export async function convertMatchDataToMatchPlayersTable(
     sen_placed: player.senPlaced,
     obs_kills: player.obsKills,
     sen_kills: player.senKills,
+    // OpenDota's summary only supplies last hits. Reveal credit is filled by
+    // parse-replays or backfill-dewards from the complete replay archive.
+    obs_dewards: null,
+    sen_dewards: null,
     camps_stacked: player.campsStacked,
     gold_at_10: player.goldAt10,
     xp_at_10: player.xpAt10,

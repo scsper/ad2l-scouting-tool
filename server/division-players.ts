@@ -54,9 +54,9 @@ export type DivisionPlayerRow = {
   /** Wards placed per game, averaged over the games that report them. */
   obsPerGame: number | null
   senPerGame: number | null
-  /** Enemy wards destroyed per game, on the same basis as the placed counts. */
-  obsKillsPerGame: number | null
-  senKillsPerGame: number | null
+  /** Reveal credit per game, averaged over games with replay attribution. */
+  obsDewardsPerGame: number | null
+  senDewardsPerGame: number | null
   /** Jungle camps stacked per game, averaged over games with stack data. */
   campsStackedPerGame: number | null
 }
@@ -87,8 +87,8 @@ export type DivisionPlayer = {
   hero_damage: number
   obs_placed: number | null
   sen_placed: number | null
-  obs_kills: number | null
-  sen_kills: number | null
+  obs_dewards: number | null
+  sen_dewards: number | null
   camps_stacked: number | null
   gold_at_10?: number | null
   xp_at_10?: number | null
@@ -136,8 +136,8 @@ type Accumulator = {
   heroDamagePerMin: SkippingMean
   obsPerGame: SkippingMean
   senPerGame: SkippingMean
-  obsKillsPerGame: SkippingMean
-  senKillsPerGame: SkippingMean
+  obsDewardsPerGame: SkippingMean
+  senDewardsPerGame: SkippingMean
   campsStackedPerGame: SkippingMean
 }
 
@@ -270,8 +270,8 @@ export function buildDivisionPlayerRows(
         heroDamagePerMin: new SkippingMean(),
         obsPerGame: new SkippingMean(),
         senPerGame: new SkippingMean(),
-        obsKillsPerGame: new SkippingMean(),
-        senKillsPerGame: new SkippingMean(),
+        obsDewardsPerGame: new SkippingMean(),
+        senDewardsPerGame: new SkippingMean(),
         campsStackedPerGame: new SkippingMean(),
       }
       accumulators.set(key, accumulator)
@@ -314,8 +314,8 @@ export function buildDivisionPlayerRows(
     // rate needs a valid duration.
     accumulator.obsPerGame.add(player.obs_placed)
     accumulator.senPerGame.add(player.sen_placed)
-    accumulator.obsKillsPerGame.add(player.obs_kills)
-    accumulator.senKillsPerGame.add(player.sen_kills)
+    accumulator.obsDewardsPerGame.add(player.obs_dewards)
+    accumulator.senDewardsPerGame.add(player.sen_dewards)
     accumulator.campsStackedPerGame.add(player.camps_stacked)
 
     // Rated per game and then averaged, rather than summing both sides and
@@ -346,8 +346,8 @@ export function buildDivisionPlayerRows(
     heroDamagePerMin: accumulator.heroDamagePerMin.get(),
     obsPerGame: accumulator.obsPerGame.get(),
     senPerGame: accumulator.senPerGame.get(),
-    obsKillsPerGame: accumulator.obsKillsPerGame.get(),
-    senKillsPerGame: accumulator.senKillsPerGame.get(),
+    obsDewardsPerGame: accumulator.obsDewardsPerGame.get(),
+    senDewardsPerGame: accumulator.senDewardsPerGame.get(),
     campsStackedPerGame: accumulator.campsStackedPerGame.get(),
   }))
 }

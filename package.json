@@ -20,6 +20,7 @@
     "backfill-lanes": "tsx scripts/backfill-lanes.ts",
     "backfill-camps-stacked": "tsx scripts/backfill-camps-stacked.ts",
     "backfill-ward-kills": "tsx scripts/backfill-ward-kills.ts",
+    "backfill-dewards": "tsx scripts/backfill-dewards.ts",
     "backfill-wards": "tsx scripts/backfill-wards.ts",
     "backfill-ward-placements": "tsx scripts/backfill-ward-placements.ts",
     "backfill-objectives": "tsx scripts/backfill-objectives.ts",

@@ -42,8 +42,8 @@ function player(
     hero_damage: 20000,
     obs_placed: 4,
     sen_placed: 2,
-    obs_kills: 1,
-    sen_kills: 3,
+    obs_dewards: 1,
+    sen_dewards: 3,
     camps_stacked: null,
     gold_at_10: 2800,
     xp_at_10: 3000,
@@ -275,8 +275,8 @@ describe("buildDivisionPlayerRows", () => {
           player(1, 7, "POSITION_5", {
             obs_placed: null,
             sen_placed: null,
-            obs_kills: null,
-            sen_kills: null,
+            obs_dewards: null,
+            sen_dewards: null,
           }),
         ],
       ),
@@ -284,8 +284,8 @@ describe("buildDivisionPlayerRows", () => {
 
     expect(row.obsPerGame).toBeNull()
     expect(row.senPerGame).toBeNull()
-    expect(row.obsKillsPerGame).toBeNull()
-    expect(row.senKillsPerGame).toBeNull()
+    expect(row.obsDewardsPerGame).toBeNull()
+    expect(row.senDewardsPerGame).toBeNull()
   })
 
   // A real zero is an observation: a carry who warded nothing warded nothing.
@@ -293,12 +293,12 @@ describe("buildDivisionPlayerRows", () => {
     const row = only(
       buildDivisionPlayerRows(
         [match(1, 100, { minutes: 40 })],
-        [player(1, 7, "POSITION_1", { obs_placed: 0, obs_kills: 0 })],
+        [player(1, 7, "POSITION_1", { obs_placed: 0, obs_dewards: 0 })],
       ),
     )
 
     expect(row.obsPerGame).toBe(0)
-    expect(row.obsKillsPerGame).toBe(0)
+    expect(row.obsDewardsPerGame).toBe(0)
   })
 
   // Wards are counted per game, so the longer game's support does read higher.
@@ -362,15 +362,35 @@ describe("buildDivisionPlayerRows", () => {
       buildDivisionPlayerRows(
         [match(1, 100), match(2, 100)],
         [
-          player(1, 7, "POSITION_5", { obs_kills: 4, sen_kills: 9 }),
-          player(2, 7, "POSITION_5", { obs_kills: null, sen_kills: null }),
+          player(1, 7, "POSITION_5", { obs_dewards: 4, sen_dewards: 9 }),
+          player(2, 7, "POSITION_5", { obs_dewards: null, sen_dewards: null }),
         ],
       ),
     )
 
     expect(row.obsPerGame).toBe(4)
-    expect(row.obsKillsPerGame).toBe(4)
-    expect(row.senKillsPerGame).toBe(9)
+    expect(row.obsDewardsPerGame).toBe(4)
+    expect(row.senDewardsPerGame).toBe(9)
+  })
+
+  it("uses reveal credit even when raw ward kills differ or only last hits are available", () => {
+    const players = [
+      {
+        ...player(1, 7, "POSITION_5", { obs_dewards: 0, sen_dewards: 4 }),
+        obs_kills: 8,
+        sen_kills: 10,
+      },
+      {
+        ...player(2, 7, "POSITION_5", { obs_dewards: null, sen_dewards: null }),
+        obs_kills: 5,
+        sen_kills: 6,
+      },
+    ]
+    const row = only(
+      buildDivisionPlayerRows([match(1, 100), match(2, 100)], players),
+    )
+    expect(row.obsDewardsPerGame).toBe(0)
+    expect(row.senDewardsPerGame).toBe(4)
   })
 
   // Ward counts don't need the match clock, so a game whose timestamps we can't

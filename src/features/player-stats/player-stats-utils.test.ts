@@ -22,8 +22,8 @@ function matchPlayer(opts: {
   towerDamage?: number
   obsPlaced?: number | null
   senPlaced?: number | null
-  obsKills?: number | null
-  senKills?: number | null
+  obsDewards?: number | null
+  senDewards?: number | null
   campsStacked?: number | null
 }): MatchPlayerRow {
   return {
@@ -49,8 +49,10 @@ function matchPlayer(opts: {
     // to ward numbers. An explicit 0 means the player placed none.
     obs_placed: opts.obsPlaced ?? null,
     sen_placed: opts.senPlaced ?? null,
-    obs_kills: opts.obsKills ?? null,
-    sen_kills: opts.senKills ?? null,
+    obs_kills: null,
+    sen_kills: null,
+    obs_dewards: opts.obsDewards ?? null,
+    sen_dewards: opts.senDewards ?? null,
     camps_stacked: opts.campsStacked ?? null,
   }
 }
@@ -487,13 +489,41 @@ describe("buildPlayerStats camps stacked", () => {
 })
 
 describe("buildPlayerStats ward averages", () => {
+  it("uses reveal credit and never substitutes last-hit counts for missing credit", () => {
+    const games = [0, 1].map(index =>
+      match({
+        id: index + 1,
+        startDateTime: index,
+        players: [
+          {
+            ...matchPlayer({
+              playerId: 1,
+              obsDewards: index === 0 ? 0 : null,
+              senDewards: index === 0 ? 4 : null,
+            }),
+            obs_kills: 9,
+            sen_kills: 12,
+          },
+        ],
+      }),
+    )
+
+    const {
+      roster: [player],
+    } = buildPlayerStats(games, SCOUTED_TEAM, [])
+    expect(player.averages.obsDewards).toBe(0)
+    expect(player.averages.senDewards).toBe(4)
+    expect(player.games[0].obsDewards).toBeNull()
+    expect(player.games[0].senDewards).toBeNull()
+  })
+
   /** Two games, each with the given count for every ward stat. */
   function wardMatches(first: number | null, second: number | null) {
     const counts = (count: number | null) => ({
       obsPlaced: count,
       senPlaced: count,
-      obsKills: count,
-      senKills: count,
+      obsDewards: count,
+      senDewards: count,
     })
     return [
       match({
@@ -521,8 +551,8 @@ describe("buildPlayerStats ward averages", () => {
     expect(stats[0].games).toHaveLength(2)
     expect(stats[0].averages.obsPlaced).toBe(10)
     expect(stats[0].averages.senPlaced).toBe(10)
-    expect(stats[0].averages.obsKills).toBe(10)
-    expect(stats[0].averages.senKills).toBe(10)
+    expect(stats[0].averages.obsDewards).toBe(10)
+    expect(stats[0].averages.senDewards).toBe(10)
   })
 
   it("counts a real zero instead of skipping it", () => {
@@ -538,8 +568,8 @@ describe("buildPlayerStats ward averages", () => {
     // the null check as `if (!placed) continue` fails here and nowhere else.
     expect(stats[0].averages.obsPlaced).toBe(5)
     expect(stats[0].averages.senPlaced).toBe(5)
-    expect(stats[0].averages.obsKills).toBe(5)
-    expect(stats[0].averages.senKills).toBe(5)
+    expect(stats[0].averages.obsDewards).toBe(5)
+    expect(stats[0].averages.senDewards).toBe(5)
   })
 
   it("reports null when no game carries ward data", () => {
@@ -552,8 +582,8 @@ describe("buildPlayerStats ward averages", () => {
     // Null rather than NaN or 0 — the UI renders it as an em dash.
     expect(stats[0].averages.obsPlaced).toBeNull()
     expect(stats[0].averages.senPlaced).toBeNull()
-    expect(stats[0].averages.obsKills).toBeNull()
-    expect(stats[0].averages.senKills).toBeNull()
+    expect(stats[0].averages.obsDewards).toBeNull()
+    expect(stats[0].averages.senDewards).toBeNull()
   })
 
   it("keeps per-game ward values null rather than zeroing them", () => {
@@ -566,8 +596,8 @@ describe("buildPlayerStats ward averages", () => {
     const [newest, oldest] = stats[0].games
     expect(newest.obsPlaced).toBeNull()
     expect(oldest.obsPlaced).toBe(10)
-    expect(newest.obsKills).toBeNull()
-    expect(oldest.senKills).toBe(10)
+    expect(newest.obsDewards).toBeNull()
+    expect(oldest.senDewards).toBe(10)
   })
 })
 
