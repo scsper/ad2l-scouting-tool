@@ -42,6 +42,7 @@ function player(
     hero_damage: 20000,
     obs_placed: 4,
     sen_placed: 2,
+    camps_stacked: null,
     gold_at_10: 2800,
     xp_at_10: 3000,
     lh_at_10: 50,
@@ -303,6 +304,43 @@ describe("buildDivisionPlayerRows", () => {
     )
 
     expect(row.obsPerGame).toBeCloseTo(7.5)
+  })
+
+  it("averages camps stacked per game and position, including zero but excluding missing data", () => {
+    const rows = buildDivisionPlayerRows(
+      [
+        match(1, 100),
+        match(2, 100, { minutes: 0 }),
+        match(3, 100),
+        match(4, 100),
+      ],
+      [
+        player(1, 7, "POSITION_5", { camps_stacked: 7 }),
+        player(2, 7, "POSITION_5", { camps_stacked: 0 }),
+        player(3, 7, "POSITION_5", { camps_stacked: null }),
+        player(4, 7, "POSITION_4", { camps_stacked: 10 }),
+        player(999, 7, "POSITION_5", { camps_stacked: 100 }),
+      ],
+    )
+
+    expect(
+      rows.map(row => [row.position, row.games, row.campsStackedPerGame]),
+    ).toEqual([
+      ["POSITION_5", 3, 3.5],
+      ["POSITION_4", 1, 10],
+    ])
+  })
+
+  it("reports unknown camps stacked as null and a known zero as zero", () => {
+    const rows = buildDivisionPlayerRows(
+      [match(1, 100)],
+      [
+        player(1, 7, "POSITION_5", { camps_stacked: null }),
+        player(1, 8, "POSITION_5", { camps_stacked: 0 }),
+      ],
+    )
+
+    expect(rows.map(row => row.campsStackedPerGame)).toEqual([null, 0])
   })
 
   // Ward counts don't need the match clock, so a game whose timestamps we can't

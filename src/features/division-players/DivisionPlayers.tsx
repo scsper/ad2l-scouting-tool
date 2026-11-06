@@ -31,11 +31,11 @@ import {
 // wraps to two lines — and so doubles the height of every row on the board — at
 // anything under 4rem.
 const GRID =
-  "grid xl:grid-cols-[2rem_minmax(7rem,1.4fr)_minmax(5.5rem,1fr)_2.25rem_minmax(5.5rem,0.9fr)_minmax(4rem,0.8fr)_repeat(9,minmax(3.25rem,0.8fr))] gap-x-2 items-center"
+  "grid xl:grid-cols-[2rem_minmax(7rem,1.4fr)_minmax(5.5rem,1fr)_2.25rem_minmax(5.5rem,0.9fr)_minmax(4rem,0.8fr)_repeat(9,minmax(3.25rem,0.8fr))_minmax(4.5rem,0.8fr)] gap-x-2 items-center"
 
 function gridClasses(sort: string): string {
   return `${GRID} ${
-    sort === "laneWinPct"
+    sort === "laneWinPct" || sort === "campsStackedPerGame"
       ? "grid-cols-[1.25rem_minmax(0,1fr)_4rem_1.75rem_4rem]"
       : "grid-cols-[1.25rem_minmax(0,1fr)_2.5rem_1.75rem_4rem]"
   }`

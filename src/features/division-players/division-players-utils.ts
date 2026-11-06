@@ -57,7 +57,7 @@ function formatOrDash(
 const round = (value: number) => String(Math.round(value))
 
 /**
- * Wards are shown per game, at the one decimal the Players tab uses.
+ * Ward and stack counts are shown per game, using one decimal like the Players tab.
  *
  * A support placing 11.4 observers a game is a number a scout has seen before,
  * on Dotabuff and on the per-team board; the same player as "0.24 per minute"
@@ -65,7 +65,7 @@ const round = (value: number) => String(Math.round(value))
  * long game inflates the count — which is real, and is why the `@10` columns
  * are next to this one.
  */
-const formatWardsPerGame = (perGame: number) => perGame.toFixed(1)
+const formatCountPerGame = (perGame: number) => perGame.toFixed(1)
 
 export const COLUMNS: Column[] = [
   {
@@ -157,14 +157,21 @@ export const COLUMNS: Column[] = [
     label: "OBS",
     title: "Observer wards placed per game",
     value: row => row.obsPerGame,
-    format: row => formatOrDash(row.obsPerGame, formatWardsPerGame),
+    format: row => formatOrDash(row.obsPerGame, formatCountPerGame),
   },
   {
     key: "senPerGame",
     label: "SEN",
     title: "Sentry wards placed per game",
     value: row => row.senPerGame,
-    format: row => formatOrDash(row.senPerGame, formatWardsPerGame),
+    format: row => formatOrDash(row.senPerGame, formatCountPerGame),
+  },
+  {
+    key: "campsStackedPerGame",
+    label: "Camps stacked",
+    title: "Jungle camps stacked per game",
+    value: row => row.campsStackedPerGame,
+    format: row => formatOrDash(row.campsStackedPerGame, formatCountPerGame),
   },
 ]
 

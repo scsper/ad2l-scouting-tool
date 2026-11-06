@@ -29,6 +29,7 @@ function row(overrides: Partial<DivisionPlayerRow> = {}): DivisionPlayerRow {
     heroDamagePerMin: 400,
     obsPerGame: 4,
     senPerGame: 2,
+    campsStackedPerGame: 3.5,
     ...overrides,
   }
 }
@@ -199,6 +200,34 @@ describe("column formatting", () => {
     )
 
     expect(sorted.map(entry => entry.name)).toEqual(["support", "core"])
+  })
+
+  it("formats camps stacked per game with one decimal and preserves missing data", () => {
+    expect(
+      column("campsStackedPerGame").format(row({ campsStackedPerGame: 3.75 })),
+    ).toBe("3.8")
+    expect(
+      column("campsStackedPerGame").format(row({ campsStackedPerGame: 0 })),
+    ).toBe("0.0")
+    expect(
+      column("campsStackedPerGame").format(row({ campsStackedPerGame: null })),
+    ).toBe("—")
+  })
+
+  it("sorts stacks by the unrounded average with missing data last in both directions", () => {
+    const rows = [
+      row({ name: "unknown", campsStackedPerGame: null }),
+      row({ name: "zero", campsStackedPerGame: 0 }),
+      row({ name: "low", campsStackedPerGame: 3.41 }),
+      row({ name: "high", campsStackedPerGame: 3.44 }),
+    ]
+
+    expect(
+      sortRows(rows, "campsStackedPerGame", "desc").map(row => row.name),
+    ).toEqual(["high", "low", "zero", "unknown"])
+    expect(
+      sortRows(rows, "campsStackedPerGame", "asc").map(row => row.name),
+    ).toEqual(["zero", "low", "high", "unknown"])
   })
 
   it("shows a record with its win rate", () => {
