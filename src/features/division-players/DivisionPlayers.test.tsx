@@ -30,6 +30,8 @@ function row(overrides: Partial<DivisionPlayerRow>): DivisionPlayerRow {
     heroDamagePerMin: 400,
     obsPerGame: 4,
     senPerGame: 2,
+    obsKillsPerGame: 1,
+    senKillsPerGame: 3,
     campsStackedPerGame: 0,
     ...overrides,
   }
@@ -58,6 +60,8 @@ const PLAYER_STATS: DivisionPlayerRow[] = [
     wins: 7,
     obsPerGame: null,
     senPerGame: null,
+    obsKillsPerGame: null,
+    senKillsPerGame: null,
     campsStackedPerGame: null,
   }),
 ]
@@ -255,7 +259,8 @@ describe("DivisionPlayers", () => {
     renderBoard("/?pos=5")
 
     await screen.findByText("Lady Septimus")
-    expect(within(rowFor("Lady Septimus")).getAllByText("—")).toHaveLength(3)
+    // Obs and sen, placed and dewarded, and camps stacked.
+    expect(within(rowFor("Lady Septimus")).getAllByText("—")).toHaveLength(5)
   })
 
   it("shows a record with its win rate", async () => {
@@ -313,6 +318,7 @@ describe("DivisionPlayers", () => {
     expect(within(row).getByText("XP@10")).toBeInTheDocument()
     expect(within(row).getByText("KDA")).toBeInTheDocument()
     expect(within(row).getByText("SEN")).toBeInTheDocument()
+    expect(within(row).getByText("OBS DW")).toBeInTheDocument()
     expect(within(row).getByText("Camps stacked")).toBeInTheDocument()
     // The three already on the row are not repeated underneath it.
     expect(within(row).queryByText("G@10")).toBeInTheDocument()

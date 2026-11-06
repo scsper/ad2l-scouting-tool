@@ -167,6 +167,20 @@ export const COLUMNS: Column[] = [
     format: row => formatOrDash(row.senPerGame, formatCountPerGame),
   },
   {
+    key: "obsKillsPerGame",
+    label: "OBS DW",
+    title: "Observer wards dewarded per game",
+    value: row => row.obsKillsPerGame,
+    format: row => formatOrDash(row.obsKillsPerGame, formatCountPerGame),
+  },
+  {
+    key: "senKillsPerGame",
+    label: "SEN DW",
+    title: "Sentry wards dewarded per game",
+    value: row => row.senKillsPerGame,
+    format: row => formatOrDash(row.senKillsPerGame, formatCountPerGame),
+  },
+  {
     key: "campsStackedPerGame",
     label: "Camps stacked",
     title: "Jungle camps stacked per game",
