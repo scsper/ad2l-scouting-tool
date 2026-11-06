@@ -32,6 +32,8 @@ function player(overrides: Partial<MatchPlayerRow>): MatchPlayerRow {
     tower_damage: 0,
     obs_placed: null,
     sen_placed: null,
+    obs_kills: null,
+    sen_kills: null,
     camps_stacked: null,
     ...overrides,
   }
@@ -60,6 +62,8 @@ const MATCHES: MatchApiResponse[] = [
         // chosen not to collide with any other number rendered on the row.
         obs_placed: 9,
         sen_placed: 14,
+        obs_kills: 3,
+        sen_kills: 11,
         camps_stacked: 8,
       }),
     ],
@@ -181,6 +185,9 @@ describe("PlayerStats", () => {
     // single match reads 9.0 rather than being halved to 4.5.
     expect(cells.getByText("9.0")).toBeInTheDocument()
     expect(cells.getByText("14.0")).toBeInTheDocument()
+    // Dewards follow the same rule.
+    expect(cells.getByText("3.0")).toBeInTheDocument()
+    expect(cells.getByText("11.0")).toBeInTheDocument()
     expect(cells.getByText("8.0")).toBeInTheDocument()
     expect(screen.getByTitle("Jungle camps stacked per game")).toHaveTextContent(
       "Camps stacked",
@@ -231,8 +238,14 @@ describe("PlayerStats", () => {
     // test exists to catch.
     expect(screen.getAllByText("9")).toHaveLength(2)
     expect(screen.getAllByText("14")).toHaveLength(2)
+    expect(screen.getAllByText("3")).toHaveLength(2)
+    expect(screen.getAllByText("11")).toHaveLength(2)
     expect(screen.getAllByText("8")).toHaveLength(2)
-    expect(screen.getAllByText("—")).toHaveLength(6)
+    // Obs and sen placed, obs and sen dewarded, camps stacked: five missing
+    // counts in match 222, each rendered twice.
+    expect(screen.getAllByText("—")).toHaveLength(10)
+    expect(screen.getAllByText("Obs dewarded")).toHaveLength(4)
+    expect(screen.getAllByText("Sen dewarded")).toHaveLength(4)
     expect(screen.getAllByText("Camps stacked")).toHaveLength(4)
   })
 

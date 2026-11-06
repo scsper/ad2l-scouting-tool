@@ -105,6 +105,12 @@ type MatchPlayerRow = {
    */
   obs_placed: number | null
   sen_placed: number | null
+  /**
+   * Enemy wards this player destroyed — dewards. Same `null`-vs-`0` contract as
+   * the placement counts above, and required for the same reason.
+   */
+  obs_kills: number | null
+  sen_kills: number | null
   /** Jungle camps stacked; null means unavailable, while 0 means none stacked. */
   camps_stacked: number | null
   gold_at_10?: number | null

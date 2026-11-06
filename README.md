@@ -9,6 +9,7 @@
 - `backfill-camps-stacked -- --db` - fill missing jungle camp stack counts for
   existing games from OpenDota. Run after the migration, with `SUPABASE_DOTA2_URL` and
   `SUPABASE_DOTA2_SECRET_KEY` set. Unavailable counts display as “—” in the UI.
+- `backfill-ward-kills -- --db` - same, for observer and sentry deward counts.
 - `grant` - add an admin or a division-scoped user, or revoke access. `npm run grant -- --list`
   shows who has what; see `.claude/skills/grant-access/SKILL.md` for the full runbook.
 
