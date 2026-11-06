@@ -33,6 +33,9 @@ export type PlayerGame = {
   /** `null` when the match has no ward data; `0` means none were placed. */
   obsPlaced: number | null
   senPlaced: number | null
+  /** Enemy wards destroyed, with the same `null`-vs-`0` meaning. */
+  obsKills: number | null
+  senKills: number | null
   /** `null` when unavailable; `0` means no jungle camps stacked. */
   campsStacked: number | null
   kda: number
@@ -49,6 +52,8 @@ export type PlayerAverages = {
   /** `null` when none of the player's games carry ward data. */
   obsPlaced: number | null
   senPlaced: number | null
+  obsKills: number | null
+  senKills: number | null
   /** Average over games with stack data; `null` if none have it. */
   campsStacked: number | null
   kda: number
@@ -203,6 +208,8 @@ function getAverages(games: PlayerGame[]): PlayerAverages {
     towerDamage: totals.towerDamage / gameCount,
     obsPlaced: getNullableAverage(games, game => game.obsPlaced),
     senPlaced: getNullableAverage(games, game => game.senPlaced),
+    obsKills: getNullableAverage(games, game => game.obsKills),
+    senKills: getNullableAverage(games, game => game.senKills),
     campsStacked: getNullableAverage(games, game => game.campsStacked),
     // Ratio of totals, matching how Dotabuff/OpenDota/Stratz report aggregate KDA.
     kda: (totals.kills + totals.assists) / Math.max(totals.deaths, 1),
@@ -311,6 +318,8 @@ export function buildPlayerStats(
         // null here. Normalise undefined to null but never to 0.
         obsPlaced: player.obs_placed ?? null,
         senPlaced: player.sen_placed ?? null,
+        obsKills: player.obs_kills ?? null,
+        senKills: player.sen_kills ?? null,
         campsStacked: player.camps_stacked ?? null,
         kda: getGameKda(player.kills, player.deaths, player.assists),
       })

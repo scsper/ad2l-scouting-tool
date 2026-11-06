@@ -22,6 +22,8 @@ function matchPlayer(opts: {
   towerDamage?: number
   obsPlaced?: number | null
   senPlaced?: number | null
+  obsKills?: number | null
+  senKills?: number | null
   campsStacked?: number | null
 }): MatchPlayerRow {
   return {
@@ -47,6 +49,8 @@ function matchPlayer(opts: {
     // to ward numbers. An explicit 0 means the player placed none.
     obs_placed: opts.obsPlaced ?? null,
     sen_placed: opts.senPlaced ?? null,
+    obs_kills: opts.obsKills ?? null,
+    sen_kills: opts.senKills ?? null,
     camps_stacked: opts.campsStacked ?? null,
   }
 }
@@ -483,22 +487,24 @@ describe("buildPlayerStats camps stacked", () => {
 })
 
 describe("buildPlayerStats ward averages", () => {
-  /** Two games, only the first with ward data. */
+  /** Two games, each with the given count for every ward stat. */
   function wardMatches(first: number | null, second: number | null) {
+    const counts = (count: number | null) => ({
+      obsPlaced: count,
+      senPlaced: count,
+      obsKills: count,
+      senKills: count,
+    })
     return [
       match({
         id: 1,
         startDateTime: 100,
-        players: [
-          matchPlayer({ playerId: 1, obsPlaced: first, senPlaced: first }),
-        ],
+        players: [matchPlayer({ playerId: 1, ...counts(first) })],
       }),
       match({
         id: 2,
         startDateTime: 200,
-        players: [
-          matchPlayer({ playerId: 1, obsPlaced: second, senPlaced: second }),
-        ],
+        players: [matchPlayer({ playerId: 1, ...counts(second) })],
       }),
     ]
   }
@@ -515,6 +521,8 @@ describe("buildPlayerStats ward averages", () => {
     expect(stats[0].games).toHaveLength(2)
     expect(stats[0].averages.obsPlaced).toBe(10)
     expect(stats[0].averages.senPlaced).toBe(10)
+    expect(stats[0].averages.obsKills).toBe(10)
+    expect(stats[0].averages.senKills).toBe(10)
   })
 
   it("counts a real zero instead of skipping it", () => {
@@ -530,6 +538,8 @@ describe("buildPlayerStats ward averages", () => {
     // the null check as `if (!placed) continue` fails here and nowhere else.
     expect(stats[0].averages.obsPlaced).toBe(5)
     expect(stats[0].averages.senPlaced).toBe(5)
+    expect(stats[0].averages.obsKills).toBe(5)
+    expect(stats[0].averages.senKills).toBe(5)
   })
 
   it("reports null when no game carries ward data", () => {
@@ -542,6 +552,8 @@ describe("buildPlayerStats ward averages", () => {
     // Null rather than NaN or 0 — the UI renders it as an em dash.
     expect(stats[0].averages.obsPlaced).toBeNull()
     expect(stats[0].averages.senPlaced).toBeNull()
+    expect(stats[0].averages.obsKills).toBeNull()
+    expect(stats[0].averages.senKills).toBeNull()
   })
 
   it("keeps per-game ward values null rather than zeroing them", () => {
@@ -554,6 +566,8 @@ describe("buildPlayerStats ward averages", () => {
     const [newest, oldest] = stats[0].games
     expect(newest.obsPlaced).toBeNull()
     expect(oldest.obsPlaced).toBe(10)
+    expect(newest.obsKills).toBeNull()
+    expect(oldest.senKills).toBe(10)
   })
 })
 

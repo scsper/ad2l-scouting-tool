@@ -55,6 +55,9 @@ type OpenDotaPlayer = {
   // Only present on replay-parsed matches; absent means unknown, not zero.
   obs_placed?: number
   sen_placed?: number
+  /** Enemy wards this player destroyed. Same parsed-only caveat as above. */
+  observer_kills?: number
+  sentry_kills?: number
   camps_stacked?: number | null
   lane?: number
   lane_role?: number
@@ -129,6 +132,9 @@ type Player = {
   /** `null` when OpenDota supplied no ward data; `0` means none were placed. */
   obsPlaced: number | null
   senPlaced: number | null
+  /** Dewards. `null` when OpenDota supplied no ward data; `0` means none. */
+  obsKills: number | null
+  senKills: number | null
   campsStacked: number | null
   goldAt10: number | null
   xpAt10: number | null
@@ -323,6 +329,8 @@ function transformOpenDotaMatch(openDotaMatch: OpenDotaMatch): Match {
       // for this player, which is not the same as placing no wards.
       obsPlaced: player.obs_placed ?? null,
       senPlaced: player.sen_placed ?? null,
+      obsKills: player.observer_kills ?? null,
+      senKills: player.sentry_kills ?? null,
       campsStacked: player.camps_stacked ?? null,
       goldAt10: at10.goldAt10,
       xpAt10: at10.xpAt10,
@@ -479,6 +487,8 @@ export async function convertMatchDataToMatchPlayersTable(
     tower_damage: player.towerDamage,
     obs_placed: player.obsPlaced,
     sen_placed: player.senPlaced,
+    obs_kills: player.obsKills,
+    sen_kills: player.senKills,
     camps_stacked: player.campsStacked,
     gold_at_10: player.goldAt10,
     xp_at_10: player.xpAt10,

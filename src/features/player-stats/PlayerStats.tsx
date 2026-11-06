@@ -18,9 +18,13 @@ import {
  * rows instead. Same cells in the same DOM order — those that don't fit are
  * hidden rather than dropped, and restated by `MoreStats` when a card is
  * expanded, so nothing is unreachable.
+ *
+ * The page caps the table at about 1250px, so every added column comes out of
+ * the others' share. The name track is weighted 2fr so that a handle like
+ * "Dominus Tecum" still fits; the stat columns give up the space.
  */
 const GRID =
-  "grid grid-cols-[1.25rem_minmax(0,1fr)_auto_2.75rem_2.75rem] xl:grid-cols-[1.5rem_minmax(7rem,1.5fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(10,minmax(2.75rem,0.7fr))_minmax(4.5rem,0.9fr)_1.75rem] gap-x-2 items-center"
+  "grid grid-cols-[1.25rem_minmax(0,1fr)_auto_2.75rem_2.75rem] xl:grid-cols-[1.5rem_minmax(7rem,2fr)_minmax(5.5rem,1fr)_minmax(6rem,1.1fr)_repeat(10,minmax(2.75rem,0.7fr))_repeat(3,minmax(4.5rem,0.9fr))_1.75rem] gap-x-2 items-center"
 
 /**
  * Where each surviving cell lands on the phone. Placed explicitly rather than
@@ -191,6 +195,12 @@ const PlayerCard = ({
           {formatCount(averages.senPlaced, 1)}
         </span>
         <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
+          {formatCount(averages.obsKills, 1)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
+          {formatCount(averages.senKills, 1)}
+        </span>
+        <span className={`${NUMERIC} text-sm text-slate-200 ${AT.phoneHidden}`}>
           {formatCount(averages.campsStacked, 1)}
         </span>
         <span className={AT.phoneHidden} />
@@ -213,6 +223,8 @@ const PlayerCard = ({
               ["BLD", formatDamage(averages.towerDamage)],
               ["OBS", formatCount(averages.obsPlaced, 1)],
               ["SEN", formatCount(averages.senPlaced, 1)],
+              ["Obs dewarded", formatCount(averages.obsKills, 1)],
+              ["Sen dewarded", formatCount(averages.senKills, 1)],
               ["Camps stacked", formatCount(averages.campsStacked, 1)],
             ]}
           />
@@ -295,6 +307,16 @@ const PlayerCard = ({
               <span
                 className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
               >
+                {formatCount(game.obsKills)}
+              </span>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
+                {formatCount(game.senKills)}
+              </span>
+              <span
+                className={`${NUMERIC} text-sm text-slate-300 ${AT.phoneHidden}`}
+              >
                 {formatCount(game.campsStacked)}
               </span>
               <MoreStats
@@ -309,6 +331,8 @@ const PlayerCard = ({
                   ["BLD", formatDamage(game.towerDamage)],
                   ["OBS", formatCount(game.obsPlaced)],
                   ["SEN", formatCount(game.senPlaced)],
+                  ["Obs dewarded", formatCount(game.obsKills)],
+                  ["Sen dewarded", formatCount(game.senKills)],
                   ["Camps stacked", formatCount(game.campsStacked)],
                 ]}
               />
@@ -504,6 +528,18 @@ export const PlayerStats = ({
           title="Sentry wards placed"
         >
           SEN
+        </span>
+        <span
+          className={`${NUMERIC} ${AT.phoneHidden}`}
+          title="Observer wards dewarded per game"
+        >
+          Obs dewarded
+        </span>
+        <span
+          className={`${NUMERIC} ${AT.phoneHidden}`}
+          title="Sentry wards dewarded per game"
+        >
+          Sen dewarded
         </span>
         <span
           className={`${NUMERIC} ${AT.phoneHidden}`}
