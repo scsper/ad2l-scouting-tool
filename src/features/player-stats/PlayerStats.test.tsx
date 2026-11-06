@@ -32,6 +32,7 @@ function player(overrides: Partial<MatchPlayerRow>): MatchPlayerRow {
     tower_damage: 0,
     obs_placed: null,
     sen_placed: null,
+    camps_stacked: null,
     ...overrides,
   }
 }
@@ -59,6 +60,7 @@ const MATCHES: MatchApiResponse[] = [
         // chosen not to collide with any other number rendered on the row.
         obs_placed: 9,
         sen_placed: 14,
+        camps_stacked: 8,
       }),
     ],
   },
@@ -179,6 +181,10 @@ describe("PlayerStats", () => {
     // single match reads 9.0 rather than being halved to 4.5.
     expect(cells.getByText("9.0")).toBeInTheDocument()
     expect(cells.getByText("14.0")).toBeInTheDocument()
+    expect(cells.getByText("8.0")).toBeInTheDocument()
+    expect(screen.getByTitle("Jungle camps stacked per game")).toHaveTextContent(
+      "Camps stacked",
+    )
 
     // Per-game rows stay hidden until the card is expanded.
     expect(screen.queryByTitle("View on Dotabuff")).not.toBeInTheDocument()
@@ -205,17 +211,16 @@ describe("PlayerStats", () => {
     expect(screen.getByText("20.0")).toBeInTheDocument()
   })
 
-  it("renders an em dash for a game with no ward data", async () => {
+  it("shows counts and missing data in desktop columns and mobile details", async () => {
     renderPlayerStats()
     const user = userEvent.setup()
 
     await user.click(await screen.findByText("Scott"))
 
-    // Match 111 has real counts; match 222 has none. The second game must read
-    // "—" and not "0", which would claim the player warded nothing rather than
-    // admitting the data is missing.
+    // Match 111 has real counts; match 222 has none. Missing ward and stack
+    // counts must read "—" rather than claiming the player did nothing.
     //
-    // Counted rather than found, and counted exactly: every ward figure is in
+    // Counted rather than found, and counted exactly: every count is in
     // the tree twice — once as the desktop column, once in the phone's
     // restatement of the columns it has no room for. Only one of the pair is
     // ever displayed, since they are `display: none` at opposite widths, but
@@ -226,7 +231,9 @@ describe("PlayerStats", () => {
     // test exists to catch.
     expect(screen.getAllByText("9")).toHaveLength(2)
     expect(screen.getAllByText("14")).toHaveLength(2)
-    expect(screen.getAllByText("—")).toHaveLength(4)
+    expect(screen.getAllByText("8")).toHaveLength(2)
+    expect(screen.getAllByText("—")).toHaveLength(6)
+    expect(screen.getAllByText("Camps stacked")).toHaveLength(4)
   })
 
   it("omits the stand-in heading when the roster is unknown", async () => {

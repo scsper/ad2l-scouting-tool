@@ -22,6 +22,7 @@ function matchPlayer(opts: {
   towerDamage?: number
   obsPlaced?: number | null
   senPlaced?: number | null
+  campsStacked?: number | null
 }): MatchPlayerRow {
   return {
     player_id: opts.playerId,
@@ -46,6 +47,7 @@ function matchPlayer(opts: {
     // to ward numbers. An explicit 0 means the player placed none.
     obs_placed: opts.obsPlaced ?? null,
     sen_placed: opts.senPlaced ?? null,
+    camps_stacked: opts.campsStacked ?? null,
   }
 }
 
@@ -454,6 +456,29 @@ describe("buildPlayerStats", () => {
       "Pos 4/5",
       "Pos 4/5",
     ])
+  })
+})
+
+describe("buildPlayerStats camps stacked", () => {
+  it.each([
+    { counts: [7, 0, null], average: 3.5 },
+    { counts: [0, null], average: 0 },
+    { counts: [null, null], average: null },
+  ])("averages $counts as $average", ({ counts, average }) => {
+    const games = counts.map((campsStacked, index) =>
+      match({
+        id: index + 1,
+        startDateTime: index,
+        players: [matchPlayer({ playerId: 1, campsStacked })],
+      }),
+    )
+
+    const { roster } = buildPlayerStats(games, SCOUTED_TEAM, [])
+
+    expect(roster[0].averages.campsStacked).toBe(average)
+    expect(roster[0].games.map(game => game.campsStacked)).toEqual(
+      [...counts].reverse(),
+    )
   })
 })
 

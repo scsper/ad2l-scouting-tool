@@ -120,7 +120,7 @@ describe("getPositionString", () => {
 })
 
 
-describe("getMatch ward mapping", () => {
+describe("getMatch player stat mapping", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -176,5 +176,18 @@ describe("getMatch ward mapping", () => {
     expect(match.players[0].senPlaced).toBe(0)
     expect(match.players[1].obsPlaced).toBeNull()
     expect(match.players[1].senPlaced).toBeNull()
+  })
+
+  it("preserves camps stacked counts, including zero, and leaves missing data null", async () => {
+    stubOpenDota([
+      { ...player({ slot: 0 }), camps_stacked: 7, creeps_stacked: 21 },
+      { ...player({ slot: 1 }), camps_stacked: 0 },
+      player({ slot: 2 }),
+      { ...player({ slot: 3 }), camps_stacked: null },
+    ])
+
+    const { match } = await getMatch(1)
+
+    expect(match.players.map(p => p.campsStacked)).toEqual([7, 0, null, null])
   })
 })
