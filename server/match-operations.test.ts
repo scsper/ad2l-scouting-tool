@@ -162,7 +162,13 @@ describe("getMatch player stat mapping", () => {
 
   it("maps an absent ward field to null rather than zero", async () => {
     stubOpenDota([
-      { ...player({ slot: 0 }), obs_placed: 4, sen_placed: 0 },
+      {
+        ...player({ slot: 0 }),
+        obs_placed: 4,
+        sen_placed: 0,
+        observer_kills: 2,
+        sentry_kills: 0,
+      },
       // Unparsed replay: OpenDota omits the fields entirely.
       player({ slot: 1 }),
     ])
@@ -176,6 +182,11 @@ describe("getMatch player stat mapping", () => {
     expect(match.players[0].senPlaced).toBe(0)
     expect(match.players[1].obsPlaced).toBeNull()
     expect(match.players[1].senPlaced).toBeNull()
+    // Dewards come from the same parsed-only data and follow the same rule.
+    expect(match.players[0].obsKills).toBe(2)
+    expect(match.players[0].senKills).toBe(0)
+    expect(match.players[1].obsKills).toBeNull()
+    expect(match.players[1].senKills).toBeNull()
   })
 
   it("preserves camps stacked counts, including zero, and leaves missing data null", async () => {
