@@ -29,6 +29,8 @@ function row(overrides: Partial<DivisionPlayerRow> = {}): DivisionPlayerRow {
     heroDamagePerMin: 400,
     obsPerGame: 4,
     senPerGame: 2,
+    obsKillsPerGame: 1,
+    senKillsPerGame: 3,
     campsStackedPerGame: 3.5,
     ...overrides,
   }
@@ -187,6 +189,18 @@ describe("column formatting", () => {
   it("shows wards placed per game", () => {
     expect(column("obsPerGame").format(row({ obsPerGame: 11.44 }))).toBe("11.4")
     expect(column("senPerGame").format(row({ senPerGame: 0.25 }))).toBe("0.3")
+  })
+
+  it("shows wards dewarded per game, with a dash where there is no data", () => {
+    expect(
+      column("obsKillsPerGame").format(row({ obsKillsPerGame: 2.46 })),
+    ).toBe("2.5")
+    expect(column("senKillsPerGame").format(row({ senKillsPerGame: 0 }))).toBe(
+      "0.0",
+    )
+    expect(
+      column("senKillsPerGame").format(row({ senKillsPerGame: null })),
+    ).toBe("—")
   })
 
   it("sorts wards on the unrounded average", () => {

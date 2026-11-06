@@ -30,8 +30,13 @@ import {
 // The last phone column is the widest because it carries "12-10 (55%)", which
 // wraps to two lines — and so doubles the height of every row on the board — at
 // anything under 4rem.
+//
+// The page caps the board near 1250px at every desktop width, and at 1280 the
+// minimums alone fill it. The numeric columns' 3rem floor is what leaves room
+// for the name, and 2fr is what hands that room to it: at 3.25rem the board
+// scrolls sideways, and at 1.4fr names like "Dominus Tecum" truncate.
 const GRID =
-  "grid xl:grid-cols-[2rem_minmax(7rem,1.4fr)_minmax(5.5rem,1fr)_2.25rem_minmax(5.5rem,0.9fr)_minmax(4rem,0.8fr)_repeat(9,minmax(3.25rem,0.8fr))_minmax(4.5rem,0.8fr)] gap-x-2 items-center"
+  "grid xl:grid-cols-[2rem_minmax(7rem,2fr)_minmax(5.5rem,1fr)_2.25rem_minmax(5.5rem,0.9fr)_minmax(4rem,0.8fr)_repeat(11,minmax(3rem,0.8fr))_minmax(4.5rem,0.8fr)] gap-x-2 items-center"
 
 function gridClasses(sort: string): string {
   return `${GRID} ${

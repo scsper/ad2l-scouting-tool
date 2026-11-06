@@ -14,12 +14,12 @@ import { getLaneResult, type LaneResult } from "../shared/lane-result.js"
  * Most stats here are duration-neutral, which is the difference between this and
  * the per-team Players tab; the `@10` columns are the strongest for that reason,
  * since a fixed ten-minute window is comparable across every game ever played.
- * Ward and camp stack counts are the exceptions. A rate per minute is cleaner
- * — games run 23 to 83 minutes, so a long game inflates the count — but nobody
- * scouting a support thinks in wards per minute, and rescaling to per-ten to
- * make it readable produced a column whose numbers matched nothing anyone had
- * seen elsewhere. Wards placed per game is what Dotabuff shows and what the
- * Players tab shows, so it is what this shows.
+ * Ward counts (placed and dewarded) and camp stack counts are the exceptions. A
+ * rate per minute is cleaner — games run 23 to 83 minutes, so a long game
+ * inflates the count — but nobody scouting a support thinks in wards per
+ * minute, and rescaling to per-ten to make it readable produced a column whose
+ * numbers matched nothing anyone had seen elsewhere. Wards placed per game is
+ * what Dotabuff shows and what the Players tab shows, so it is what this shows.
  */
 export type DivisionPlayerRow = {
   playerId: number
@@ -54,6 +54,9 @@ export type DivisionPlayerRow = {
   /** Wards placed per game, averaged over the games that report them. */
   obsPerGame: number | null
   senPerGame: number | null
+  /** Enemy wards destroyed per game, on the same basis as the placed counts. */
+  obsKillsPerGame: number | null
+  senKillsPerGame: number | null
   /** Jungle camps stacked per game, averaged over games with stack data. */
   campsStackedPerGame: number | null
 }
@@ -84,6 +87,8 @@ export type DivisionPlayer = {
   hero_damage: number
   obs_placed: number | null
   sen_placed: number | null
+  obs_kills: number | null
+  sen_kills: number | null
   camps_stacked: number | null
   gold_at_10?: number | null
   xp_at_10?: number | null
@@ -131,6 +136,8 @@ type Accumulator = {
   heroDamagePerMin: SkippingMean
   obsPerGame: SkippingMean
   senPerGame: SkippingMean
+  obsKillsPerGame: SkippingMean
+  senKillsPerGame: SkippingMean
   campsStackedPerGame: SkippingMean
 }
 
@@ -263,6 +270,8 @@ export function buildDivisionPlayerRows(
         heroDamagePerMin: new SkippingMean(),
         obsPerGame: new SkippingMean(),
         senPerGame: new SkippingMean(),
+        obsKillsPerGame: new SkippingMean(),
+        senKillsPerGame: new SkippingMean(),
         campsStackedPerGame: new SkippingMean(),
       }
       accumulators.set(key, accumulator)
@@ -305,6 +314,8 @@ export function buildDivisionPlayerRows(
     // rate needs a valid duration.
     accumulator.obsPerGame.add(player.obs_placed)
     accumulator.senPerGame.add(player.sen_placed)
+    accumulator.obsKillsPerGame.add(player.obs_kills)
+    accumulator.senKillsPerGame.add(player.sen_kills)
     accumulator.campsStackedPerGame.add(player.camps_stacked)
 
     // Rated per game and then averaged, rather than summing both sides and
@@ -335,6 +346,8 @@ export function buildDivisionPlayerRows(
     heroDamagePerMin: accumulator.heroDamagePerMin.get(),
     obsPerGame: accumulator.obsPerGame.get(),
     senPerGame: accumulator.senPerGame.get(),
+    obsKillsPerGame: accumulator.obsKillsPerGame.get(),
+    senKillsPerGame: accumulator.senKillsPerGame.get(),
     campsStackedPerGame: accumulator.campsStackedPerGame.get(),
   }))
 }
