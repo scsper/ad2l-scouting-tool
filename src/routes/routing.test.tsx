@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { Provider } from "react-redux"
 import { MemoryRouter, useLocation } from "react-router"
 import { makeStore } from "../app/store"
@@ -153,6 +154,49 @@ describe("routes", () => {
     expect(await screen.findByRole("link", { name: "Lanes" })).toHaveAttribute(
       "aria-current",
       "page",
+    )
+  })
+
+  it.each(["", "?division=Voyager"])(
+    "returns to the league page when the team selection is cleared (%s)",
+    async search => {
+      const user = userEvent.setup()
+      renderAt(
+        `/leagues/${String(LEAGUE_ID)}/teams/${String(TEAM_ID)}/lanes${search}`,
+      )
+
+      const teamPicker = await screen.findByRole("combobox", { name: "Team" })
+      expect(teamPicker).toHaveValue(String(TEAM_ID))
+      await user.selectOptions(teamPicker, "")
+
+      await waitFor(() => {
+        expect(currentPath()).toBe(`/leagues/${String(LEAGUE_ID)}`)
+      })
+      expect(currentSearch()).toBe(search)
+      expect(screen.getByRole("combobox", { name: "Team" })).toHaveValue("")
+      expect(screen.getByText("Select a team to continue")).toBeInTheDocument()
+    },
+  )
+
+  it("keeps the active tab and division when another team is selected", async () => {
+    const user = userEvent.setup()
+    renderAt(
+      `/leagues/${String(LEAGUE_ID)}/teams/${String(TEAM_ID)}/lanes?division=Voyager`,
+    )
+
+    await user.selectOptions(
+      await screen.findByRole("combobox", { name: "Team" }),
+      String(DEFAULT_TEAM_ID),
+    )
+
+    await waitFor(() => {
+      expect(currentPath()).toBe(
+        `/leagues/${String(LEAGUE_ID)}/teams/${String(DEFAULT_TEAM_ID)}/lanes`,
+      )
+    })
+    expect(currentSearch()).toBe("?division=Voyager")
+    expect(screen.getByRole("combobox", { name: "Team" })).toHaveValue(
+      String(DEFAULT_TEAM_ID),
     )
   })
 

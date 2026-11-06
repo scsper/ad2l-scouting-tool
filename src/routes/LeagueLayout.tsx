@@ -53,7 +53,12 @@ export const LeagueLayout = () => {
           )
         }}
         onSelectTeam={nextTeamId => {
-          void navigate(teamPath(leagueId, nextTeamId, divisionSearch(division)))
+          const search = divisionSearch(division)
+          void navigate(
+            nextTeamId === undefined
+              ? `/leagues/${String(leagueId)}${search}`
+              : teamPath(leagueId, nextTeamId, search),
+          )
         }}
         onSelectDivision={nextDivision => {
           // Replace, not push: picking a division adjusts what a screen shows
