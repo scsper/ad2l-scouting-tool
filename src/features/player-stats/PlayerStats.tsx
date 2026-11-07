@@ -3,6 +3,8 @@ import { useGetMatchesQuery } from "../matches/matches-api"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
 import { useGetRosterQuery } from "../players/players-api"
 import { getHero } from "../../utils/get-hero"
+import { dewardTooltip } from "../../utils/deward-tooltip"
+import { StatTooltip } from "../../components/StatTooltip"
 import {
   buildPlayerStats,
   formatDamage,
@@ -59,15 +61,22 @@ const MoreStats = ({
   pairs,
   className = "",
 }: {
-  pairs: [string, string][]
+  pairs: [label: string, value: string, tooltip?: string][]
   className?: string
 }) => (
   <div
     className={`xl:hidden flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-400 ${className}`}
   >
-    {pairs.map(([label, value]) => (
+    {pairs.map(([label, value, tooltip]) => (
       <span key={label}>
-        <span className="text-slate-500">{label}</span> {value}
+        {tooltip ? (
+          <StatTooltip text={tooltip} className="text-slate-500">
+            {label}
+          </StatTooltip>
+        ) : (
+          <span className="text-slate-500">{label}</span>
+        )}{" "}
+        {value}
       </span>
     ))}
   </div>
@@ -223,8 +232,16 @@ const PlayerCard = ({
               ["BLD", formatDamage(averages.towerDamage)],
               ["OBS", formatCount(averages.obsPlaced, 1)],
               ["SEN", formatCount(averages.senPlaced, 1)],
-              ["Obs dewarded", formatCount(averages.obsDewards, 1)],
-              ["Sen dewarded", formatCount(averages.senDewards, 1)],
+              [
+                "Obs dewarded",
+                formatCount(averages.obsDewards, 1),
+                dewardTooltip("obs"),
+              ],
+              [
+                "Sen dewarded",
+                formatCount(averages.senDewards, 1),
+                dewardTooltip("sen"),
+              ],
               ["Camps stacked", formatCount(averages.campsStacked, 1)],
             ]}
           />
@@ -331,8 +348,16 @@ const PlayerCard = ({
                   ["BLD", formatDamage(game.towerDamage)],
                   ["OBS", formatCount(game.obsPlaced)],
                   ["SEN", formatCount(game.senPlaced)],
-                  ["Obs dewarded", formatCount(game.obsDewards)],
-                  ["Sen dewarded", formatCount(game.senDewards)],
+                  [
+                    "Obs dewarded",
+                    formatCount(game.obsDewards),
+                    dewardTooltip("obs", false),
+                  ],
+                  [
+                    "Sen dewarded",
+                    formatCount(game.senDewards),
+                    dewardTooltip("sen", false),
+                  ],
                   ["Camps stacked", formatCount(game.campsStacked)],
                 ]}
               />
@@ -529,18 +554,18 @@ export const PlayerStats = ({
         >
           SEN
         </span>
-        <span
+        <StatTooltip
           className={`${NUMERIC} ${AT.phoneHidden}`}
-          title="Observer wards dewarded per game, credited to the player who provided True Sight"
+          text={dewardTooltip("obs")}
         >
           Obs dewarded
-        </span>
-        <span
+        </StatTooltip>
+        <StatTooltip
           className={`${NUMERIC} ${AT.phoneHidden}`}
-          title="Sentry wards dewarded per game, credited to the player who provided True Sight"
+          text={dewardTooltip("sen")}
         >
           Sen dewarded
-        </span>
+        </StatTooltip>
         <span
           className={`${NUMERIC} ${AT.phoneHidden}`}
           title="Jungle camps stacked per game"

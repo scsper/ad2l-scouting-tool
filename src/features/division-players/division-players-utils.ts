@@ -1,4 +1,5 @@
 import type { DivisionPlayerRow } from "../league-stats/league-stats-api"
+import { dewardTooltip } from "../../utils/deward-tooltip"
 
 /**
  * Games at a position before a row is ranked against the others.
@@ -41,6 +42,7 @@ export type Column = {
   key: string
   label: string
   title: string
+  tooltip?: string
   /** The sortable magnitude. `null` where the row has no data for it. */
   value: (row: DivisionPlayerRow) => number | null
   format: (row: DivisionPlayerRow) => string
@@ -169,16 +171,16 @@ export const COLUMNS: Column[] = [
   {
     key: "obsDewardsPerGame",
     label: "OBS DW",
-    title:
-      "Observer wards dewarded per game, credited to the player who provided True Sight",
+    title: "Observer wards dewarded per game",
+    tooltip: dewardTooltip("obs"),
     value: row => row.obsDewardsPerGame,
     format: row => formatOrDash(row.obsDewardsPerGame, formatCountPerGame),
   },
   {
     key: "senDewardsPerGame",
     label: "SEN DW",
-    title:
-      "Sentry wards dewarded per game, credited to the player who provided True Sight",
+    title: "Sentry wards dewarded per game",
+    tooltip: dewardTooltip("sen"),
     value: row => row.senDewardsPerGame,
     format: row => formatOrDash(row.senDewardsPerGame, formatCountPerGame),
   },
