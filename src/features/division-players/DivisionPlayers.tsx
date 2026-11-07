@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
+import { StatTooltip } from "../../components/StatTooltip"
 import { useGetLeagueStatsQuery } from "../league-stats/league-stats-api"
 import type { DivisionPlayerRow } from "../league-stats/league-stats-api"
 import { useGetTeamsByLeagueQuery } from "../league-and-team-picker/teams-api"
@@ -154,7 +155,13 @@ const PlayerRow = ({
         <div className="xl:hidden flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-xs text-slate-400 border-t border-slate-700/60 pt-2">
           {COLUMNS.filter(column => !shown.includes(column.key)).map(column => (
             <span key={column.key}>
-              <span className="text-slate-500">{column.label}</span>{" "}
+              {column.tooltip ? (
+                <StatTooltip text={column.tooltip} className="text-slate-500">
+                  {column.label}
+                </StatTooltip>
+              ) : (
+                <span className="text-slate-500">{column.label}</span>
+              )}{" "}
               {column.format(row)}
             </span>
           ))}
@@ -362,23 +369,41 @@ export const DivisionPlayers = ({
         <span className={AT.gutter} />
         <span className={AT.primary}>Player</span>
         <span className={AT.phoneHidden}>Team</span>
-        {COLUMNS.map(column => (
-          <button
-            key={column.key}
-            onClick={() => {
-              selectSort(column.key)
-            }}
-            title={column.title}
-            className={`${NUMERIC} uppercase tracking-wide cursor-pointer transition-colors ${phonePlacement(column.key, sort)} ${
-              column.key === sort
-                ? "text-blue-400"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            {column.label}
-            {column.key === sort && (direction === "desc" ? " ↓" : " ↑")}
-          </button>
-        ))}
+        {COLUMNS.map(column =>
+          column.tooltip ? (
+            <StatTooltip
+              key={column.key}
+              text={column.tooltip}
+              onClick={() => {
+                selectSort(column.key)
+              }}
+              className={`${NUMERIC} uppercase tracking-wide transition-colors ${phonePlacement(column.key, sort)} ${
+                column.key === sort
+                  ? "text-blue-400"
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              {column.label}
+              {column.key === sort && (direction === "desc" ? " ↓" : " ↑")}
+            </StatTooltip>
+          ) : (
+            <button
+              key={column.key}
+              onClick={() => {
+                selectSort(column.key)
+              }}
+              title={column.title}
+              className={`${NUMERIC} uppercase tracking-wide cursor-pointer transition-colors ${phonePlacement(column.key, sort)} ${
+                column.key === sort
+                  ? "text-blue-400"
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              {column.label}
+              {column.key === sort && (direction === "desc" ? " ↓" : " ↑")}
+            </button>
+          ),
+        )}
       </div>
 
       {ranked.length === 0 && lowSample.length === 0 && (
